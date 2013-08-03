@@ -11,13 +11,35 @@ As an example, let's say you need to read/parse a file and get some data from a 
 
 The file structure is fairly simple. 
 
-* [index.js](# ) This is the node module entry point and only relevant file. It is a small file.
+* [index.js](#main "save:") This is the node module entry point and only relevant file. It is a small file.
 * [README.md](#readme "save:| clean raw") The standard README.
 * [package.json](#npm-package "save: json  | jshint") The requisite package file for a npm project. 
 * [TODO.md](#todo "save: | clean raw") A list of growing and shrinking items todo.
 * [LICENSE](#license-mit "save: | clean raw") The MIT license.
 
-## 
+## Main
+
+This is the main structure of the module file.
+
+    var EvW = _"constructor";
+
+    EvW.prototype.on = _"on";
+    EvW.prototype.emit = _"emit";
+    EvW.prototype.off = _"off";
+    EvW.prototype.stop = _"stop";
+    EvW.prototype.resume = _"resume";
+
+    EvW.prototype.next =  (typeof process !== "undefined" && process.nextTick) ? process.nextTick : (function (f) {setTimeout(f, 0);});
+
+    EvW.prototype.dump = function () {
+        return [handlers, queue, log];
+    };
+
+//        gcd.resume = (_":resume")(gcd);
+
+
+
+### Constructor
 
 This manages a global queue of events. 
 
@@ -28,27 +50,14 @@ JS Main
 
     function () {
 
-        var gcd = {};
+        var handlers = this._handlers = {};
+        var queue = this._queue = [];
 
-        var handlers = gcd._handlers = {};
-        var queue = gcd._queue = [];
-
-        gcd.emit = _":emit";
-        gcd.on = _":on";
-        gcd.off = _":off";
-        gcd.stop = _":stop";
-        gcd.resume = (_":resume")(gcd);
-
-        gcd.next =  (typeof process !== "undefined" && process.nextTick) ? process.nextTick : (function (f) {setTimeout(f, 0);});
-
-        gcd.dump = function () {
-            return [handlers, queue, log];
-        };
-
-        return gcd; 
+        return this; 
     }
 
-JS emit
+
+### Emit
 
 Given an event string, we run through the handlers, passing in the data, invoker to construct the array to be added to the queue. If immediate is TRUE, we put it at the top of the queue. Otherwise it goes at the end. 
     
@@ -77,8 +86,106 @@ Given an event string, we run through the handlers, passing in the data, invoker
         }
         return this;
     }
-    
-JS resume
+
+
+### On
+
+Takes in an event and a function. It also has an optional this; if none specified, an empty object is used. Note that this will be overwritten by the event binder if specified. 
+
+    function (ev, f, that, first) {
+        ev = ev.toLowerCase();
+        that = that || {};
+        if (handlers.hasOwnProperty(ev)) {
+            if (first) {
+                handlers[ev].unshift([f, that]);
+            } else {
+                handlers[ev].push([f, that]);
+            }
+        } else {
+            handlers[ev] = [[f,that]];
+        }
+
+        return this;
+    }
+
+
+### Off
+
+This removes handlers. 
+
+    function (ev, fun) {
+
+        if (ev) {
+            ev = ev.toLowerCase();
+        }
+
+        if (arguments.length === 0) {
+            (_":empty object")(handlers);
+        } if (arguments.length === 1) {
+            delete handlers[ev];
+        } if (arguments.length === 2) {
+            (_":remove handler")(handlers[ev], fun);
+        }
+
+        return this;
+    }
+
+[empty object](# "js")
+
+Just need to empty the object.
+
+    function (obj) {
+        var key; 
+        for (key in obj) {
+            if (obj.hasOwnProperty(key)) {
+                delete obj.key;
+            }
+        }
+    }
+
+[remove handler](# "js")
+
+    function (handlers, f) {
+        var i, n = handlers.length;
+        for (i = 0; i < n; i += 1) {
+            if (handlers[i][0] === f) {
+                handlers.splice(i, 1);
+                i -= 1;
+            }
+        }
+    }   
+
+
+
+### Stop
+
+Clear queued up events. Each element of the queue is an array of the [event name, data, [ [handler, invoker] ... ]]
+
+    function (a) {
+        var i, n; 
+
+        if (arguments.length === 0) {
+            while (queue.length > 0 ) {
+                queue.pop();
+            }
+        }
+        if (typeof a === "string") {
+            n = queue.length;
+            for (i = 0; i < n; i += 1) {
+                if (queue[i][0] === a) {
+                    queue.slice(i, 1);
+                    i -= 1; 
+                }
+            }
+        }
+        if (a === true) {
+            queue.shift();
+        }
+
+        return this;
+    }
+
+### Resume
 
 This continues progress through the queue. We use either setTimeout (browser) or nextTick (node) to allow for other stuff to happen in between each handle call. 
 
@@ -113,99 +220,7 @@ As this is called without context, we return the resume function with an explici
          };
     }
 
-JS on
 
-Takes in an event and a function. It also has an optional this; if none specified, an empty object is used. Note that this will be overwritten by the event binder if specified. 
-
-    function (ev, f, that, first) {
-        ev = ev.toLowerCase();
-        that = that || {};
-        if (handlers.hasOwnProperty(ev)) {
-            if (first) {
-                handlers[ev].unshift([f, that]);
-            } else {
-                handlers[ev].push([f, that]);
-            }
-        } else {
-            handlers[ev] = [[f,that]];
-        }
-
-        return this;
-    }
-
-JS off
-
-This removes handlers. 
-
-    function (ev, fun) {
-
-        if (ev) {
-            ev = ev.toLowerCase();
-        }
-
-        if (arguments.length === 0) {
-            (_":empty object")(handlers);
-        } if (arguments.length === 1) {
-            delete handlers[ev];
-        } if (arguments.length === 2) {
-            (_":remove handler")(handlers[ev], fun);
-        }
-
-        return this;
-    }
-
-JS empty object
-
-Just need to empty the object.
-
-    function (obj) {
-        var key; 
-        for (key in obj) {
-            if (obj.hasOwnProperty(key)) {
-                delete obj.key;
-            }
-        }
-    }
-
-JS remove handler
-
-    function (handlers, f) {
-        var i, n = handlers.length;
-        for (i = 0; i < n; i += 1) {
-            if (handlers[i][0] === f) {
-                handlers.splice(i, 1);
-                i -= 1;
-            }
-        }
-    }   
-
-JS stop
-
-Clear queued up events. Each element of the queue is an array of the [event name, data, [ [handler, invoker] ... ]]
-
-    function (a) {
-        var i, n; 
-
-        if (arguments.length === 0) {
-            while (queue.length > 0 ) {
-                queue.pop();
-            }
-        }
-        if (typeof a === "string") {
-            n = queue.length;
-            for (i = 0; i < n; i += 1) {
-                if (queue[i][0] === a) {
-                    queue.slice(i, 1);
-                    i -= 1; 
-                }
-            }
-        }
-        if (a === true) {
-            queue.shift();
-        }
-
-        return this;
-    }
 
 ## README
 
