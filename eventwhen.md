@@ -1,4 +1,4 @@
-# [event-block](# "version: 0.1.0 | jostylr")
+# [event-when](# "version: 0.1.0 | jostylr")
 
 This is my own little event library. It has most the usual methods and conventions, more or less. 
 
@@ -17,12 +17,9 @@ The file structure is fairly simple.
 * [TODO.md](#todo "save: | clean raw") A list of growing and shrinking items todo.
 * [LICENSE](#license-mit "save: | clean raw") The MIT license.
 
-##  gcd
+## 
 
 This manages a global queue of events. 
-
-MD Signatures
-
 
 We will implement this by having a closure over an object whose keys are the event strings. We will also have an event queue.
 
