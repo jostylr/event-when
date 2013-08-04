@@ -35,7 +35,6 @@ This is the main structure of the module file.
         return [handlers, queue, log];
     };
 
-//        gcd.resume = (_":resume")(gcd);
 
 
 
@@ -45,13 +44,16 @@ This manages a global queue of events.
 
 We will implement this by having a closure over an object whose keys are the event strings. We will also have an event queue.
 
+We bind resume to this since it will be passed in without context to the next function. 
 
 JS Main
 
     function () {
 
-        var handlers = this._handlers = {};
-        var queue = this._queue = [];
+        var this._handlers = {};
+        var this._queue = [];
+
+        var this.resume = resume.bind(this);
 
         return this; 
     }
@@ -59,50 +61,49 @@ JS Main
 
 ### Emit
 
-Given an event string, we run through the handlers, passing in the data, invoker to construct the array to be added to the queue. If immediate is TRUE, we put it at the top of the queue. Otherwise it goes at the end. 
+Given an event string, we run through the handlers, passing in the data to construct the array to be added to the queue. If immediate is TRUE, we put it at the top of the queue. Otherwise it goes at the end. 
     
-    function (ev, data, that, immediate) {
+    function (ev, data,  immediate) {
         if (this.log) {
-            this.log(ev, data, that, immediate, handlers[ev]);
+            this.log(ev, data, immediate, handlers[ev]);
         }
 
         ev = ev.toLowerCase();
 
-        var h = handlers[ev], i, n, q;
+        var h = this._handlers[ev], q;
 
         if (h) {
-            q = [];
-            n = h.length;
-            for (i = 0; i < n; i+=1 ) {
-                q.push([h[i][0], that || h[i][1] || {}]);
-            }
-            q = [ev, data || {}, q];
+            q = [ev, data || {}, [].concat(h)];
             if (immediate === true) {
-                queue.unshift(q);
+                this._queue.unshift(q);
             } else {
-                queue.push(q);
+                this._queue.push(q);
             }
             this.resume();
         }
         return this;
     }
 
+### Emit When
+
+This is the key innovation. The idea is that once this is called, handlers are created and attached to all events with 
+
 
 ### On
 
-Takes in an event and a function. It also has an optional this; if none specified, an empty object is used. Note that this will be overwritten by the event binder if specified. 
+Takes in an event and a function. It also has an optional this; if none specified, an empty object is used. If first is used, the function is put at the start of the (current) handler array. 
 
-    function (ev, f, that, first) {
+    function (ev, f, first) {
         ev = ev.toLowerCase();
-        that = that || {};
+        var handlers = this._handlers;
         if (handlers.hasOwnProperty(ev)) {
             if (first) {
-                handlers[ev].unshift([f, that]);
+                handlers[ev].unshift(f);
             } else {
-                handlers[ev].push([f, that]);
+                handlers[ev].push(f);
             }
         } else {
-            handlers[ev] = [[f,that]];
+            handlers[ev] = [f];
         }
 
         return this;
@@ -115,6 +116,8 @@ This removes handlers.
 
     function (ev, fun) {
 
+        var handlers = this._handlers;
+
         if (ev) {
             ev = ev.toLowerCase();
         }
@@ -124,7 +127,7 @@ This removes handlers.
         } if (arguments.length === 1) {
             delete handlers[ev];
         } if (arguments.length === 2) {
-            (_":remove handler")(handlers[ev], fun);
+            _":remove handler"
         }
 
         return this;
@@ -145,39 +148,47 @@ Just need to empty the object.
 
 [remove handler](# "js")
 
-    function (handlers, f) {
-        var i, n = handlers.length;
-        for (i = 0; i < n; i += 1) {
-            if (handlers[i][0] === f) {
-                handlers.splice(i, 1);
-                i -= 1;
-            }
+    handlers[ev] = handlers[ev].filter(function (el) {
+        if (el === fun) {
+            return false;
+        } else {
+            return true;
         }
-    }   
+    }); 
 
 
 
 ### Stop
 
-Clear queued up events. Each element of the queue is an array of the [event name, data, [ [handler, invoker] ... ]]
+Clear queued up events. Each element of the queue is an array of the [event name, data, [ handler,  ... ]]
+
+* No args removes all events
+* string arg  removes the event string
+* true arg  removes the next element. 
+
+---
 
     function (a) {
         var i, n; 
+        var queue = this._queue;
 
         if (arguments.length === 0) {
             while (queue.length > 0 ) {
                 queue.pop();
             }
         }
+
         if (typeof a === "string") {
-            n = queue.length;
-            for (i = 0; i < n; i += 1) {
-                if (queue[i][0] === a) {
-                    queue.slice(i, 1);
-                    i -= 1; 
+            this._queue = queue.filter(function (el) {
+                if (el === a) {
+                    return false;
+                } else {
+                    return true;
                 }
-            }
+            });
         }
+
+
         if (a === true) {
             queue.shift();
         }
@@ -189,35 +200,34 @@ Clear queued up events. Each element of the queue is an array of the [event name
 
 This continues progress through the queue. We use either setTimeout (browser) or nextTick (node) to allow for other stuff to happen in between each handle call. 
 
-As this is called without context, we return the resume function with an explicit binding to gcd instead of this. 
+As this is called without context, we return the resume function with an explicit binding to the instance instead of this. 
 
-    function (gcd) {
-        return function () {
-            var q, h, f, that, ev, data, cont, cur; 
-            console.log(queue.slice());
-            if (queue.length >0) {
-                cur = queue[0];
-                q = cur[2];
-                h = q.shift();
-                if (q.length === 0) {
-                    queue.shift();
+     function () {
+        var q, h, f, ev, data, cont, cur; 
+        var queue = this._queue;
+
+        console.log(queue.slice());
+        if (queue.length >0) {
+            cur = queue[0];
+            q = cur[2];
+            h = q.shift();
+            if (q.length === 0) {
+                queue.shift();
+            }
+            if (h) {
+                f = h[0];
+                ev = cur[0];
+                data = cur[1];
+                if (f.log) {
+                    f.log(ev, data);
                 }
-                if (h) {
-                    f = h[0];
-                    that = h[1];
-                    ev = cur[0];
-                    data = cur[1];
-                    if (f.log) {
-                        f.log(ev, data, that);
-                    }
-                    cont = f.call(that, data);
-                    if (cont === false) {
-                        queue.shift(); 
-                    }
+                cont = f(data);
+                if (cont === false) {
+                    queue.shift(); 
                 }
-                gcd.next(gcd.resume);
-             }
-         };
+            }
+            this.next(this.resume);
+        }
     }
 
 
@@ -241,8 +251,9 @@ We can then implement this with  `evw.emitWhen("data is ready", ["file parsed", 
 
  All methods return the object itself for chaining.
 
-* .emit(str event, [obj data], [obj invoker], [bool immediate] ). Invokes all attached functions to Event, passing in the Data object as the only argument to the attached functions. The function will be called in the context of Invoker or an empty object. returns gcd. If third or fourth argument is a boolean and is TRUE, then the event is acted on immediately. Otherwise the event is invoked after current queue is cleared.
-* .on(str event, fun handle, [obj invoker], [bool first])  Attaches function Handle to the string Event. The function gets stored in the .last property; (in case of anonymous function, this might be useful). If third argument is present, then the function will be bound to that invoker. This binding will get overriden on a per event basis if an invoker is used. No invoker leads to an empty object being used. The boolean first if present and TRUE will lead to the handle being pushed in front of the current handlers on the event. 
+* .emit(str event, [obj data], [bool immediate] ). Invokes all attached functions to Event, passing in the Data object as the only argument to the attached functions. If third argument is a boolean and is TRUE, then the event is acted on immediately. Otherwise the event is invoked after current queue is cleared.
+.emitWhen(str event, [fired events], [bool immediate] ) This has the same semantics as emit except the [fired events] array has a series of events that must occur (any order) before this event is emitted. The object data of each fired event is merged in with the others for the final data object.
+* .on(str event, fun handle, [bool first])  Attaches function Handle to the string  Event. The function gets stored in the .last property; (in case of anonymous function (maybe binding in progress), this might be useful). The boolean first if present and TRUE will lead to the handle being pushed in front of the current handlers on the event. 
 * .off(str event, fun handle) Removes function Handle from Event. 
 * .off(str event) Removes all function handlers on Event. 
 * .off()  Removes all events. Ouch. 
