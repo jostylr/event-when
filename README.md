@@ -15,11 +15,12 @@ We can then implement this with  `evw.emitWhen("data is ready", ["file parsed", 
 
 All methods return the object itself for chaining.
 
-* .emit(str event, [obj data], [bool immediate] ). Invokes all attached functions to Event, passing in the Data object as the only argument to the attached functions. If third argument is a boolean and is TRUE, then the event is acted on immediately. Otherwise the event is invoked after current queue is cleared.
-.emitWhen(str event, [fired events], [bool immediate] ) This has the same semantics as emit except the [fired events] array has a series of events that must occur (any order) before this event is emitted. The object data of each fired event is merged in with the others for the final data object.
+* .emit(str event, [obj data], [bool immediate] ). Invokes all attached functions to Event, passing in the Data object and event string as the two arguments to the attached functions. If third argument is a boolean and is TRUE, then the event is acted on immediately. Otherwise the event is invoked after current queue is cleared.
+.emitWhen(str event, [fired events], [bool immediate] ) This has the same semantics as emit except the [fired events] array has a series of events that must occur (any order) before this event is emitted. The object data of each fired event is merged in with the others for the final data object. Each fired event could be an array consisting of [event, number of times, bool first]. This allows for waiting for multiple times (such as waiting until a user clicks a button 10 times to intervene with anger management). 
 * .on(str event, fun handle, [bool first])  Attaches function Handle to the string  Event. The function gets stored in the .last property; (in case of anonymous function (maybe binding in progress), this might be useful). The boolean first if present and TRUE will lead to the handle being pushed in front of the current handlers on the event. 
 * .off(str event, fun handle) Removes function Handle from Event. 
 * .off(str event) Removes all function handlers on Event. 
+* Both variants of .off above also have optional boolean that if true will prevent the removal of when handles from their tracker objects meaning those events may never fire. 
 * .off()  Removes all events. Ouch. 
 * .stop([str event/bool current]) Removes queued handlers either globally (no args), on an event (str given), or current (TRUE)
 

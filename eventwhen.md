@@ -11,7 +11,7 @@ As an example, let's say you need to read/parse a file and get some data from a 
 
 The file structure is fairly simple. 
 
-* [index.js](#main "save:") This is the node module entry point and only relevant file. It is a small file.
+* [index.js](#main "save:|jshint") This is the node module entry point and only relevant file. It is a small file.
 * [README.md](#readme "save:| clean raw") The standard README.
 * [package.json](#npm-package "save: json  | jshint") The requisite package file for a npm project. 
 * [TODO.md](#todo "save: | clean raw") A list of growing and shrinking items todo.
@@ -21,7 +21,41 @@ The file structure is fairly simple.
 
 This is the main structure of the module file.
 
+    /*global setTimeout, process, module */
     var EvW = _"constructor";
+
+    _"constructor:prototype"
+
+    var Tracker = _"tracker";
+
+    _"tracker:prototype"
+
+
+    module.exports = EvW;
+
+### Constructor
+
+This manages an event emitter.
+
+We use (not)private variables `_handlers` and `_queue` for the, well, handlers and queue of currently firing events. 
+
+We bind resume to the instance since it will be passed in without context to the next function. 
+
+
+    function () {
+        var evw = this;
+
+        this._handlers = {};
+        this._queue = [];
+
+        evw.resume = evw.resume.bind(evw);
+
+        return this; 
+    }
+
+[prototype](# "js")
+
+The various prototype methods on the event emitter. 
 
     EvW.prototype.on = _"on";
     EvW.prototype.emit = _"emit";
@@ -31,32 +65,10 @@ This is the main structure of the module file.
 
     EvW.prototype.next =  (typeof process !== "undefined" && process.nextTick) ? process.nextTick : (function (f) {setTimeout(f, 0);});
 
-    EvW.prototype.dump = function () {
-        return [handlers, queue, log];
+    EvW.prototype.next = function (f) {
+        console.log(this.greeting);
+        EvW.prototype.next(f);
     };
-
-
-
-
-### Constructor
-
-This manages a global queue of events. 
-
-We will implement this by having a closure over an object whose keys are the event strings. We will also have an event queue.
-
-We bind resume to this since it will be passed in without context to the next function. 
-
-JS Main
-
-    function () {
-
-        var this._handlers = {};
-        var this._queue = [];
-
-        var this.resume = resume.bind(this);
-
-        return this; 
-    }
 
 
 ### Emit
@@ -64,11 +76,12 @@ JS Main
 Given an event string, we run through the handlers, passing in the data to construct the array to be added to the queue. If immediate is TRUE, we put it at the top of the queue. Otherwise it goes at the end. 
     
     function (ev, data,  immediate) {
+
+
         if (this.log) {
-            this.log(ev, data, immediate, handlers[ev]);
+            this.log("emit", ev, data, immediate);
         }
 
-        ev = ev.toLowerCase();
 
         var h = this._handlers[ev], q;
 
@@ -79,22 +92,228 @@ Given an event string, we run through the handlers, passing in the data to const
             } else {
                 this._queue.push(q);
             }
-            this.resume();
+            this.resume()
         }
         return this;
     }
 
 ### Emit When
 
-This is the key innovation. The idea is that once this is called, handlers are created and attached to all events with 
+This is the key innovation. The idea is that once this is called, a handler is created that attaches to all the listed events and takes care of figuring when they have all called. 
+
+This handler is stored in the `.last` property (until the next handler assignment). The handler exposes methods to manage the addition and removal of the events. 
+
+As each event fires, this handler merges in the data object to the existing data. It also stores the original data object in _archive[event name] = ... in the data object passed to the event for posterity, log recordings, and hacking. 
+
+The immediate flag is passed on to emit with the event `ev` finally fires.
+
+    function (ev, events, immediate) {        
+
+        if (this.log) {
+            this.log("emit when", ev, events, immediate);
+        }
+
+
+        var tracker = new this.Tracker();
+
+        tracker.event = ev;
+        tracker.emitter = this;
+        tracker.immediate = immediate;
+
+        var handler = function (data, fired) {
+            tracker.addData(data, fired); 
+            tracker.remove(fired);
+            return true;
+        }
+
+
+        handler.tracker = tracker;
+
+        tracker.handler = handler; 
+
+        tracker.add(events);
+
+        this.last = handler;
+
+        return this;
+    }
+
+
+
+#### Tracker 
+
+The tracker object is used to track all the data and what events are available. Controlling it controls the queue fo the when emit. 
+
+    function (events) {
+        this.events = {};
+        this.data = {_archive : {} };
+
+        this.add(events);
+
+        return this;
+    }
+
+
+[prototype](# "js")
+
+THe various prototype methods for the tracker object. 
+
+    Tracker.prototype.add = _"tracker:add";
+    Tracker.prototype.remove = _"tracker:remove";
+    Tracker.prototype.removeStr = _"tracker:remove string";
+    Tracker.prototype.go = _"tracker:go";
+    Tracker.prototype.addData = _"tracker:add data";
+    Tracker.prototype.cancel = _"tracker:cancel";
+
+
+[add](# "js") 
+
+We can add events on to the tracker.
+
+    function () {
+        var tracker = this,
+            archive = tracker.data._archive,
+            args = [].concat(arguments),
+            events = tracker.events;
+
+
+        args.forEach(function (el) {
+            var num, str, order;
+            if (typeof el === "string") {
+                str = el;
+                num = 1;
+                order = false;
+            }
+            if (Array.isArray(el) ) {
+                if ((typeof el[1] === "number") && (el[1] >= 1) && (typeof el[0] === "string") ) {
+                    num = Math.round(el[1]);
+                    str = el[0];
+                    order = el[2] || false;
+                } 
+            }
+            if (str && num) {
+                if (events.hasOwnProperty(str) ) {
+                    events[str] += num;
+                } else {
+                    tracker.emitter.on(str, this.handler, order);
+                    if (! (archive.hasOwnProperty(str) ) ) {
+                        tracker.data._archive[str] = [];
+                    }
+                    events[str] = num;
+                }
+            } 
+        });
+    }
+
+
+[remove](# "js")  
+
+We can remove the events.
+
+    function () {
+        var tracker = this,
+            args = [].concat(arguments),
+            events = tracker.events;
+
+
+        args.forEach(function (el) {
+            var num, str;
+            if (typeof el === "string") {
+                str = el;
+                num = 1;
+            }
+            if (Array.isArray(el) ) {
+                if ((typeof el[1] === "number") && (el[1] >= 1) && (typeof el[0] === "string") ) {
+                    num = Math.round(el[1]);
+                    str = el[0];
+                } 
+            }
+            if (str && num) {
+                if (events.hasOwnProperty(str) ) {
+                    events[str] -= num;
+                    if (events[str] <= 0) {
+                        delete events[str];
+                        tracker.emitter.off(str, this.handler);
+                    }
+                } 
+            } 
+        });
+        tracker.go();
+    }
+    
+[remove string](# "js")
+
+This is mainly for use with the `.off` method where the handler has already been removed from the event. This takes in just a string and removes the event entirely from the events object. It then runs `go` to see if emit time is ready.
+
+    function (ev) {
+        var tracker = this;
+
+        delete tracker.events[ev];
+
+        tracker.go();
+    }
+
+[add data](# "js")
+
+When an event fires, that data gets merged in with all previous data for the emitWhen. We also keep a record of it in the `_archive` of the  data object. 
+
+
+    function (eventData, event) {
+        var tracker = this,
+            data = tracker.data,
+            key;
+
+        for (key in eventData) {
+            data[key] = eventData[key];
+        }
+
+        data._archive[event].push(eventData);
+
+    }
+
+
+[cancel](# "js")
+
+This cancels the emitWhen, removing the handler from all remaining events. 
+
+    function () {
+        var tracker = this, 
+            emitter = tracker.emitter,
+            handler = tracker.handler,
+            event, keys;
+        
+        keys = Object.keys(tracker.events);
+
+        for (event in keys) {
+            emitter.off(event, handler);
+        }
+
+    }
+
+[go](# "js")
+
+This is the primary activator. 
+
+    function () {
+        var tracker = this;
+
+        if (Object.keys(tracker.events).length === 0) {
+            tracker.emitter.emit(tracker.ev, tracker.data, tracker.immediate);
+        }
+
+        return true;
+    }
+
+
 
 
 ### On
 
 Takes in an event and a function. It also has an optional this; if none specified, an empty object is used. If first is used, the function is put at the start of the (current) handler array. 
 
+The function will be passed a data object and the event whose firing triggered. It will be called without context unless it is bound with .bind
+
     function (ev, f, first) {
-        ev = ev.toLowerCase();
         var handlers = this._handlers;
         if (handlers.hasOwnProperty(ev)) {
             if (first) {
@@ -106,47 +325,50 @@ Takes in an event and a function. It also has an optional this; if none specifie
             handlers[ev] = [f];
         }
 
+        this.last = f;
+
         return this;
     }
 
 
 ### Off
 
-This removes handlers. 
+This removes handlers. The blockwhen boolean, when true, will leave the when handlers on the when events. This effectively blocks those events from happening until some manual reworking on the event. Since the no argument function wipes out all handlers, period, we do not need to worry here. 
 
-    function (ev, fun) {
+    function (ev, fun, nowhen) {
 
         var handlers = this._handlers;
+        var h, f;
 
-        if (ev) {
-            ev = ev.toLowerCase();
-        }
 
         if (arguments.length === 0) {
-            (_":empty object")(handlers);
-        } if (arguments.length === 1) {
-            delete handlers[ev];
-        } if (arguments.length === 2) {
-            _":remove handler"
+            this._handlers = {};
+            return this;
         }
 
+        if (typeof fun === "function") {
+            _":remove handler"
+            return this;
+        }
+
+        if (typeof fun === "boolean") {
+            nowhen = fun;
+        }
+
+        if (nowhen === true) {
+            delete handlers[ev];
+            return this;
+        } else {
+            _":remove handlers checking for when handlers"
+        }            
+        
         return this;
     }
 
-[empty object](# "js")
-
-Just need to empty the object.
-
-    function (obj) {
-        var key; 
-        for (key in obj) {
-            if (obj.hasOwnProperty(key)) {
-                delete obj.key;
-            }
-        }
-    }
 
 [remove handler](# "js")
+
+This will remove all duplicate handlers of the passed in function as well.
 
     handlers[ev] = handlers[ev].filter(function (el) {
         if (el === fun) {
@@ -155,6 +377,22 @@ Just need to empty the object.
             return true;
         }
     }); 
+    if ( (nowhen !== true) && fun.hasOwnProperty("tracker") )  {
+        fun.tracker.removeStr(ev);
+    }
+
+
+[remove handlers checking for when handlers](# "js")
+
+    
+    h = handlers[ev];
+    while (h.length > 0) {
+        f = h.pop();
+        if (fun.hasOwnProperty("tracker") ) {
+            fun.tracker.removeStr(ev);
+        }
+    }
+    delete handlers[ev];
 
 
 
@@ -169,7 +407,6 @@ Clear queued up events. Each element of the queue is an array of the [event name
 ---
 
     function (a) {
-        var i, n; 
         var queue = this._queue;
 
         if (arguments.length === 0) {
@@ -203,25 +440,24 @@ This continues progress through the queue. We use either setTimeout (browser) or
 As this is called without context, we return the resume function with an explicit binding to the instance instead of this. 
 
      function () {
+
         var q, h, f, ev, data, cont, cur; 
         var queue = this._queue;
 
-        console.log(queue.slice());
         if (queue.length >0) {
             cur = queue[0];
             q = cur[2];
-            h = q.shift();
+            f = q.shift();
             if (q.length === 0) {
                 queue.shift();
             }
-            if (h) {
-                f = h[0];
+            if (f) {
                 ev = cur[0];
                 data = cur[1];
                 if (f.log) {
                     f.log(ev, data);
                 }
-                cont = f(data);
+                cont = f(data, ev);
                 if (cont === false) {
                     queue.shift(); 
                 }
@@ -251,11 +487,12 @@ We can then implement this with  `evw.emitWhen("data is ready", ["file parsed", 
 
  All methods return the object itself for chaining.
 
-* .emit(str event, [obj data], [bool immediate] ). Invokes all attached functions to Event, passing in the Data object as the only argument to the attached functions. If third argument is a boolean and is TRUE, then the event is acted on immediately. Otherwise the event is invoked after current queue is cleared.
-.emitWhen(str event, [fired events], [bool immediate] ) This has the same semantics as emit except the [fired events] array has a series of events that must occur (any order) before this event is emitted. The object data of each fired event is merged in with the others for the final data object.
+* .emit(str event, [obj data], [bool immediate] ). Invokes all attached functions to Event, passing in the Data object and event string as the two arguments to the attached functions. If third argument is a boolean and is TRUE, then the event is acted on immediately. Otherwise the event is invoked after current queue is cleared.
+.emitWhen(str event, [fired events], [bool immediate] ) This has the same semantics as emit except the [fired events] array has a series of events that must occur (any order) before this event is emitted. The object data of each fired event is merged in with the others for the final data object. Each fired event could be an array consisting of [event, number of times, bool first]. This allows for waiting for multiple times (such as waiting until a user clicks a button 10 times to intervene with anger management). 
 * .on(str event, fun handle, [bool first])  Attaches function Handle to the string  Event. The function gets stored in the .last property; (in case of anonymous function (maybe binding in progress), this might be useful). The boolean first if present and TRUE will lead to the handle being pushed in front of the current handlers on the event. 
 * .off(str event, fun handle) Removes function Handle from Event. 
 * .off(str event) Removes all function handlers on Event. 
+* Both variants of .off above also have optional boolean that if true will prevent the removal of when handles from their tracker objects meaning those events may never fire. 
 * .off()  Removes all events. Ouch. 
 * .stop([str event/bool current]) Removes queued handlers either globally (no args), on an event (str given), or current (TRUE)
 

@@ -1,34 +1,38 @@
+/*global setTimeout, process, module */
 var EvW = function () {
-
-    var this._handlers = {};
-    var this._queue = [];
-
-    var this.resume = resume.bind(this);
-
-    return this; 
-};
+        var evw = this;
+    
+        this._handlers = {};
+        this._queue = [];
+    
+        evw.resume = evw.resume.bind(evw);
+    
+        return this; 
+    };
 
 EvW.prototype.on = function (ev, f, first) {
-        ev = ev.toLowerCase();
-        var handlers = this._handlers;
-        if (handlers.hasOwnProperty(ev)) {
-            if (first) {
-                handlers[ev].unshift(f);
-            } else {
-                handlers[ev].push(f);
-            }
+    var handlers = this._handlers;
+    if (handlers.hasOwnProperty(ev)) {
+        if (first) {
+            handlers[ev].unshift(f);
         } else {
-            handlers[ev] = [f];
+            handlers[ev].push(f);
         }
-    
-        return this;
-    };
+    } else {
+        handlers[ev] = [f];
+    }
+
+    this.last = f;
+
+    return this;
+};
 EvW.prototype.emit = function (ev, data,  immediate) {
-        if (this.log) {
-            this.log(ev, data, immediate, handlers[ev]);
-        }
     
-        ev = ev.toLowerCase();
+        console.log("hey");
+    
+        if (this.log) {
+            this.log("emit", ev, data, immediate);
+        }
     
         var h = this._handlers[ev], q;
     
@@ -39,30 +43,21 @@ EvW.prototype.emit = function (ev, data,  immediate) {
             } else {
                 this._queue.push(q);
             }
-            this.resume();
+            this.resume()
         }
         return this;
     };
-EvW.prototype.off = function (ev, fun) {
+EvW.prototype.off = function (ev, fun, nowhen) {
     
         var handlers = this._handlers;
-    
-        if (ev) {
-            ev = ev.toLowerCase();
-        }
+        var h, f;
     
         if (arguments.length === 0) {
-            (function (obj) {
-                    var key; 
-                    for (key in obj) {
-                        if (obj.hasOwnProperty(key)) {
-                            delete obj.key;
-                        }
-                    }
-                })(handlers);
-        } if (arguments.length === 1) {
-            delete handlers[ev];
-        } if (arguments.length === 2) {
+            this._handlers = {};
+            return this;
+        }
+    
+        if (typeof fun === "function") {
             handlers[ev] = handlers[ev].filter(function (el) {
                 if (el === fun) {
                     return false;
@@ -70,12 +65,33 @@ EvW.prototype.off = function (ev, fun) {
                     return true;
                 }
             }); 
+            if ( (nowhen !== true) && fun.hasOwnProperty("tracker") )  {
+                fun.tracker.removeStr(ev);
+            }
+            return this;
         }
     
+        if (typeof fun === "boolean") {
+            nowhen = fun;
+        }
+    
+        if (nowhen === true) {
+            delete handlers[ev];
+            return this;
+        } else {
+            h = handlers[ev];
+            while (h.length > 0) {
+                f = h.pop();
+                if (fun.hasOwnProperty("tracker") ) {
+                    fun.tracker.removeStr(ev);
+                }
+            }
+            delete handlers[ev];
+        }            
+        
         return this;
     };
 EvW.prototype.stop = function (a) {
-        var i, n; 
         var queue = this._queue;
     
         if (arguments.length === 0) {
@@ -101,25 +117,24 @@ EvW.prototype.stop = function (a) {
         return this;
     };
 EvW.prototype.resume =  function () {
+    
         var q, h, f, ev, data, cont, cur; 
         var queue = this._queue;
     
-        console.log(queue.slice());
         if (queue.length >0) {
             cur = queue[0];
             q = cur[2];
-            h = q.shift();
+            f = q.shift();
             if (q.length === 0) {
                 queue.shift();
             }
-            if (h) {
-                f = h[0];
+            if (f) {
                 ev = cur[0];
                 data = cur[1];
                 if (f.log) {
                     f.log(ev, data);
                 }
-                cont = f(data);
+                cont = f(data, ev);
                 if (cont === false) {
                     queue.shift(); 
                 }
@@ -130,6 +145,122 @@ EvW.prototype.resume =  function () {
 
 EvW.prototype.next =  (typeof process !== "undefined" && process.nextTick) ? process.nextTick : (function (f) {setTimeout(f, 0);});
 
-EvW.prototype.dump = function () {
-    return [handlers, queue, log];
+EvW.prototype.next = function (f) {
+    console.log(this.greeting);
+    EvW.prototype.next(f);
 };
+
+var Tracker = function (events) {
+        this.events = {};
+        this.data = {_archive : {} };
+    
+        this.add(events);
+    
+        return this;
+    };
+
+Tracker.prototype.add = function () {
+    var tracker = this,
+        archive = tracker.data._archive,
+        args = [].concat(arguments),
+        events = tracker.events;
+
+    args.forEach(function (el) {
+        var num, str, order;
+        if (typeof el === "string") {
+            str = el;
+            num = 1;
+            order = false;
+        }
+        if (Array.isArray(el) ) {
+            if ((typeof el[1] === "number") && (el[1] >= 1) && (typeof el[0] === "string") ) {
+                num = Math.round(el[1]);
+                str = el[0];
+                order = el[2] || false;
+            } 
+        }
+        if (str && num) {
+            if (events.hasOwnProperty(str) ) {
+                events[str] += num;
+            } else {
+                tracker.emitter.on(str, this.handler, order);
+                if (! (archive.hasOwnProperty(str) ) ) {
+                    tracker.data._archive[str] = [];
+                }
+                events[str] = num;
+            }
+        } 
+    });
+};
+Tracker.prototype.remove = function () {
+        var tracker = this,
+            args = [].concat(arguments),
+            events = tracker.events;
+    
+        args.forEach(function (el) {
+            var num, str;
+            if (typeof el === "string") {
+                str = el;
+                num = 1;
+            }
+            if (Array.isArray(el) ) {
+                if ((typeof el[1] === "number") && (el[1] >= 1) && (typeof el[0] === "string") ) {
+                    num = Math.round(el[1]);
+                    str = el[0];
+                } 
+            }
+            if (str && num) {
+                if (events.hasOwnProperty(str) ) {
+                    events[str] -= num;
+                    if (events[str] <= 0) {
+                        delete events[str];
+                        tracker.emitter.off(str, this.handler);
+                    }
+                } 
+            } 
+        });
+        tracker.go();
+    };
+Tracker.prototype.removeStr = function (ev) {
+        var tracker = this;
+    
+        delete tracker.events[ev];
+    
+        tracker.go();
+    };
+Tracker.prototype.go = function () {
+        var tracker = this;
+    
+        if (Object.keys(tracker.events).length === 0) {
+            tracker.emitter.emit(tracker.ev, tracker.data, tracker.immediate);
+        }
+    
+        return true;
+    };
+Tracker.prototype.addData = function (eventData, event) {
+        var tracker = this,
+            data = tracker.data,
+            key;
+    
+        for (key in eventData) {
+            data[key] = eventData[key];
+        }
+    
+        data._archive[event].push(eventData);
+    
+    };
+Tracker.prototype.cancel = function () {
+        var tracker = this, 
+            emitter = tracker.emitter,
+            handler = tracker.handler,
+            event, keys;
+        
+        keys = Object.keys(tracker.events);
+    
+        for (event in keys) {
+            emitter.off(event, handler);
+        }
+    
+    };
+
+module.exports = EvW;
