@@ -28,8 +28,6 @@ EvW.prototype.on = function (ev, f, first) {
 };
 EvW.prototype.emit = function (ev, data,  immediate) {
     
-        console.log("hey");
-    
         if (this.log) {
             this.log("emit", ev, data, immediate);
         }
@@ -144,11 +142,6 @@ EvW.prototype.resume =  function () {
     };
 
 EvW.prototype.next =  (typeof process !== "undefined" && process.nextTick) ? process.nextTick : (function (f) {setTimeout(f, 0);});
-
-EvW.prototype.next = function (f) {
-    console.log(this.greeting);
-    EvW.prototype.next(f);
-};
 
 var Tracker = function (events) {
         this.events = {};

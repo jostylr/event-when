@@ -65,10 +65,6 @@ The various prototype methods on the event emitter.
 
     EvW.prototype.next =  (typeof process !== "undefined" && process.nextTick) ? process.nextTick : (function (f) {setTimeout(f, 0);});
 
-    EvW.prototype.next = function (f) {
-        console.log(this.greeting);
-        EvW.prototype.next(f);
-    };
 
 
 ### Emit
@@ -443,6 +439,7 @@ As this is called without context, we return the resume function with an explici
 
         var q, h, f, ev, data, cont, cur; 
         var queue = this._queue;
+
 
         if (queue.length >0) {
             cur = queue[0];
