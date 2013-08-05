@@ -41,7 +41,7 @@ EvW.prototype.emit = function (ev, data,  immediate) {
             } else {
                 this._queue.push(q);
             }
-            this.resume()
+            this.resume();
         }
         return this;
     };
@@ -116,7 +116,7 @@ EvW.prototype.stop = function (a) {
     };
 EvW.prototype.resume =  function () {
     
-        var q, h, f, ev, data, cont, cur; 
+        var q, f, ev, data, cont, cur; 
         var queue = this._queue;
     
         if (queue.length >0) {
@@ -140,23 +140,55 @@ EvW.prototype.resume =  function () {
             this.next(this.resume);
         }
     };
+EvW.prototype.emitWhen = function (ev, events, immediate) {    
+    
+        var emitter = this;    
+    
+        if (emitter.log) {
+            emitter.log("emit when", ev, events, immediate);
+        }
+    
+        var tracker = new Tracker();
+    
+        tracker.event = ev;
+        tracker.emitter = emitter;
+        tracker.immediate = immediate;
+    
+        var handler = function (data, fired) {
+            tracker.addData(data, fired); 
+            tracker.remove(fired);
+            return true;
+        };
+    
+        handler.tracker = tracker;
+    
+        tracker.handler = handler; 
+    
+        tracker.add(events);
+    
+        emitter.last = handler;
+    
+        return emitter;
+    };
 
 EvW.prototype.next =  (typeof process !== "undefined" && process.nextTick) ? process.nextTick : (function (f) {setTimeout(f, 0);});
 
-var Tracker = function (events) {
+var Tracker = function () {
         this.events = {};
         this.data = {_archive : {} };
-    
-        this.add(events);
     
         return this;
     };
 
-Tracker.prototype.add = function () {
+Tracker.prototype.add = function (args) {
     var tracker = this,
         archive = tracker.data._archive,
-        args = [].concat(arguments),
-        events = tracker.events;
+        events = tracker.events,
+        handle = tracker.handler;
+
+    if (arguments.length !== 1) {
+        args = [].concat(arguments);
+    }
 
     args.forEach(function (el) {
         var num, str, order;
@@ -176,7 +208,7 @@ Tracker.prototype.add = function () {
             if (events.hasOwnProperty(str) ) {
                 events[str] += num;
             } else {
-                tracker.emitter.on(str, this.handler, order);
+                tracker.emitter.on(str, handle, order);
                 if (! (archive.hasOwnProperty(str) ) ) {
                     tracker.data._archive[str] = [];
                 }
@@ -187,7 +219,7 @@ Tracker.prototype.add = function () {
 };
 Tracker.prototype.remove = function () {
         var tracker = this,
-            args = [].concat(arguments),
+            args = Array.prototype.slice.call(arguments, 0),
             events = tracker.events;
     
         args.forEach(function (el) {
@@ -207,7 +239,7 @@ Tracker.prototype.remove = function () {
                     events[str] -= num;
                     if (events[str] <= 0) {
                         delete events[str];
-                        tracker.emitter.off(str, this.handler);
+                        tracker.emitter.off(str, tracker.handler, true);
                     }
                 } 
             } 
@@ -225,7 +257,7 @@ Tracker.prototype.go = function () {
         var tracker = this;
     
         if (Object.keys(tracker.events).length === 0) {
-            tracker.emitter.emit(tracker.ev, tracker.data, tracker.immediate);
+            tracker.emitter.emit(tracker.event, tracker.data, tracker.immediate);
         }
     
         return true;

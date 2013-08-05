@@ -62,6 +62,7 @@ The various prototype methods on the event emitter.
     EvW.prototype.off = _"off";
     EvW.prototype.stop = _"stop";
     EvW.prototype.resume = _"resume";
+    EvW.prototype.emitWhen = _"emit when";
 
     EvW.prototype.next =  (typeof process !== "undefined" && process.nextTick) ? process.nextTick : (function (f) {setTimeout(f, 0);});
 
@@ -88,7 +89,7 @@ Given an event string, we run through the handlers, passing in the data to const
             } else {
                 this._queue.push(q);
             }
-            this.resume()
+            this.resume();
         }
         return this;
     }
@@ -103,24 +104,25 @@ As each event fires, this handler merges in the data object to the existing data
 
 The immediate flag is passed on to emit with the event `ev` finally fires.
 
-    function (ev, events, immediate) {        
+    function (ev, events, immediate) {    
 
-        if (this.log) {
-            this.log("emit when", ev, events, immediate);
+        var emitter = this;    
+
+        if (emitter.log) {
+            emitter.log("emit when", ev, events, immediate);
         }
 
-
-        var tracker = new this.Tracker();
+        var tracker = new Tracker();
 
         tracker.event = ev;
-        tracker.emitter = this;
+        tracker.emitter = emitter;
         tracker.immediate = immediate;
 
         var handler = function (data, fired) {
             tracker.addData(data, fired); 
             tracker.remove(fired);
             return true;
-        }
+        };
 
 
         handler.tracker = tracker;
@@ -129,22 +131,20 @@ The immediate flag is passed on to emit with the event `ev` finally fires.
 
         tracker.add(events);
 
-        this.last = handler;
+        emitter.last = handler;
 
-        return this;
+        return emitter;
     }
 
 
 
 #### Tracker 
 
-The tracker object is used to track all the data and what events are available. Controlling it controls the queue fo the when emit. 
+The tracker object is used to track all the data and what events are available. Controlling it controls the queue of the when emit. 
 
-    function (events) {
+    function () {
         this.events = {};
         this.data = {_archive : {} };
-
-        this.add(events);
 
         return this;
     }
@@ -166,11 +166,15 @@ THe various prototype methods for the tracker object.
 
 We can add events on to the tracker.
 
-    function () {
+    function (args) {
         var tracker = this,
             archive = tracker.data._archive,
-            args = [].concat(arguments),
-            events = tracker.events;
+            events = tracker.events,
+            handle = tracker.handler;
+
+        if (arguments.length !== 1) {
+            args = [].concat(arguments);
+        }
 
 
         args.forEach(function (el) {
@@ -191,7 +195,7 @@ We can add events on to the tracker.
                 if (events.hasOwnProperty(str) ) {
                     events[str] += num;
                 } else {
-                    tracker.emitter.on(str, this.handler, order);
+                    tracker.emitter.on(str, handle, order);
                     if (! (archive.hasOwnProperty(str) ) ) {
                         tracker.data._archive[str] = [];
                     }
@@ -206,10 +210,13 @@ We can add events on to the tracker.
 
 We can remove the events.
 
+Note the `true` for the .off command is to make sure the `.remove` is not called again. Rather important. 
+
     function () {
         var tracker = this,
-            args = [].concat(arguments),
+            args = Array.prototype.slice.call(arguments, 0),
             events = tracker.events;
+
 
 
         args.forEach(function (el) {
@@ -229,7 +236,7 @@ We can remove the events.
                     events[str] -= num;
                     if (events[str] <= 0) {
                         delete events[str];
-                        tracker.emitter.off(str, this.handler);
+                        tracker.emitter.off(str, tracker.handler, true);
                     }
                 } 
             } 
@@ -294,7 +301,7 @@ This is the primary activator.
         var tracker = this;
 
         if (Object.keys(tracker.events).length === 0) {
-            tracker.emitter.emit(tracker.ev, tracker.data, tracker.immediate);
+            tracker.emitter.emit(tracker.event, tracker.data, tracker.immediate);
         }
 
         return true;
@@ -437,7 +444,7 @@ As this is called without context, we return the resume function with an explici
 
      function () {
 
-        var q, h, f, ev, data, cont, cur; 
+        var q, f, ev, data, cont, cur; 
         var queue = this._queue;
 
 
