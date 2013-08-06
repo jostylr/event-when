@@ -63,6 +63,7 @@ The various prototype methods on the event emitter.
     EvW.prototype.stop = _"stop";
     EvW.prototype.resume = _"resume";
     EvW.prototype.emitWhen = _"emit when";
+    EvW.prototype.once = _"once";
 
     EvW.prototype.next =  (typeof process !== "undefined" && process.nextTick) ? process.nextTick : (function (f) {setTimeout(f, 0);});
 
@@ -399,6 +400,40 @@ This will remove all duplicate handlers of the passed in function as well.
 
 
 
+## Once
+
+This method produces a wrapper around a provided function that automatically removes the handler after a certain number of event firings (once is default). To grab the new handler for possible manual removal, check the .last property immediately. 
+
+    function (ev, f, n, first) {
+        var emitter = this, 
+            g;
+
+        // allow shortened list
+        if (arguments.length === 3 && n === true) { 
+            n = 1;
+            first = true; 
+        }
+
+        if (!n) {
+            n = 1;
+        }
+
+        g = function () {
+            n -= 1; 
+            if ( n < 1) {
+                emitter.off(ev, g);
+            }
+            return f.apply(null, arguments); 
+        }
+
+        emitter.on(ev, g, first); 
+
+        return this;
+    }
+
+
+
+
 ### Stop
 
 Clear queued up events. Each element of the queue is an array of the [event name, data, [ handler,  ... ]]
@@ -494,6 +529,8 @@ We can then implement this with  `evw.emitWhen("data is ready", ["file parsed", 
 * .emit(str event, [obj data], [bool immediate] ). Invokes all attached functions to Event, passing in the Data object and event string as the two arguments to the attached functions. If third argument is a boolean and is TRUE, then the event is acted on immediately. Otherwise the event is invoked after current queue is cleared.
 .emitWhen(str event, [fired events], [bool immediate] ) This has the same semantics as emit except the [fired events] array has a series of events that must occur (any order) before this event is emitted. The object data of each fired event is merged in with the others for the final data object. Each fired event could be an array consisting of [event, number of times, bool first]. This allows for waiting for multiple times (such as waiting until a user clicks a button 10 times to intervene with anger management). 
 * .on(str event, fun handle, [bool first])  Attaches function Handle to the string  Event. The function gets stored in the .last property; (in case of anonymous function (maybe binding in progress), this might be useful). The boolean first if present and TRUE will lead to the handle being pushed in front of the current handlers on the event. 
+* .once(str event, fun handle, [int n, [bool first]]) This will fire the handler n times, default of 1 times. This is accomplishd by wrapping the handle in a new function that becomes the actual handler. So to remove the handle, it is necessary to grab the produced handler from `.last` and keep it around.
+* .once(str event, fun handle, [bool first]) With no n and a boolean true, this will place the handler at the top of the firing list and fire it once when the event is emitted. 
 * .off(str event, fun handle) Removes function Handle from Event. 
 * .off(str event) Removes all function handlers on Event. 
 * Both variants of .off above also have optional boolean that if true will prevent the removal of when handles from their tracker objects meaning those events may never fire. 
@@ -507,8 +544,6 @@ Logging of single events can be done by passing an event logging function. To lo
 Events will be converted to all lower case on lookup.
 
 ## TODO
-
-implement .once  with an optional n parameter. wrap the function into a handler that keeps track and then removes itself. 
 
 add in to emitwhen the option to have the event be a function called or an array of function/events. 
 

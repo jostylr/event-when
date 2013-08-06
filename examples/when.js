@@ -1,7 +1,6 @@
 /*global require, console*/
 
 var EventWhen = require('../index.js');
-
 var emitter = new EventWhen();
 
 emitter.on("test 1 on", function () {

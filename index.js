@@ -170,6 +170,32 @@ EvW.prototype.emitWhen = function (ev, events, immediate) {
     
         return emitter;
     };
+EvW.prototype.once = function (ev, f, n, first) {
+        var emitter = this, 
+            g;
+    
+        // allow shortened list
+        if (arguments.length === 3 && n === true) { 
+            n = 1;
+            first = true; 
+        }
+    
+        if (!n) {
+            n = 1;
+        }
+    
+        g = function () {
+            n -= 1; 
+            if ( n < 1) {
+                emitter.off(ev, g);
+            }
+            return f.apply(null, arguments); 
+        }
+    
+        emitter.on(ev, g, first); 
+    
+        return this;
+    };
 
 EvW.prototype.next =  (typeof process !== "undefined" && process.nextTick) ? process.nextTick : (function (f) {setTimeout(f, 0);});
 
