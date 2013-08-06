@@ -508,8 +508,11 @@ Events will be converted to all lower case on lookup.
 
 ## TODO
 
-Loads of stuff
+implement .once  with an optional n parameter. wrap the function into a handler that keeps track and then removes itself. 
 
+add in to emitwhen the option to have the event be a function called or an array of function/events. 
+
+do an example of logs and get the log stuff strewn in. 
 
 ## NPM package
 
