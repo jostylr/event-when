@@ -190,7 +190,7 @@ EvW.prototype.once = function (ev, f, n, first) {
                 emitter.off(ev, g);
             }
             return f.apply(null, arguments); 
-        }
+        };
     
         emitter.on(ev, g, first); 
     
@@ -214,6 +214,8 @@ Tracker.prototype.add = function (args) {
 
     if (arguments.length !== 1) {
         args = [].concat(arguments);
+    } else if (typeof args === "string") {
+        args = [args];
     }
 
     args.forEach(function (el) {
@@ -280,10 +282,26 @@ Tracker.prototype.removeStr = function (ev) {
         tracker.go();
     };
 Tracker.prototype.go = function () {
-        var tracker = this;
+        var tracker = this, 
+            ev = tracker.event, 
+            data = tracker.data,
+            events = tracker.events,
+            immediate = tracker.immediate;
     
-        if (Object.keys(tracker.events).length === 0) {
-            tracker.emitter.emit(tracker.event, tracker.data, tracker.immediate);
+        if (Object.keys(events).length === 0) {
+                    if (typeof ev === "string") {
+                        tracker.emitter.emit(ev, data, immediate);
+                    } else if (typeof ev === "function") {
+                        ev(data, "emitWhen handler called");
+                    } else if (Array.isArray(ev) ) {
+                ev.forEach(function (ev) {
+                            if (typeof ev === "string") {
+                                tracker.emitter.emit(ev, data, immediate);
+                            } else if (typeof ev === "function") {
+                                ev(data, "emitWhen handler called");
+                            }
+                });
+            }
         }
     
         return true;

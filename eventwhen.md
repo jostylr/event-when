@@ -165,7 +165,7 @@ THe various prototype methods for the tracker object.
 
 [add](# "js") 
 
-We can add events on to the tracker.
+We can add events on to the tracker. We allow it to be an array of events passed in or a bunch of strings passed in as parameters.
 
     function (args) {
         var tracker = this,
@@ -175,6 +175,8 @@ We can add events on to the tracker.
 
         if (arguments.length !== 1) {
             args = [].concat(arguments);
+        } else if (typeof args === "string") {
+            args = [args];
         }
 
 
@@ -299,15 +301,31 @@ This cancels the emitWhen, removing the handler from all remaining events.
 This is the primary activator. 
 
     function () {
-        var tracker = this;
+        var tracker = this, 
+            ev = tracker.event, 
+            data = tracker.data,
+            events = tracker.events,
+            immediate = tracker.immediate;
 
-        if (Object.keys(tracker.events).length === 0) {
-            tracker.emitter.emit(tracker.event, tracker.data, tracker.immediate);
+
+        if (Object.keys(events).length === 0) {
+            _":go event handle" else if (Array.isArray(ev) ) {
+                ev.forEach(function (ev) {
+                    _":go event handle"
+                });
+            }
         }
 
         return true;
     }
 
+[go event handle](# "js") 
+
+            if (typeof ev === "string") {
+                tracker.emitter.emit(ev, data, immediate);
+            } else if (typeof ev === "function") {
+                ev(data, "emitWhen handler called");
+            }
 
 
 
@@ -424,7 +442,7 @@ This method produces a wrapper around a provided function that automatically rem
                 emitter.off(ev, g);
             }
             return f.apply(null, arguments); 
-        }
+        };
 
         emitter.on(ev, g, first); 
 
@@ -527,7 +545,7 @@ We can then implement this with  `evw.emitWhen("data is ready", ["file parsed", 
  All methods return the object itself for chaining.
 
 * .emit(str event, [obj data], [bool immediate] ). Invokes all attached functions to Event, passing in the Data object and event string as the two arguments to the attached functions. If third argument is a boolean and is TRUE, then the event is acted on immediately. Otherwise the event is invoked after current queue is cleared.
-.emitWhen(str event, [fired events], [bool immediate] ) This has the same semantics as emit except the [fired events] array has a series of events that must occur (any order) before this event is emitted. The object data of each fired event is merged in with the others for the final data object. Each fired event could be an array consisting of [event, number of times, bool first]. This allows for waiting for multiple times (such as waiting until a user clicks a button 10 times to intervene with anger management). 
+.emitWhen(str event|fun handle|arr events/handles, [fired events], [bool immediate] ) This has the same semantics as emit except the [fired events] array has a series of events that must occur (any order) before this event is emitted. The object data of each fired event is merged in with the others for the final data object. Each fired event could be an array consisting of [event, number of times, bool first]. This allows for waiting for multiple times (such as waiting until a user clicks a button 10 times to intervene with anger management).  The first argument can also be directly a function that fires or an array of events and handles that get iterated over. 
 * .on(str event, fun handle, [bool first])  Attaches function Handle to the string  Event. The function gets stored in the .last property; (in case of anonymous function (maybe binding in progress), this might be useful). The boolean first if present and TRUE will lead to the handle being pushed in front of the current handlers on the event. 
 * .once(str event, fun handle, [int n, [bool first]]) This will fire the handler n times, default of 1 times. This is accomplishd by wrapping the handle in a new function that becomes the actual handler. So to remove the handle, it is necessary to grab the produced handler from `.last` and keep it around.
 * .once(str event, fun handle, [bool first]) With no n and a boolean true, this will place the handler at the top of the firing list and fire it once when the event is emitted. 
