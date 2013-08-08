@@ -38,41 +38,66 @@ Now let's involve some when action.
     var EventWhen = require('../index.js');
     var emitter = new EventWhen();
 
+    var log = [];
+    emitter.log = function () {
+        //log.push(arguments);
+    };
 
-    emitter.on("test 1 on", function () {
-        console.log("test 1 starts");
+    emitter.on("alice fires", function () {
+        log.push("alice fired");
+    });
+
+    emitter.on("bob fires", function () {
+        log.push("bob fired");
     });
 
 
-    emitter.on("test 2 on", function () {
-        console.log("test 2 starts");
+    emitter.on("string notes both fired", function (data) {
+        console.log("woot");
+        log.push("from a string, both have fired" + data.alice);
+    });
+
+    emitter.on("array notes both fired", function (data) {
+        log.push("string in an array, both have fired with data " + data.alice );
     });
 
 
-    emitter.on("test 1 finishes", function () {
-        console.log("test 1 finishes");
-    });
-
-    emitter.on("all tests on string", function (data) {
-        console.log("all tests done string:", data.me);
-    });
-
-    emitter.on("all tests on array", function (data) {
-        console.log("all tests done array:", data.me);
-    });
-
-
-    emitter.emitWhen("all tests on string", ["test 1 on", "test 2 on"]);
+    emitter.emitWhen("string notes both fired", ["alice fires", "bob fires"], false, true);
     emitter.emitWhen(function (data) {
-       console.log("directly function:", data.me);    
-    }, ["test 1 on", "test 2 on"]);
-    emitter.emitWhen(["all tests on array", function (data) {
-       console.log("directly array:", data.me);    
-    }],  ["test 1 on", "test 2 on"]);
+        log.push("single function fires with data " + data.alice); 
+    }, ["alice fires", "bob fires"]);
+    emitter.emitWhen(["array notes both fired", function (data) {
+        log.push("array function fires data " + data.alice);
+    }],  ["alice fires", "bob fires"]);
+    emitter.emitWhen(function (data) {
+        log.push("alice fired twice with data " + data.alice );
+    }, [["alice fires",2]]);
+    emitter.emitWhen(function () {
+        log.push("just care about bob firing");
+    },  "bob fires");
 
-    emitter.emit("test 1 on");
 
-    emitter.emit("test 2 on", {me: "rocks"});
+    emitter.on("done", function (data) {
+        console.log(data); 
+    });
+
+    emitter.on("near first", function (data) {
+        log.push("called immediately");
+    });
+
+    emitter.emit("alice fires");
+    emitter.emit("bob fires", {alice: "rocks"});
+
+    emitter.emit("alice fires");
+    emitter.emit("bob fires", {alice: "awesome"});
+
+    emitter.emit("done", log);
+
+    emitter.emit("near first", {}, true); 
+
+    process.on('exit', function () {
+        console.log(log);
+    });
 
 ## [once.js](#once.js "save: | jshint")
 

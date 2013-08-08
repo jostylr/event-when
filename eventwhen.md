@@ -65,8 +65,9 @@ The various prototype methods on the event emitter.
     EvW.prototype.emitWhen = _"emit when";
     EvW.prototype.once = _"once";
 
-    EvW.prototype.next =  (typeof process !== "undefined" && process.nextTick) ? process.nextTick : (function (f) {setTimeout(f, 0);});
-
+    EvW.prototype.next =  function(f) {f();};
+    /*(typeof process !== "undefined" && process.nextTick) ? process.nextTick : (function (f) {setTimeout(f, 0);});
+    */
 
 
 ### Emit
@@ -103,14 +104,23 @@ This handler is stored in the `.last` property (until the next handler assignmen
 
 As each event fires, this handler merges in the data object to the existing data. It also stores the original data object in _archive[event name] = ... in the data object passed to the event for posterity, log recordings, and hacking. 
 
-The immediate flag is passed on to emit with the event `ev` finally fires.
+The immediate flag is passed on to emit with the event `ev` finally fires. The reset flag allows for the emitWhen to be reinitialized after it fires. It uses the original state. 
 
-    function (ev, events, immediate) {    
+Immediate could also be an options object. If so, reset is assumed to be part of the object if present at all.
 
-        var emitter = this;    
+    function (ev, events, immediate, reset) {    
+
+        var emitter = this, 
+            options;    
 
         if (emitter.log) {
             emitter.log("emit when", ev, events, immediate);
+        }
+
+        if (typeof immediate === "object") {
+            options = immediate;
+            reset = options.reset || false;
+            immediate = options.immediate || false;
         }
 
         var tracker = new Tracker();
@@ -118,6 +128,8 @@ The immediate flag is passed on to emit with the event `ev` finally fires.
         tracker.event = ev;
         tracker.emitter = emitter;
         tracker.immediate = immediate;
+        tracker.reset = reset;
+        tracker.original = events;
 
         var handler = function (data, fired) {
             tracker.addData(data, fired); 
@@ -300,6 +312,8 @@ This cancels the emitWhen, removing the handler from all remaining events.
 
 This is the primary activator. 
 
+If reset is true, then we add those events before firing off the next round. 
+
     function () {
         var tracker = this, 
             ev = tracker.event, 
@@ -309,6 +323,11 @@ This is the primary activator.
 
 
         if (Object.keys(events).length === 0) {
+            if (tracker.reset === true) {
+                tracker.add(tracker.original);
+                console.log(tracker.events);
+            }
+            console.log(ev, immediate);
             _":go event handle" else if (Array.isArray(ev) ) {
                 ev.forEach(function (ev) {
                     _":go event handle"

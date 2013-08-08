@@ -140,12 +140,19 @@ EvW.prototype.resume =  function () {
             this.next(this.resume);
         }
     };
-EvW.prototype.emitWhen = function (ev, events, immediate) {    
+EvW.prototype.emitWhen = function (ev, events, immediate, reset) {    
     
-        var emitter = this;    
+        var emitter = this, 
+            options;    
     
         if (emitter.log) {
             emitter.log("emit when", ev, events, immediate);
+        }
+    
+        if (typeof immediate === "object") {
+            options = immediate;
+            reset = options.reset || false;
+            immediate = options.immediate || false;
         }
     
         var tracker = new Tracker();
@@ -153,6 +160,8 @@ EvW.prototype.emitWhen = function (ev, events, immediate) {
         tracker.event = ev;
         tracker.emitter = emitter;
         tracker.immediate = immediate;
+        tracker.reset = reset;
+        tracker.original = events;
     
         var handler = function (data, fired) {
             tracker.addData(data, fired); 
@@ -197,7 +206,9 @@ EvW.prototype.once = function (ev, f, n, first) {
         return this;
     };
 
-EvW.prototype.next =  (typeof process !== "undefined" && process.nextTick) ? process.nextTick : (function (f) {setTimeout(f, 0);});
+EvW.prototype.next =  function(f) {f();};
+/*(typeof process !== "undefined" && process.nextTick) ? process.nextTick : (function (f) {setTimeout(f, 0);});
+*/
 
 var Tracker = function () {
         this.events = {};
@@ -289,6 +300,11 @@ Tracker.prototype.go = function () {
             immediate = tracker.immediate;
     
         if (Object.keys(events).length === 0) {
+            if (tracker.reset === true) {
+                tracker.add(tracker.original);
+                console.log(tracker.events);
+            }
+            console.log(ev, immediate);
                     if (typeof ev === "string") {
                         tracker.emitter.emit(ev, data, immediate);
                     } else if (typeof ev === "function") {
