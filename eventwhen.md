@@ -70,6 +70,7 @@ The various prototype methods on the event emitter.
     EvW.prototype.next =  _"next";
     EvW.prototype.nextTick =  _"next tick";
 
+    EvW.prototype.log = function () {}; //noop stub
 
 ### Emit
 
@@ -89,9 +90,7 @@ Given an event string, we run through the handlers, passing in the data to const
         data = data || {};
         var h = this._handlers[ev] || [];
 
-        if (emitter.log) {
-            emitter.log("emit", ev, data, timing);
-        }
+        emitter.log("emit", ev, data, timing);
 
         switch (timing) {
             case "later" : 
@@ -114,11 +113,6 @@ Given an event string, we run through the handlers, passing in the data to const
         this.resume();
     }
 
-            
-emitter.nextTick(function () {
-    emitter.emit(ev, data, "now");
-});
-
 
 ### Emit When
 
@@ -137,9 +131,7 @@ Immediate could also be an options object. If so, reset is assumed to be part of
         var emitter = this, 
             options;    
 
-        if (emitter.log) {
-            emitter.log("emit when", ev, events, immediate);
-        }
+        emitter.log("emit when", ev, events, immediate);
 
         if (typeof immediate === "object") {
             options = immediate;
@@ -349,9 +341,7 @@ If reset is true, then we add those events before firing off the next round.
         if (Object.keys(events).length === 0) {
             if (tracker.reset === true) {
                 tracker.add(tracker.original);
-                console.log(tracker.events);
             }
-            console.log(ev, immediate);
             _":go event handle" else if (Array.isArray(ev) ) {
                 ev.forEach(function (ev) {
                     _":go event handle"
@@ -545,35 +535,54 @@ This continues progress through the queue. We use either setTimeout (browser) or
 
 As this is called without context, we return the resume function with an explicit binding to the instance instead of this. 
 
+To handle "soon", we check to see if the current queue item has anything in the handler queue. If not, it loads it. 
+
      function () {
 
-        var q, f, ev, data, cont, cur; 
-        var queue = this._queue;
+        var q, f, ev, data, cont, cur,
+            emitter = this,
+            queue = emitter._queue,
+            handlers = emitter._handlers,
+            waiting = emitter._waiting; 
 
-!!! modify for new timings. 
-
+        emitter.log("resume", queue, waiting);
 
         if (queue.length >0) {
             cur = queue[0];
+            ev = cur[0];
+            data = cur[1];
+            if (typeof cur[2] === "undefined") {
+               cur[2] = Array.prototype.slice.call(handlers[ev] || [], 0);
+            }
             q = cur[2];
             f = q.shift();
             if (q.length === 0) {
                 queue.shift();
             }
             if (f) {
-                ev = cur[0];
-                data = cur[1];
-                if (f.log) {
-                    f.log(ev, data);
-                }
+                emitter.log(f.log, ev, data);
                 cont = f(data, ev);
-                if (cont === false) {
-                    queue.shift(); 
-                }
+                _":do we halt event emission"
             }
+            this.next(this.resume);
+        } else if (waiting.length > 0) {
+            emitter.nextTick(function () {
+                emitter.emit(ev, data, "now");
+            });
+        } else {
+            emitter.log("emitted events cleared");
         }
-        this.next(this.resume);
+
     }
+
+[do we halt event emission](js "#")
+
+If f returns false, this is supposed to tell us to stop. So we shift the queue meaning on the next round it will be something different. But if f was the last one, then we already shifted and so we just do a quick check to make sure that we are removing the right emitted event. 
+
+    if ( (cont === false) && (cur === queue[0]) ) {
+        queue.shift(); 
+    }
+
 
 ### Next
 
@@ -581,8 +590,9 @@ This checks for whether there is stuff left on the queue and whether it is time 
 
     function (f) {
         var emitter = this,
-            next = emitter.next, 
-            queue = this.queue;
+            next = emitter.next,  // this is itself
+            queue = emitter._queue;
+
 
         next.count += 1;
 
@@ -591,7 +601,7 @@ This checks for whether there is stuff left on the queue and whether it is time 
                 f(); 
             } else {
                 next.count = 0;
-                this.skip(f);
+                emitter.nextTick(f);
             }
         } else {
             next.count = 0;
@@ -604,9 +614,8 @@ This checks for whether there is stuff left on the queue and whether it is time 
 
 The cede control function -- node vs browser.
 
-    (typeof process !== "undefined" && process.nextTick) 
-        ? process.nextTick 
-        : (function (f) {setTimeout(f, 0);});
+    (typeof process !== "undefined" && process.nextTick) ? process.nextTick 
+        : (function (f) {setTimeout(f, 0);})
     
 
 ## README

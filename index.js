@@ -4,8 +4,10 @@ var EvW = function () {
     
         this._handlers = {};
         this._queue = [];
+        this._waiting = [];
     
         evw.resume = evw.resume.bind(evw);
+        evw.next.max = 1000;
     
         return this; 
     };
@@ -26,24 +28,34 @@ EvW.prototype.on = function (ev, f, first) {
 
     return this;
 };
-EvW.prototype.emit = function (ev, data,  immediate) {
+EvW.prototype.emit = function (ev, data,  timing) {
+        var emitter = this;
     
-        if (this.log) {
-            this.log("emit", ev, data, immediate);
+        timing = timing || "soon";
+        data = data || {};
+        var h = this._handlers[ev] || [];
+    
+        emitter.log("emit", ev, data, timing);
+    
+        switch (timing) {
+            case "later" : 
+                emitter._waiting.push( [ev, data, "now"] ); 
+            break;
+            case "soon" : 
+                emitter._queue.push([ev, data]);
+            break;
+            case "now" : 
+                emitter._queue.push([ev, data, [].concat(h)]);
+            break;
+            case "immediate" : 
+                emitter._queue.unshift([ev, data, [].concat(h)]);
+            break;
+            default : 
+                if (emitter.log) {
+                    emitter.log("emit error: unknown timing", ev, timing);
+                }
         }
-    
-        var h = this._handlers[ev], q;
-    
-        if (h) {
-            q = [ev, data || {}, [].concat(h)];
-            if (immediate === true) {
-                this._queue.unshift(q);
-            } else {
-                this._queue.push(q);
-            }
-            this.resume();
-        }
-        return this;
+        this.resume();
     };
 EvW.prototype.off = function (ev, fun, nowhen) {
     
@@ -91,21 +103,28 @@ EvW.prototype.off = function (ev, fun, nowhen) {
     };
 EvW.prototype.stop = function (a) {
         var queue = this._queue;
+        var waiting = this._waiting; 
     
         if (arguments.length === 0) {
             while (queue.length > 0 ) {
                 queue.pop();
             }
+            while (waiting.length >0 ) {
+                waiting.pop();
+            }
         }
     
+        var filt = function (el) {
+            if (el[0] === a) {
+                return false;
+            } else {
+                return true;
+            }
+        };
+    
         if (typeof a === "string") {
-            this._queue = queue.filter(function (el) {
-                if (el === a) {
-                    return false;
-                } else {
-                    return true;
-                }
-            });
+            this._queue = queue.filter(filt);
+            this._waiting = waiting.filter(filt);
         }
     
         if (a === true) {
@@ -114,40 +133,51 @@ EvW.prototype.stop = function (a) {
     
         return this;
     };
-EvW.prototype.resume =  function () {
+EvW.prototype.resume = function () {
     
-        var q, f, ev, data, cont, cur; 
-        var queue = this._queue;
+        var q, f, ev, data, cont, cur,
+            emitter = this,
+            queue = emitter._queue,
+            handlers = emitter._handlers,
+            waiting = emitter._waiting; 
+    
+        emitter.log("resume", queue, waiting);
     
         if (queue.length >0) {
             cur = queue[0];
+            ev = cur[0];
+            data = cur[1];
+            if (typeof cur[2] === "undefined") {
+               cur[2] = Array.prototype.slice.call(handlers[ev] || [], 0);
+            }
             q = cur[2];
             f = q.shift();
             if (q.length === 0) {
                 queue.shift();
             }
             if (f) {
-                ev = cur[0];
-                data = cur[1];
-                if (f.log) {
-                    f.log(ev, data);
-                }
+                emitter.log(f.log, ev, data);
                 cont = f(data, ev);
-                if (cont === false) {
+                if ( (cont === false) && (cur === queue[0]) ) {
                     queue.shift(); 
                 }
             }
             this.next(this.resume);
+        } else if (waiting.length > 0) {
+            emitter.nextTick(function () {
+                emitter.emit(ev, data, "now");
+            });
+        } else {
+            emitter.log("emitted events cleared");
         }
+    
     };
 EvW.prototype.emitWhen = function (ev, events, immediate, reset) {    
     
         var emitter = this, 
             options;    
     
-        if (emitter.log) {
-            emitter.log("emit when", ev, events, immediate);
-        }
+        emitter.log("emit when", ev, events, immediate);
     
         if (typeof immediate === "object") {
             options = immediate;
@@ -206,9 +236,29 @@ EvW.prototype.once = function (ev, f, n, first) {
         return this;
     };
 
-EvW.prototype.next =  function(f) {f();};
-/*(typeof process !== "undefined" && process.nextTick) ? process.nextTick : (function (f) {setTimeout(f, 0);});
-*/
+EvW.prototype.next =  function (f) {
+        var emitter = this,
+            next = emitter.next,  // this is itself
+            queue = emitter._queue;
+    
+        next.count += 1;
+    
+        if (queue.length > 0) {
+            if (next.count <= next.max) {
+                f(); 
+            } else {
+                next.count = 0;
+                emitter.nextTick(f);
+            }
+        } else {
+            next.count = 0;
+        }
+    
+    };
+EvW.prototype.nextTick =  (typeof process !== "undefined" && process.nextTick) ? process.nextTick 
+        : (function (f) {setTimeout(f, 0);});
+
+EvW.prototype.log = function () {}; //noop stub
 
 var Tracker = function () {
         this.events = {};
@@ -302,9 +352,7 @@ Tracker.prototype.go = function () {
         if (Object.keys(events).length === 0) {
             if (tracker.reset === true) {
                 tracker.add(tracker.original);
-                console.log(tracker.events);
             }
-            console.log(ev, immediate);
                     if (typeof ev === "string") {
                         tracker.emitter.emit(ev, data, immediate);
                     } else if (typeof ev === "function") {

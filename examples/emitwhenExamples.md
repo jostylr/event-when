@@ -11,7 +11,7 @@ Let's just do a basic simple example
         emitter = new EventWhen(), 
         f;
 
-
+    //emitter.log = console.log;
 
     emitter.on("test 1 on", function () {
         console.log("test 1 starts");
@@ -28,6 +28,7 @@ Let's just do a basic simple example
     });
 
     emitter.emit("test 1 on");
+
 
 ## [when.js](#when.js "save:| jshint")
 

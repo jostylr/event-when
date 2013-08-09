@@ -3,6 +3,8 @@ var EventWhen = require('../index.js'),
     emitter = new EventWhen(), 
     f;
 
+//emitter.log = console.log;
+
 emitter.on("test 1 on", function () {
     console.log("test 1 starts");
     emitter.emit("test 1 finishes");
