@@ -47,8 +47,10 @@ We bind resume to the instance since it will be passed in without context to the
 
         this._handlers = {};
         this._queue = [];
+        this._waiting = [];
 
         evw.resume = evw.resume.bind(evw);
+        evw.next.max = 1000;
 
         return this; 
     }
@@ -65,36 +67,58 @@ The various prototype methods on the event emitter.
     EvW.prototype.emitWhen = _"emit when";
     EvW.prototype.once = _"once";
 
-    EvW.prototype.next =  function(f) {f();};
-    /*(typeof process !== "undefined" && process.nextTick) ? process.nextTick : (function (f) {setTimeout(f, 0);});
-    */
+    EvW.prototype.next =  _"next";
+    EvW.prototype.nextTick =  _"next tick";
 
 
 ### Emit
 
+We have four possible timings: 
+
+* later  This has the event emitted after at least one process.nextTick or setTimeout. When it is emitted, it uses "now".
+* soon  This is the default. It pushes the event onto the queue, but it does not assign the handelrs. Thus, the event is not emitted in some sense as what responds is still indeterminate.
+* now  This takes the current handlers for the event and pushes it all on the queue. 
+* immediate This jump the response to the front of the queue. 
+
 Given an event string, we run through the handlers, passing in the data to construct the array to be added to the queue. If immediate is TRUE, we put it at the top of the queue. Otherwise it goes at the end. 
     
-    function (ev, data,  immediate) {
+    function (ev, data,  timing) {
+        var emitter = this;
 
+        timing = timing || "soon";
+        data = data || {};
+        var h = this._handlers[ev] || [];
 
-        if (this.log) {
-            this.log("emit", ev, data, immediate);
+        if (emitter.log) {
+            emitter.log("emit", ev, data, timing);
         }
 
-
-        var h = this._handlers[ev], q;
-
-        if (h) {
-            q = [ev, data || {}, [].concat(h)];
-            if (immediate === true) {
-                this._queue.unshift(q);
-            } else {
-                this._queue.push(q);
-            }
-            this.resume();
+        switch (timing) {
+            case "later" : 
+                emitter._waiting.push( [ev, data, "now"] ); 
+            break;
+            case "soon" : 
+                emitter._queue.push([ev, data]);
+            break;
+            case "now" : 
+                emitter._queue.push([ev, data, [].concat(h)]);
+            break;
+            case "immediate" : 
+                emitter._queue.unshift([ev, data, [].concat(h)]);
+            break;
+            default : 
+                if (emitter.log) {
+                    emitter.log("emit error: unknown timing", ev, timing);
+                }
         }
-        return this;
+        this.resume();
     }
+
+            
+emitter.nextTick(function () {
+    emitter.emit(ev, data, "now");
+});
+
 
 ### Emit When
 
@@ -483,21 +507,28 @@ Clear queued up events. Each element of the queue is an array of the [event name
 
     function (a) {
         var queue = this._queue;
+        var waiting = this._waiting; 
 
         if (arguments.length === 0) {
             while (queue.length > 0 ) {
                 queue.pop();
             }
+            while (waiting.length >0 ) {
+                waiting.pop();
+            }
         }
 
+        var filt = function (el) {
+            if (el[0] === a) {
+                return false;
+            } else {
+                return true;
+            }
+        };
+
         if (typeof a === "string") {
-            this._queue = queue.filter(function (el) {
-                if (el === a) {
-                    return false;
-                } else {
-                    return true;
-                }
-            });
+            this._queue = queue.filter(filt);
+            this._waiting = waiting.filter(filt);
         }
 
 
@@ -510,7 +541,7 @@ Clear queued up events. Each element of the queue is an array of the [event name
 
 ### Resume
 
-This continues progress through the queue. We use either setTimeout (browser) or nextTick (node) to allow for other stuff to happen in between each handle call. 
+This continues progress through the queue. We use either setTimeout (browser) or nextTick (node) to allow for other stuff to happen in between each 1000 calls.
 
 As this is called without context, we return the resume function with an explicit binding to the instance instead of this. 
 
@@ -518,6 +549,8 @@ As this is called without context, we return the resume function with an explici
 
         var q, f, ev, data, cont, cur; 
         var queue = this._queue;
+
+!!! modify for new timings. 
 
 
         if (queue.length >0) {
@@ -538,11 +571,43 @@ As this is called without context, we return the resume function with an explici
                     queue.shift(); 
                 }
             }
-            this.next(this.resume);
         }
+        this.next(this.resume);
+    }
+
+### Next
+
+This checks for whether there is stuff left on the queue and whether it is time to cede control (emitter.next.max )
+
+    function (f) {
+        var emitter = this,
+            next = emitter.next, 
+            queue = this.queue;
+
+        next.count += 1;
+
+        if (queue.length > 0) {
+            if (next.count <= next.max) {
+                f(); 
+            } else {
+                next.count = 0;
+                this.skip(f);
+            }
+        } else {
+            next.count = 0;
+        }
+
     }
 
 
+### Next Tick
+
+The cede control function -- node vs browser.
+
+    (typeof process !== "undefined" && process.nextTick) 
+        ? process.nextTick 
+        : (function (f) {setTimeout(f, 0);});
+    
 
 ## README
 
@@ -581,6 +646,8 @@ Logging of single events can be done by passing an event logging function. To lo
 Events will be converted to all lower case on lookup.
 
 ## TODO
+
+change emit to be  "immediate", "now", "later" where "now" is the current default and "later" is a callback emit which is when the handlers are added. For "now", the emit uses the handlers at that time of first calling. 
 
 add in to emitwhen the option to have the event be a function called or an array of function/events. 
 
