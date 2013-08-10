@@ -54,8 +54,7 @@ Now let's involve some when action.
 
 
     emitter.on("string notes both fired", function (data) {
-        console.log("woot");
-        log.push("from a string, both have fired" + data.alice);
+        log.push("from a string, both have fired " + data.alice);
     });
 
     emitter.on("array notes both fired", function (data) {
@@ -63,7 +62,7 @@ Now let's involve some when action.
     });
 
 
-    emitter.emitWhen("string notes both fired", ["alice fires", "bob fires"], false, true);
+    emitter.emitWhen("string notes both fired", ["alice fires", "bob fires"], true);
     emitter.emitWhen(function (data) {
         log.push("single function fires with data " + data.alice); 
     }, ["alice fires", "bob fires"]);
@@ -96,9 +95,6 @@ Now let's involve some when action.
 
     emitter.emit("near first", {}, true); 
 
-    process.on('exit', function () {
-        console.log(log);
-    });
 
 ## [once.js](#once.js "save: | jshint")
 

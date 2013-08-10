@@ -172,24 +172,27 @@ EvW.prototype.resume = function () {
         }
     
     };
-EvW.prototype.emitWhen = function (ev, events, immediate, reset) {    
+EvW.prototype.emitWhen = function (ev, events, timing, reset) {    
     
         var emitter = this, 
             options;    
     
-        emitter.log("emit when", ev, events, immediate);
+        emitter.log("emit when", ev, events, timing, reset);
     
-        if (typeof immediate === "object") {
-            options = immediate;
+        if (typeof timing === "object") {
+            options = timing;
             reset = options.reset || false;
-            immediate = options.immediate || false;
+            timing = options.timing || undefined;
+        } else if (timing === true) {
+            reset = timing; 
+            timing = undefined;
         }
     
         var tracker = new Tracker();
     
         tracker.event = ev;
         tracker.emitter = emitter;
-        tracker.immediate = immediate;
+        tracker.timing = timing;
         tracker.reset = reset;
         tracker.original = events;
     
@@ -347,20 +350,20 @@ Tracker.prototype.go = function () {
             ev = tracker.event, 
             data = tracker.data,
             events = tracker.events,
-            immediate = tracker.immediate;
+            timing = tracker.timing;
     
         if (Object.keys(events).length === 0) {
             if (tracker.reset === true) {
                 tracker.add(tracker.original);
             }
                     if (typeof ev === "string") {
-                        tracker.emitter.emit(ev, data, immediate);
+                        tracker.emitter.emit(ev, data, timing);
                     } else if (typeof ev === "function") {
                         ev(data, "emitWhen handler called");
                     } else if (Array.isArray(ev) ) {
                 ev.forEach(function (ev) {
                             if (typeof ev === "string") {
-                                tracker.emitter.emit(ev, data, immediate);
+                                tracker.emitter.emit(ev, data, timing);
                             } else if (typeof ev === "function") {
                                 ev(data, "emitWhen handler called");
                             }

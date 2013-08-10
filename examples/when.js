@@ -17,15 +17,14 @@ emitter.on("bob fires", function () {
 });
 
 emitter.on("string notes both fired", function (data) {
-    console.log("woot");
-    log.push("from a string, both have fired" + data.alice);
+    log.push("from a string, both have fired " + data.alice);
 });
 
 emitter.on("array notes both fired", function (data) {
     log.push("string in an array, both have fired with data " + data.alice );
 });
 
-emitter.emitWhen("string notes both fired", ["alice fires", "bob fires"], false, true);
+emitter.emitWhen("string notes both fired", ["alice fires", "bob fires"], , true);
 emitter.emitWhen(function (data) {
     log.push("single function fires with data " + data.alice); 
 }, ["alice fires", "bob fires"]);
@@ -56,7 +55,3 @@ emitter.emit("bob fires", {alice: "awesome"});
 emitter.emit("done", log);
 
 emitter.emit("near first", {}, true); 
-
-process.on('exit', function () {
-    console.log(log);
-});
