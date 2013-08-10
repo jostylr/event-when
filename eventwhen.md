@@ -647,7 +647,18 @@ We can then implement this with  `evw.emitWhen("data is ready", ["file parsed", 
 	 * "now" Queues the event and its current list of handlers for firing. Removing handlers to the event after the emit but before they fire will not affect the handlers that are fired. 
 	 * "soon"  Queues the event and loads the handlers for firing when it is the event's turn. This is the default behavior and is reasonable. Note that if in firing this event's handlers, the handlers get removed, they will still fire. 
 	 * "later" The event gets processed after nextTick/setTimeout (nodejs/browser)
-* .emitWhen(str event|fun handle|arr events/handles, [fired events], [str timing], [bool reset] ) This has the same semantics as emit except the [fired events] array has a series of events that must occur (any order) before this event is emitted. The object data of each fired event is merged in with the others for the final data object. Each fired event could be an array consisting of [event, number of times, bool first]. This allows for waiting for multiple times (such as waiting until a user clicks a button 10 times to intervene with anger management).  The first argument can also be directly a function that fires or an array of events and handles that get iterated over. 
+* .emitWhen(str event|fun handle|arr events/handles, [fired events], [str timing], [bool reset] ) This has similar semantics as emit except the [fired events] array has a series of events that must occur (any order) before this event is emitted. The object data of each fired event is merged in with the others for the final data object -- the original is archived in the data object under `_archive`. 
+
+	 Each fired event could be an array consisting of [event, number of times, bool first]. This allows for waiting for multiple times (such as waiting until a user clicks a button 10 times to intervene with anger management).  
+
+	 The first argument can also be directly a function that fires or an array of events and functionsthat get iterated over. 
+	 
+     The timing string gets passed to emit directly.
+	 
+     The reset string tells the emitWhen to reset itself to the initial fired events array once it actually does emit. 
+	 
+     If the third object is a boolean, it is assumed to be the reset flag. If it is an object, it is assumed to be an options object with either timing or reset being set there. 
+
 * .on(str event, fun handle, [bool first])  Attaches function Handle to the string  Event. The function gets stored in the .last property; (in case of anonymous function (maybe binding in progress), this might be useful). The boolean first if present and TRUE will lead to the handle being pushed in front of the current handlers on the event. 
 * .once(str event, fun handle, [int n, [bool first]]) This will fire the handler n times, default of 1 times. This is accomplishd by wrapping the handle in a new function that becomes the actual handler. So to remove the handle, it is necessary to grab the produced handler from `.last` and keep it around.
 * .once(str event, fun handle, [bool first]) With no n and a boolean true, this will place the handler at the top of the firing list and fire it once when the event is emitted. 
@@ -657,17 +668,11 @@ We can then implement this with  `evw.emitWhen("data is ready", ["file parsed", 
 * .off()  Removes all events. Ouch. 
 * .stop([str event/bool current]) Removes queued handlers either globally (no args), on an event (str given), or current (TRUE)
 
-If a function handler returns FALSE, then event invoking stops on the handler. 
+If a function handler returns FALSE, then no further handlers from that event emit incident will occur. 
 
 Logging of single events can be done by passing an event logging function. To log all events, attach a logging function via .log = function
 
-Events will be converted to all lower case on lookup.
-
 ## TODO
-
-change emit to be  "immediate", "now", "later" where "now" is the current default and "later" is a callback emit which is when the handlers are added. For "now", the emit uses the handlers at that time of first calling. 
-
-add in to emitwhen the option to have the event be a function called or an array of function/events. 
 
 do an example of logs and get the log stuff strewn in. 
 
