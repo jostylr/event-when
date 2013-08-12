@@ -21,7 +21,7 @@ The file structure is fairly simple.
 
 This is the main structure of the module file.
 
-    /*global setTimeout, process, module */
+    /*global setTimeout, process, module, console */
     var EvW = _"constructor";
 
     _"constructor:prototype"
@@ -684,6 +684,9 @@ Logs everything, storing the result in the function itself under the name log. T
         };
         ret.full = function () {
             console.log(log._full);    
+        };
+        ret.filter = function (f) {
+            console.log(log._simple.filter(f));
         };
         emitter.log = ret; 
         return ret;

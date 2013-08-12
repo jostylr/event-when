@@ -21,3 +21,10 @@ emitter.on("test 1 finishes", function () {
 emitter.emit("test 1 on");
 
 emitter.log.print();
+emitter.log.filter(function (str) {
+    if (str.search("test 1") === -1) {
+        return false;
+    } else {
+        return true;
+    }
+});

@@ -1,4 +1,4 @@
-/*global require, console*/
+/*global require, console, process*/
 
 var EventWhen = require('../index.js');
 var emitter = new EventWhen();
@@ -36,11 +36,11 @@ emitter.emitWhen(function () {
     log.push("just care about bob firing");
 },  "bob fires");
 
-emitter.on("done", function (data) {
+emitter.on("done", function () {
     // console.log(data); 
 });
 
-emitter.on("near first", function (data) {
+emitter.on("near first", function () {
     log.push("called immediately");
 });
 

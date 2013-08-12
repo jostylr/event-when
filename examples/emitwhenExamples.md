@@ -31,13 +31,20 @@ Let's just do a basic simple example
     emitter.emit("test 1 on");
 
     emitter.log.print();
+    emitter.log.filter(function (str) {
+        if (str.search("test 1") === -1) {
+            return false;
+        } else {
+            return true;
+        }
+    });
 
 
 ## [when.js](#when.js "save:| jshint")
 
 Now let's involve some when action.
 
-    /*global require, console*/
+    /*global require, console, process*/
 
     var EventWhen = require('../index.js');
     var emitter = new EventWhen();
@@ -78,11 +85,11 @@ Now let's involve some when action.
     },  "bob fires");
 
 
-    emitter.on("done", function (data) {
+    emitter.on("done", function () {
         // console.log(data); 
     });
 
-    emitter.on("near first", function (data) {
+    emitter.on("near first", function () {
         log.push("called immediately");
     });
 
