@@ -2,11 +2,9 @@
 
 var EventWhen = require('../index.js');
 var emitter = new EventWhen();
+emitter.makeLog();
 
 var log = [];
-emitter.log = function () {
-    //log.push(arguments);
-};
 
 emitter.on("alice fires", function () {
     log.push("alice fired");
@@ -24,7 +22,7 @@ emitter.on("array notes both fired", function (data) {
     log.push("string in an array, both have fired with data " + data.alice );
 });
 
-emitter.emitWhen("string notes both fired", ["alice fires", "bob fires"], , true);
+emitter.emitWhen("string notes both fired", ["alice fires", "bob fires"], true);
 emitter.emitWhen(function (data) {
     log.push("single function fires with data " + data.alice); 
 }, ["alice fires", "bob fires"]);
@@ -39,7 +37,7 @@ emitter.emitWhen(function () {
 },  "bob fires");
 
 emitter.on("done", function (data) {
-    console.log(data); 
+    // console.log(data); 
 });
 
 emitter.on("near first", function (data) {
@@ -55,3 +53,8 @@ emitter.emit("bob fires", {alice: "awesome"});
 emitter.emit("done", log);
 
 emitter.emit("near first", {}, true); 
+
+process.on("exit", function () {
+    emitter.log.print();
+    console.log(log);
+});

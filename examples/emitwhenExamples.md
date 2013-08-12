@@ -11,7 +11,8 @@ Let's just do a basic simple example
         emitter = new EventWhen(), 
         f;
 
-    //emitter.log = console.log;
+    emitter.makeLog();
+
 
     emitter.on("test 1 on", function () {
         console.log("test 1 starts");
@@ -29,6 +30,8 @@ Let's just do a basic simple example
 
     emitter.emit("test 1 on");
 
+    emitter.log.print();
+
 
 ## [when.js](#when.js "save:| jshint")
 
@@ -38,11 +41,9 @@ Now let's involve some when action.
 
     var EventWhen = require('../index.js');
     var emitter = new EventWhen();
+    emitter.makeLog();
 
     var log = [];
-    emitter.log = function () {
-        //log.push(arguments);
-    };
 
     emitter.on("alice fires", function () {
         log.push("alice fired");
@@ -78,7 +79,7 @@ Now let's involve some when action.
 
 
     emitter.on("done", function (data) {
-        console.log(data); 
+        // console.log(data); 
     });
 
     emitter.on("near first", function (data) {
@@ -95,6 +96,11 @@ Now let's involve some when action.
 
     emitter.emit("near first", {}, true); 
 
+    process.on("exit", function () {
+        emitter.log.print();
+        console.log(log);
+    });
+
 
 ## [once.js](#once.js "save: | jshint")
 
@@ -104,7 +110,7 @@ Testing the once method
 
     var EventWhen = require('../index.js');
     var emitter = new EventWhen();
-
+    emitter.makeLog();
 
     emitter.once("test 1", function () {
         console.log("test 1 fires");
@@ -120,3 +126,5 @@ Testing the once method
     emitter.emit("test 2");
     emitter.emit("test 1");
     emitter.emit("test 2");
+
+    emitter.log.print();

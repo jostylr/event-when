@@ -71,6 +71,7 @@ The various prototype methods on the event emitter.
     EvW.prototype.nextTick =  _"next tick";
 
     EvW.prototype.log = function () {}; //noop stub
+    EvW.prototype.makeLog = _"log";
 
 ### Emit
 
@@ -128,12 +129,18 @@ If the third argument is an object, then it is considered an options object and 
 
 If the third argument is a boolean, then it is assumed to be the reset string and timing will not be set, falling through to the default in emit.  
 
+
+!!! Better logging dealing with str. 
+
     function (ev, events, timing, reset) {    
 
         var emitter = this, 
             options;    
 
-        emitter.log("emit when", ev, events, timing, reset);
+        var str = (typeof ev === "function") ? (ev.name || "") : ev;
+        str = (Array.isArray(ev) ) ? "array" : str;
+
+        emitter.log("emit when loaded", str, events, timing, reset);
 
         if (typeof timing === "object") {
             options = timing;
@@ -393,22 +400,26 @@ The function will be passed a data object and the event whose firing triggered. 
 
 ### Off
 
-This removes handlers. The blockwhen boolean, when true, will leave the when handlers on the when events. This effectively blocks those events from happening until some manual reworking on the event. Since the no argument function wipes out all handlers, period, we do not need to worry here. 
+This removes handlers. The nowhen boolean, when true, will leave the when handlers on the when events. This effectively blocks those events from happening until some manual reworking on the event. Since the no argument function wipes out all handlers, period, we do not need to worry here. 
 
     function (ev, fun, nowhen) {
 
-        var handlers = this._handlers;
+        var emitter = this;
+
+        var handlers = emitter._handlers;
         var h, f;
 
 
         if (arguments.length === 0) {
-            this._handlers = {};
-            return this;
+            emitter._handlers = {};
+            emitter.log("all handlers removed");
+            return emitter;
         }
 
         if (typeof fun === "function") {
             _":remove handler"
-            return this;
+            emitter.log("handler for event removed", ev + fun.name);
+            return emitter;
         }
 
         if (typeof fun === "boolean") {
@@ -417,12 +428,14 @@ This removes handlers. The blockwhen boolean, when true, will leave the when han
 
         if (nowhen === true) {
             delete handlers[ev];
-            return this;
+            emitter.log("removed handlers on event, leaving on when", ev); 
+            return emitter;
         } else {
             _":remove handlers checking for when handlers"
+            emitter.log("removing handles on event", ev);
         }            
         
-        return this;
+        return emitter;
     }
 
 
@@ -483,6 +496,8 @@ This method produces a wrapper around a provided function that automatically rem
         };
 
         emitter.on(ev, g, first); 
+        g.name = "once wrapping "+ (f.name || "");
+        emitter.log("assigned event times", ev + " :: " + n);
 
         return this;
     }
@@ -503,6 +518,8 @@ Clear queued up events. Each element of the queue is an array of the [event name
     function (a) {
         var queue = this._queue;
         var waiting = this._waiting; 
+        var emitter = this;
+        var ev; 
 
         if (arguments.length === 0) {
             while (queue.length > 0 ) {
@@ -511,6 +528,14 @@ Clear queued up events. Each element of the queue is an array of the [event name
             while (waiting.length >0 ) {
                 waiting.pop();
             }
+            emitter.log("queue cleared of all events");
+            return emitter; 
+        }
+
+        if (a === true) {
+            ev = queue.shift();
+            emitter.log("event cleared", ev[0] );
+            return emitter;
         }
 
         var filt = function (el) {
@@ -522,16 +547,12 @@ Clear queued up events. Each element of the queue is an array of the [event name
         };
 
         if (typeof a === "string") {
-            this._queue = queue.filter(filt);
-            this._waiting = waiting.filter(filt);
+            emitter._queue = queue.filter(filt);
+            emitter._waiting = waiting.filter(filt);
+            emitter.log("all instances of event cleared", a);
         }
 
-
-        if (a === true) {
-            queue.shift();
-        }
-
-        return this;
+        return emitter;
     }
 
 ### Resume
@@ -550,7 +571,7 @@ To handle "soon", we check to see if the current queue item has anything in the 
             handlers = emitter._handlers,
             waiting = emitter._waiting; 
 
-        emitter.log("resume", queue, waiting);
+        emitter.log("events on queue", queue.length+waiting.length, queue, waiting);
 
         if (queue.length >0) {
             cur = queue[0];
@@ -565,7 +586,7 @@ To handle "soon", we check to see if the current queue item has anything in the 
                 queue.shift();
             }
             if (f) {
-                emitter.log(f.log, ev, data);
+                emitter.log("handler firing", (f.name || "") + " for "+ ev, data);
                 cont = f(data, ev);
                 _":do we halt event emission"
             }
@@ -622,6 +643,51 @@ The cede control function -- node vs browser.
     (typeof process !== "undefined" && process.nextTick) ? process.nextTick 
         : (function (f) {setTimeout(f, 0);})
     
+
+###  Log
+
+This is a sample log function that could be used. To use it, simply set the instance's property log to `this.makeLog()` which generates a log function with its own log data. This will prevent garbage collection so profile it if using this with a large event system. 
+
+Logs everything, storing the result in the function itself under the name log. To print out, use .print(description) for those whose leading string is description or just .print() for full results.
+
+    function () {
+        var emitter = this;
+        var log = {
+            _full : [],
+            _simple : []
+        };
+        var pass = function () {
+            return Array.prototype.slice.call(arguments, 0);
+        };
+        var ret = function (description, specific) {
+            var f; 
+            log._full.push(Array.prototype.slice.call(arguments, 0));
+            log._simple.push(description+":" + (specific || ""));
+            if (ret.hasOwnProperty(description) ) {
+                f = ret.description;
+            } else {
+                f = pass;
+            }
+            if (log.hasOwnProperty(description) ) {
+                log[description].push(f(arguments));
+            } else {
+                log[description] = [f(arguments)];
+            }
+        };
+        ret.data = log; 
+        ret.print = function (description) {
+            if (description) {
+                console.log(log[description]);
+            } else {
+                console.log(log._simple);
+            }
+        };
+        ret.full = function () {
+            console.log(log._full);    
+        };
+        emitter.log = ret; 
+        return ret;
+    }
 
 ## README
 

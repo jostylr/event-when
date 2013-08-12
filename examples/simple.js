@@ -3,7 +3,7 @@ var EventWhen = require('../index.js'),
     emitter = new EventWhen(), 
     f;
 
-//emitter.log = console.log;
+emitter.makeLog();
 
 emitter.on("test 1 on", function () {
     console.log("test 1 starts");
@@ -19,3 +19,5 @@ emitter.on("test 1 finishes", function () {
 });
 
 emitter.emit("test 1 on");
+
+emitter.log.print();
