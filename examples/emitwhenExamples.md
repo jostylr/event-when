@@ -121,17 +121,37 @@ Testing the once method
 
     emitter.once("test 1", function () {
         console.log("test 1 fires");
+        emitter.emit("test 2");
     });
+
+
+    emitter.once("test 2", function() {
+        console.log("never fires");
+    }, 0);
 
     emitter.once("test 2", function () {
         console.log("test 2 fires");
     }, 2);
 
+    emitter.once("test 2", function() {
+        console.log("impatient test 2 handler");
+    }, 4, true);
+
+    emitter.once("test 2", function() {
+        console.log("last test 2 handler");
+    }, 4);
+
+
+
     emitter.emit("test 1");
     emitter.emit("test 2");
     emitter.emit("test 1");
     emitter.emit("test 2");
     emitter.emit("test 1");
     emitter.emit("test 2");
+    emitter.emit("test 2");
+    emitter.emit("test 2");
+    emitter.emit("test 2");
+
 
     emitter.log.print();

@@ -483,17 +483,24 @@ This method produces a wrapper around a provided function that automatically rem
             first = true; 
         }
 
-        if (!n) {
+        if (typeof n === "undefined") {
             n = 1;
         }
 
         g = function () {
-            n -= 1; 
+            var n = g.n -= 1;
+
             if ( n < 1) {
                 emitter.off(ev, g);
             }
-            return f.apply(null, arguments); 
+            if (n >= 0 ) {
+                return f.apply(null, arguments); 
+            } else {
+                return true;
+            }
         };
+
+        g.n = n;
 
         emitter.on(ev, g, first); 
         g.name = "once wrapping "+ (f.name || "");
