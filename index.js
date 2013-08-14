@@ -170,7 +170,7 @@ EvW.prototype.resume = function () {
             }
             if (f) {
                 emitter.log("handler firing", (f.name || "") + " for "+ ev, data);
-                cont = f(data, ev);
+                cont = f(data, emitter, ev);
                 if ( (cont === false) && (cur === queue[0]) ) {
                     queue.shift(); 
                 }

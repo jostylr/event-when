@@ -594,7 +594,7 @@ To handle "soon", we check to see if the current queue item has anything in the 
             }
             if (f) {
                 emitter.log("handler firing", (f.name || "") + " for "+ ev, data);
-                cont = f(data, ev);
+                cont = f(data, emitter, ev);
                 _":do we halt event emission"
             }
             this.next(this.resume);
