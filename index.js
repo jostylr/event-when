@@ -12,8 +12,13 @@ var EvW = function () {
         return this; 
     };
 
-EvW.prototype.on = function (ev, f, first) {
+EvW.prototype.on = function (ev, f, state, first) {
     var handlers = this._handlers;
+    if (typeof state === "object") {
+        f = f.bind(state);
+    } else if (state === true) {
+        first = state;
+    }
     if (handlers.hasOwnProperty(ev)) {
         if (first) {
             handlers[ev].unshift(f);
@@ -249,7 +254,13 @@ EvW.prototype.once = function (ev, f, n, first) {
                 emitter.off(ev, g);
             }
             if (n >= 0 ) {
-                return f.apply(null, arguments); 
+                if (typeof f === "function" ) {
+                    return f.apply(null, arguments); 
+                } else if (Array.isArray(f) && typeof f[0] === "function" ) {
+                    return f[0].apply(f[1], arguments);
+                } else {
+                    emitter.log("not a callable function", f, arguments);
+                }
             } else {
                 return true;
             }

@@ -378,10 +378,17 @@ If reset is true, then we add those events before firing off the next round.
 
 Takes in an event and a function. It also has an optional this; if none specified, an empty object is used. If first is used, the function is put at the start of the (current) handler array. 
 
-The function will be passed a data object and the event whose firing triggered. It will be called without context unless it is bound with .bind
+The function will be passed a data object and the event whose firing triggered. It will be called without context unless it is bound with .bind or the third argument is an object in which case it is assumed to be a state variable. 
 
-    function (ev, f, first) {
+The idea is that the event handles the data while the handler deals with the state, taking in the data to deal with it. 
+
+    function (ev, f, state, first) {
         var handlers = this._handlers;
+        if (typeof state === "object") {
+            f = f.bind(state);
+        } else if (arguments.length === 3) {
+            first = state;
+        }
         if (handlers.hasOwnProperty(ev)) {
             if (first) {
                 handlers[ev].unshift(f);
@@ -487,6 +494,7 @@ This method produces a wrapper around a provided function that automatically rem
             n = 1;
         }
 
+
         g = function () {
             var n = g.n -= 1;
 
@@ -494,7 +502,13 @@ This method produces a wrapper around a provided function that automatically rem
                 emitter.off(ev, g);
             }
             if (n >= 0 ) {
-                return f.apply(null, arguments); 
+                if (typeof f === "function" ) {
+                    return f.apply(null, arguments); 
+                } else if (Array.isArray(f) && typeof f[0] === "function" ) {
+                    return f[0].apply(f[1], arguments);
+                } else {
+                    emitter.log("not a callable function", f, arguments);
+                }
             } else {
                 return true;
             }
@@ -735,7 +749,7 @@ We can then implement this with  `evw.emitWhen("data is ready", ["file parsed", 
 	 
      If the third object is a boolean, it is assumed to be the reset flag. If it is an object, it is assumed to be an options object with either timing or reset being set there. 
 
-* .on(str event, fun handle, [bool first])  Attaches function Handle to the string  Event. The function gets stored in the .last property; (in case of anonymous function (maybe binding in progress), this might be useful). The boolean first if present and TRUE will lead to the handle being pushed in front of the current handlers on the event.
+* .on(str event, fun handle, [obj state], [bool first])  Attaches function Handle to the string  Event. The function gets stored in the .last property; (in case of anonymous function (maybe binding in progress), this might be useful). The boolean first if present and TRUE will lead to the handle being pushed in front of the current handlers on the event. The object state, if present will bind to the handler. 
 * .once(str event, fun handle, [int n, [bool first]]) This will fire the handler n times, default of 1 times. This is accomplishd by wrapping the handle in a new function that becomes the actual handler. So to remove the handle, it is necessary to grab the produced handler from `.last` and keep it around. Can manipulate the current n after initialization by accessing g.n,  where g is the returned handler found in `.last`. 
 * .once(str event, fun handle, [bool first]) With no n and a boolean true, this will place the handler at the top of the firing list and fire it once when the event is emitted. 
 * .off(str event, fun handle) Removes function Handle from Event. 
