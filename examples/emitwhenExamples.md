@@ -60,7 +60,6 @@ Now let's involve some when action.
         log.push("bob fired");
     });
 
-
     emitter.on("string notes both fired", function (data) {
         log.push("from a string, both have fired " + data.alice);
     });
@@ -69,21 +68,19 @@ Now let's involve some when action.
         log.push("string in an array, both have fired with data " + data.alice );
     });
 
-
-    emitter.emitWhen("string notes both fired", ["alice fires", "bob fires"], true);
-    emitter.emitWhen(function (data) {
+    emitter.when(["alice fires", "bob fires"], "string notes both fired", true);
+    emitter.when(["alice fires", "bob fires"], function (data) {
         log.push("single function fires with data " + data.alice); 
-    }, ["alice fires", "bob fires"]);
-    emitter.emitWhen(["array notes both fired", function (data) {
+    });
+    emitter.when( ["alice fires", "bob fires"], ["array notes both fired", function (data) {
         log.push("array function fires data " + data.alice);
-    }],  ["alice fires", "bob fires"]);
-    emitter.emitWhen(function (data) {
+    }]);
+    emitter.when([["alice fires",2]], function (data) {
         log.push("alice fired twice with data " + data.alice );
-    }, [["alice fires",2]]);
-    emitter.emitWhen(function () {
+    });
+    emitter.when("bob fires", function () {
         log.push("just care about bob firing");
-    },  "bob fires");
-
+    });
 
     emitter.on("done", function () {
         // console.log(data); 

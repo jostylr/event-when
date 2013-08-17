@@ -16,7 +16,7 @@ EvW.prototype.on = function (ev, f, state, first) {
     var handlers = this._handlers;
     if (typeof state === "object") {
         f = f.bind(state);
-    } else if (state === true) {
+    } else if (arguments.length === 3) {
         first = state;
     }
     if (handlers.hasOwnProperty(ev)) {
@@ -190,7 +190,7 @@ EvW.prototype.resume = function () {
         }
     
     };
-EvW.prototype.emitWhen = function (ev, events, timing, reset) {    
+EvW.prototype.when = function (events, ev, timing, reset) {    
     
         var emitter = this, 
             options;    
@@ -217,7 +217,7 @@ EvW.prototype.emitWhen = function (ev, events, timing, reset) {
         tracker.reset = reset;
         tracker.original = events;
     
-        var handler = function (data, fired) {
+        var handler = function (data, emitter, fired) {
             tracker.addData(data, fired); 
             tracker.remove(fired);
             return true;
@@ -373,7 +373,7 @@ Tracker.prototype.add = function (args) {
                 order = el[2] || false;
             } 
         }
-        if (str && num) {
+        if (str && (typeof num === "number") ) {
             if (events.hasOwnProperty(str) ) {
                 events[str] += num;
             } else {

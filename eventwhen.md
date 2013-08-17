@@ -64,7 +64,7 @@ The various prototype methods on the event emitter.
     EvW.prototype.off = _"off";
     EvW.prototype.stop = _"stop";
     EvW.prototype.resume = _"resume";
-    EvW.prototype.emitWhen = _"emit when";
+    EvW.prototype.when = _"emit when";
     EvW.prototype.once = _"once";
 
     EvW.prototype.next =  _"next";
@@ -132,7 +132,7 @@ If the third argument is a boolean, then it is assumed to be the reset string an
 
 !!! Better logging dealing with str. 
 
-    function (ev, events, timing, reset) {    
+    function (events, ev, timing, reset) {    
 
         var emitter = this, 
             options;    
@@ -159,7 +159,7 @@ If the third argument is a boolean, then it is assumed to be the reset string an
         tracker.reset = reset;
         tracker.original = events;
 
-        var handler = function (data, fired) {
+        var handler = function (data, emitter, fired) {
             tracker.addData(data, fired); 
             tracker.remove(fired);
             return true;
@@ -234,7 +234,7 @@ We can add events on to the tracker. We allow it to be an array of events passed
                     order = el[2] || false;
                 } 
             }
-            if (str && num) {
+            if (str && (typeof num === "number") ) {
                 if (events.hasOwnProperty(str) ) {
                     events[str] += num;
                 } else {
