@@ -12,7 +12,7 @@ The handlers keep track of what was parsed.
 
 Most of the handlers are defined in start processing to use closures. We could use emitter to store a global state, indexed by text. But I think it is cleaner to have a closure around the global. We could also initiate a new emitter for each new text. 
 
-    /*global require, console, process*/
+    /*global require, console*/
 
     var EventWhen = require('../index.js');
     var emitter = new EventWhen();
@@ -21,7 +21,7 @@ Most of the handlers are defined in start processing to use closures. We could u
 
     emitter.on("text ready", _"start processing");
 
-    var text = "(cool, [great] right)";
+    var text = "(cool, [great] right) yay!";
 
     emitter.emit("text ready", text);
 
@@ -37,17 +37,17 @@ We have a global variable to store state. The text passed in is split into an ar
 
         global.store = [[]];
         global.original = text;
-        global.text = text.split();
+        global.text = text.split('');
 
-        emitter.on("next character", _"store character"); 
+        emitter.on("next character", _"store character", global); 
 
-        emitter.on("open bracket", _"create new parenthetical");
+        emitter.on("open bracket", _"create new parenthetical", global);
 
-        emitter.on("quote", _"quote processing");
+        emitter.on("quote", _"quote processing", global);
 
-        emitter.on("escape", _"escape character");
+        emitter.on("escape", _"escape character", global);
 
-        emitter.on("text processing done", _"report processed");
+        emitter.on("text processing done", _"report processed", global);
 
         emitter.emit("next character", global.text.shift());
 
@@ -58,6 +58,7 @@ We have a global variable to store state. The text passed in is split into an ar
 We get a new character and pop it into the globa store 0 array. Then we analyze it and emit the appropriate event, if any. After, we emit the next character or the done event.
 
     function (char) {
+        var global = this;
         global.store[0].push(char);
 
         switch (char) {
@@ -69,7 +70,8 @@ We get a new character and pop it into the globa store 0 array. Then we analyze 
             case ")" :
             case "}" :
             case "]" :
-                emitter.emit("close bracket", char);
+                console.log(char);
+                emitter.emit("close bracket", {rightbracket:char});
             break;
             case "'":
             case "\"" :
@@ -94,25 +96,69 @@ We get a new character and pop it into the globa store 0 array. Then we analyze 
 For each parenthetical, we create a new array that will store everything that goes in it. We also record the brackets. 
 
     function (char) {
+        var global = this;
         var newstore,
-            close,
-            fail, 
-            leftbracket, 
+            leftbracket,
+            handlers = {},  
             rightbracket;
 
-        close = emitter.on("close bracket", _"end parenthetical");
+        var brackets = {
+            "(" : ")",
+            "[" : "]",
+            "{" : "}"
+        };
 
-        fail = emitter.on("text processing done, _"failed to match", "first");
+        leftbracket = char; 
+        newstore = [char];
+        global.store.push(newstore);
+
+
+        handlers.pusher = emitter.on("next character", function (char) {
+            this.push(char);
+        }, newstore).last;
+
+        handlers.open = emitter.on("open bracket", function () {
+            handlers.close.add("close bracket");
+        });
+
+        handlers.close = emitter.when("close bracket", [_"end parenthetical", _"remove bracket handlers".bind(handlers)]).last;
+
+        handlers.fail = emitter.on("text processing done", _"remove bracket handlers", handlers).last;
+
 
     }
+
+## Remove bracket handlers
+
+This is a cleanup action that removes handlers once all done
+
+    function (d, emitter) {
+        var handlers = this;
+
+        emitter.off("next character", handlers.pusher);
+        handlers.close.cancel();
+        emitter.off("text processing done", handlers.fail);
+
+        return true;
+    }
+
 
 ### End parenthetical
 
-    function () {
+Check for a match? This is the problem of having an example without a reason.
 
+    function (char) {
+        rightbracket = char;
+        if (brackets[leftbracket] !== rightbracket) {
+            emitter.emit("mismatched brackets", [leftbracket+rightbracket, newstore.join('')]);
+        } else {
+            emitter.emit("matching brackets", newstore.join(''));
+        }
     }
 
 ### Quote processing
+
+
 
     function () {
 
@@ -129,6 +175,6 @@ For each parenthetical, we create a new array that will store everything that go
 This is the end of the line. We have 
 
     function () {
-        emitter.log.print();
-        console.log(global.store);
+        //emitter.log.print();
+        console.log(global.store.map(function (el) {return el.join('');}) );
     }

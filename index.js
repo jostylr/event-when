@@ -102,8 +102,8 @@ EvW.prototype.off = function (ev, fun, nowhen) {
             h = handlers[ev];
             while (h.length > 0) {
                 f = h.pop();
-                if (fun.hasOwnProperty("tracker") ) {
-                    fun.tracker.removeStr(ev);
+                if (f.hasOwnProperty("tracker") ) {
+                    f.tracker.removeStr(ev);
                 }
             }
             delete handlers[ev];
@@ -229,7 +229,7 @@ EvW.prototype.when = function (events, ev, timing, reset) {
     
         tracker.add(events);
     
-        emitter.last = handler;
+        emitter.last = tracker;
     
         return emitter;
     };
@@ -383,7 +383,8 @@ Tracker.prototype.add = function (args) {
                 }
                 events[str] = num;
             }
-        } 
+        }
+        console.log(str, num, events[str]); 
     });
 };
 Tracker.prototype.remove = function () {
@@ -403,9 +404,10 @@ Tracker.prototype.remove = function () {
                     str = el[0];
                 } 
             }
+            console.log(str, num);
             if (str && num) {
                 if (events.hasOwnProperty(str) ) {
-                    events[str] -= num;
+                    events[str] -= num;             
                     if (events[str] <= 0) {
                         delete events[str];
                         tracker.emitter.off(str, tracker.handler, true);
@@ -436,13 +438,13 @@ Tracker.prototype.go = function () {
                     if (typeof ev === "string") {
                         tracker.emitter.emit(ev, data, timing);
                     } else if (typeof ev === "function") {
-                        ev(data, "emitWhen handler called");
+                        ev(data, tracker.emitter, "emitWhen handler called");
                     } else if (Array.isArray(ev) ) {
                 ev.forEach(function (ev) {
                             if (typeof ev === "string") {
                                 tracker.emitter.emit(ev, data, timing);
                             } else if (typeof ev === "function") {
-                                ev(data, "emitWhen handler called");
+                                ev(data, tracker.emitter, "emitWhen handler called");
                             }
                 });
             }

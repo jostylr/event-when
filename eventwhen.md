@@ -172,7 +172,9 @@ If the third argument is a boolean, then it is assumed to be the reset string an
 
         tracker.add(events);
 
-        emitter.last = handler;
+We assign the tracker to the last property since one should use that to remove it. If you want the handler itself, it is in tracker.handler. It just seems more natural this way since the manipulations use tracker. 
+
+        emitter.last = tracker;
 
         return emitter;
     }
@@ -244,7 +246,8 @@ We can add events on to the tracker. We allow it to be an array of events passed
                     }
                     events[str] = num;
                 }
-            } 
+            }
+            console.log(str, num, events[str]); 
         });
     }
 
@@ -274,9 +277,10 @@ Note the `true` for the .off command is to make sure the `.remove` is not called
                     str = el[0];
                 } 
             }
+            console.log(str, num);
             if (str && num) {
                 if (events.hasOwnProperty(str) ) {
-                    events[str] -= num;
+                    events[str] -= num;             
                     if (events[str] <= 0) {
                         delete events[str];
                         tracker.emitter.off(str, tracker.handler, true);
@@ -342,6 +346,8 @@ This is the primary activator.
 
 If reset is true, then we add those events before firing off the next round. 
 
+We might have an event, a handle, or an array of such things. 
+
     function () {
         var tracker = this, 
             ev = tracker.event, 
@@ -356,7 +362,7 @@ If reset is true, then we add those events before firing off the next round.
             }
             _":go event handle" else if (Array.isArray(ev) ) {
                 ev.forEach(function (ev) {
-                    _":go event handle"
+                    _":go event handle" 
                 });
             }
         }
@@ -366,11 +372,15 @@ If reset is true, then we add those events before firing off the next round.
 
 [go event handle](# "js") 
 
+So either we emit an event, we 
+
             if (typeof ev === "string") {
                 tracker.emitter.emit(ev, data, timing);
             } else if (typeof ev === "function") {
-                ev(data, "emitWhen handler called");
+                ev(data, tracker.emitter, "emitWhen handler called");
             }
+
+
 
 
 
@@ -468,8 +478,8 @@ This will remove all duplicate handlers of the passed in function as well.
     h = handlers[ev];
     while (h.length > 0) {
         f = h.pop();
-        if (fun.hasOwnProperty("tracker") ) {
-            fun.tracker.removeStr(ev);
+        if (f.hasOwnProperty("tracker") ) {
+            f.tracker.removeStr(ev);
         }
     }
     delete handlers[ev];
