@@ -11,7 +11,7 @@ emitter.on("text ready", function (text, emitter) {
         global.original = text;
         global.text = text.split('');
     
-        emitter.on("next character", function (char) {
+        emitter.on("next character", [global, function (char) {
                 var global = this;
                 global.store[0].push(char);
             
@@ -24,7 +24,6 @@ emitter.on("text ready", function (text, emitter) {
                     case ")" :
                     case "}" :
                     case "]" :
-                        console.log(char);
                         emitter.emit("close bracket", {rightbracket:char});
                     break;
                     case "'":
@@ -43,9 +42,9 @@ emitter.on("text ready", function (text, emitter) {
                     emitter.emit("text processing done");
                 }
             
-            }, global); 
+            }]); 
     
-        emitter.on("open bracket", function (char) {
+        emitter.on("open bracket", [global, function (char) {
                 var global = this;
                 var newstore,
                     leftbracket,
@@ -62,9 +61,9 @@ emitter.on("text ready", function (text, emitter) {
                 newstore = [char];
                 global.store.push(newstore);
             
-                handlers.pusher = emitter.on("next character", function (char) {
+                handlers.pusher = emitter.on("next character", [newstore, function (char) {
                     this.push(char);
-                }, newstore).last;
+                }]).last;
             
                 handlers.open = emitter.on("open bracket", function () {
                     handlers.close.add("close bracket");
@@ -87,7 +86,7 @@ emitter.on("text ready", function (text, emitter) {
                         return true;
                     }.bind(handlers)]).last;
             
-                handlers.fail = emitter.on("text processing done", function (d, emitter) {
+                handlers.fail = emitter.on("text processing done", [handlers, function (d, emitter) {
                         var handlers = this;
                     
                         emitter.off("next character", handlers.pusher);
@@ -95,22 +94,22 @@ emitter.on("text ready", function (text, emitter) {
                         emitter.off("text processing done", handlers.fail);
                     
                         return true;
-                    }, handlers).last;
+                    }]).last;
             
-            }, global);
+            }]);
     
-        emitter.on("quote", function () {
+        emitter.on("quote", [global, function () {
             
-            }, global);
+            }]);
     
-        emitter.on("escape", function () {
+        emitter.on("escape", [global, function () {
             
-            }, global);
+            }]);
     
-        emitter.on("text processing done", function () {
+        emitter.on("text processing done", [global, function () {
                 //emitter.log.print();
                 console.log(global.store.map(function (el) {return el.join('');}) );
-            }, global);
+            }]);
     
         emitter.emit("next character", global.text.shift());
     

@@ -39,15 +39,15 @@ We have a global variable to store state. The text passed in is split into an ar
         global.original = text;
         global.text = text.split('');
 
-        emitter.on("next character", _"store character", global); 
+        emitter.on("next character", [global, _"store character"]); 
 
-        emitter.on("open bracket", _"create new parenthetical", global);
+        emitter.on("open bracket", [global, _"create new parenthetical"]);
 
-        emitter.on("quote", _"quote processing", global);
+        emitter.on("quote", [global, _"quote processing"]);
 
-        emitter.on("escape", _"escape character", global);
+        emitter.on("escape", [global, _"escape character"]);
 
-        emitter.on("text processing done", _"report processed", global);
+        emitter.on("text processing done", [global, _"report processed"]);
 
         emitter.emit("next character", global.text.shift());
 
@@ -70,7 +70,6 @@ We get a new character and pop it into the globa store 0 array. Then we analyze 
             case ")" :
             case "}" :
             case "]" :
-                console.log(char);
                 emitter.emit("close bracket", {rightbracket:char});
             break;
             case "'":
@@ -113,9 +112,9 @@ For each parenthetical, we create a new array that will store everything that go
         global.store.push(newstore);
 
 
-        handlers.pusher = emitter.on("next character", function (char) {
+        handlers.pusher = emitter.on("next character", [newstore, function (char) {
             this.push(char);
-        }, newstore).last;
+        }]).last;
 
         handlers.open = emitter.on("open bracket", function () {
             handlers.close.add("close bracket");
@@ -123,7 +122,7 @@ For each parenthetical, we create a new array that will store everything that go
 
         handlers.close = emitter.when("close bracket", [_"end parenthetical", _"remove bracket handlers".bind(handlers)]).last;
 
-        handlers.fail = emitter.on("text processing done", _"remove bracket handlers", handlers).last;
+        handlers.fail = emitter.on("text processing done", [handlers, _"remove bracket handlers"]).last;
 
 
     }

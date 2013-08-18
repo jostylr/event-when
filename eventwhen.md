@@ -247,7 +247,6 @@ We can add events on to the tracker. We allow it to be an array of events passed
                     events[str] = num;
                 }
             }
-            console.log(str, num, events[str]); 
         });
     }
 
@@ -277,7 +276,6 @@ Note the `true` for the .off command is to make sure the `.remove` is not called
                     str = el[0];
                 } 
             }
-            console.log(str, num);
             if (str && num) {
                 if (events.hasOwnProperty(str) ) {
                     events[str] -= num;             
@@ -388,16 +386,15 @@ So either we emit an event, we
 
 Takes in an event and a function. It also has an optional this; if none specified, an empty object is used. If first is used, the function is put at the start of the (current) handler array. 
 
-The function will be passed a data object and the event whose firing triggered. It will be called without context unless it is bound with .bind or the third argument is an object in which case it is assumed to be a state variable. 
+The function will be passed a data object and the event whose firing triggered. It will be called without context unless it is bound with .bind or the function is an array, which is assumed to be of the form [state, fun]. 
 
-The idea is that the event handles the data while the handler deals with the state, taking in the data to deal with it. 
+The idea is that the event handles the data while the handler manipulates the state, taking in the data to deal with it. 
 
-    function (ev, f, state, first) {
+
+    function (ev, f, first) {
         var handlers = this._handlers;
-        if (typeof state === "object") {
-            f = f.bind(state);
-        } else if (arguments.length === 3) {
-            first = state;
+        if (Array.isArray(f) ) {
+            f = f[1].bind(f[0]);
         }
         if (handlers.hasOwnProperty(ev)) {
             if (first) {

@@ -12,12 +12,10 @@ var EvW = function () {
         return this; 
     };
 
-EvW.prototype.on = function (ev, f, state, first) {
+EvW.prototype.on = function (ev, f, first) {
     var handlers = this._handlers;
-    if (typeof state === "object") {
-        f = f.bind(state);
-    } else if (arguments.length === 3) {
-        first = state;
+    if (Array.isArray(f) ) {
+        f = f[1].bind(f[0]);
     }
     if (handlers.hasOwnProperty(ev)) {
         if (first) {
@@ -384,7 +382,6 @@ Tracker.prototype.add = function (args) {
                 events[str] = num;
             }
         }
-        console.log(str, num, events[str]); 
     });
 };
 Tracker.prototype.remove = function () {
@@ -404,7 +401,6 @@ Tracker.prototype.remove = function () {
                     str = el[0];
                 } 
             }
-            console.log(str, num);
             if (str && num) {
                 if (events.hasOwnProperty(str) ) {
                     events[str] -= num;             
@@ -445,7 +441,7 @@ Tracker.prototype.go = function () {
                                 tracker.emitter.emit(ev, data, timing);
                             } else if (typeof ev === "function") {
                                 ev(data, tracker.emitter, "emitWhen handler called");
-                            }
+                            } 
                 });
             }
         }
