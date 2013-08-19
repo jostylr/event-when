@@ -15,7 +15,11 @@ var EvW = function () {
 EvW.prototype.on = function (ev, f, first) {
     var handlers = this._handlers;
     if (Array.isArray(f) ) {
-        f = f[1].bind(f[0]);
+        if (f.length === 2) {
+            f = f[1].bind(f[0]);
+        } else {
+            f = Function.prototype.bind.apply(f[1], [f[0]].concat(f.slice(2)));
+        }
     }
     if (handlers.hasOwnProperty(ev)) {
         if (first) {
