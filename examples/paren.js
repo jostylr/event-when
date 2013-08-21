@@ -11,28 +11,31 @@ emitter.on("text ready", function (text, emitter) {
         global.original = text;
         global.text = text.split('');
     
-        emitter.on("next character", [global, function (char) {
+        emitter.on("next character", [global, function (command, char) {
                 var global = this;
                 global.store[0].push(char);
             
-                switch (char) {
-                    case "(" :
-                    case "{" :
-                    case "[" :
-                        emitter.emit("open bracket", char);
-                    break;
-                    case ")" :
-                    case "}" :
-                    case "]" :
-                        emitter.emit("close bracket", {rightbracket:char});
-                    break;
-                    case "'":
-                    case "\"" :
-                        emitter.emit("quote", char);
-                    break;
-                    case "\\" :
-                        emitter.emit("escape", char);
-                    break;
+                if (command === "check") {
+                    switch (char) {
+                        case "(" :
+                        case "{" :
+                        case "[" :
+                            emitter.emit("open bracket", char);
+                        break;
+                        case ")" :
+                        case "}" :
+                        case "]" :
+                            emitter.emit("close bracket", {rightbracket:char});
+                        break;
+                        case "'":
+                        case "\"" :
+                            emitter.emit("quote", char);
+                        break;
+                        case "\\" :
+                            global.store[0].pop(); // fix this later 
+                            emitter.emit("escape", char);
+                        break;
+                    }
                 }
             
                 char = global.text.shift();
@@ -42,7 +45,7 @@ emitter.on("text ready", function (text, emitter) {
                     emitter.emit("text processing done");
                 }
             
-            }]); 
+            }, "check"]); 
     
         emitter.on("open bracket", [global, function (char) {
                 var global = this;
@@ -54,7 +57,10 @@ emitter.on("text ready", function (text, emitter) {
                 var brackets = {
                     "(" : ")",
                     "[" : "]",
-                    "{" : "}"
+                    "{" : "}",
+                    ")" : ")",
+                    "]" : "]",
+                    "}" : "}"
                 };
             
                 leftbracket = char; 
@@ -64,6 +70,8 @@ emitter.on("text ready", function (text, emitter) {
                 handlers.pusher = emitter.on("next character", [newstore, function (char) {
                     this.push(char);
                 }]).last;
+            
+                emitter.on("literal character", handlers.pusher);
             
                 handlers.open = emitter.on("open bracket", function () {
                     handlers.close.add("close bracket");
@@ -80,6 +88,8 @@ emitter.on("text ready", function (text, emitter) {
                         var handlers = this;
                     
                         emitter.off("next character", handlers.pusher);
+                        emitter.off("literal character", handlers.pusher);
+                    
                         handlers.close.cancel();
                         emitter.off("text processing done", handlers.fail);
                     
@@ -90,6 +100,8 @@ emitter.on("text ready", function (text, emitter) {
                         var handlers = this;
                     
                         emitter.off("next character", handlers.pusher);
+                        emitter.off("literal character", handlers.pusher);
+                    
                         handlers.close.cancel();
                         emitter.off("text processing done", handlers.fail);
                     
@@ -102,9 +114,58 @@ emitter.on("text ready", function (text, emitter) {
             
             }]);
     
-        emitter.on("escape", [global, function () {
+        emitter.on("escape", [global, function (d, emitter) {
+                var global = this;
+            
+                var escaped = global.text.shift(); 
+                switch (escaped) {
+                    case "t" : 
+                        emitter.emit("next character", "\t");
+                    break;
+                    case "n" : 
+                        emitter.emit("next character", "\n");
+                    break;
+                    default: 
+                        emitter.emit("literal character", escaped);
+                }
             
             }]);
+    
+        emitter.on("literal character", [global, function (command, char) {
+                var global = this;
+                global.store[0].push(char);
+            
+                if (command === "check") {
+                    switch (char) {
+                        case "(" :
+                        case "{" :
+                        case "[" :
+                            emitter.emit("open bracket", char);
+                        break;
+                        case ")" :
+                        case "}" :
+                        case "]" :
+                            emitter.emit("close bracket", {rightbracket:char});
+                        break;
+                        case "'":
+                        case "\"" :
+                            emitter.emit("quote", char);
+                        break;
+                        case "\\" :
+                            global.store[0].pop(); // fix this later 
+                            emitter.emit("escape", char);
+                        break;
+                    }
+                }
+            
+                char = global.text.shift();
+                if (char) {
+                    emitter.emit("next character", char);
+                } else {
+                    emitter.emit("text processing done");
+                }
+            
+            }, "store only"]);
     
         emitter.on("text processing done", [global, function () {
                 //emitter.log.print();
@@ -115,6 +176,11 @@ emitter.on("text ready", function (text, emitter) {
     
     });
 
-var text = "(cool, [great] right) yay!";
+var text = "(cool, ( [great] right) yay!";
+//emitter.emit("text ready", text);
 
-emitter.emit("text ready", text);
+var text2 = "We shall use \\( just a little \\\\ \\t (some escaping \\( for \\) us) right?";
+console.log(text2);
+emitter.emit("text ready", text2);
+
+//emitter.log.print();

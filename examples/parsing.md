@@ -21,9 +21,15 @@ Most of the handlers are defined in start processing to use closures. We could u
 
     emitter.on("text ready", _"start processing");
 
-    var text = "(cool, [great] right) yay!";
+    var text = "(cool, ( [great] right) yay!";
+    //emitter.emit("text ready", text);
 
-    emitter.emit("text ready", text);
+    var text2 = "We shall use \\( just a little \\\\ \\t (some escaping \\( for \\) us) right?";
+    console.log(text2);
+    emitter.emit("text ready", text2);
+
+    //emitter.log.print();
+
 
 ### Start processing
 
@@ -39,13 +45,15 @@ We have a global variable to store state. The text passed in is split into an ar
         global.original = text;
         global.text = text.split('');
 
-        emitter.on("next character", [global, _"store character"]); 
+        emitter.on("next character", [global, _"store character", "check"]); 
 
         emitter.on("open bracket", [global, _"create new parenthetical"]);
 
         emitter.on("quote", [global, _"quote processing"]);
 
         emitter.on("escape", [global, _"escape character"]);
+
+        emitter.on("literal character", [global, _"store character", "store only"]);
 
         emitter.on("text processing done", [global, _"report processed"]);
 
@@ -57,28 +65,31 @@ We have a global variable to store state. The text passed in is split into an ar
 
 We get a new character and pop it into the globa store 0 array. Then we analyze it and emit the appropriate event, if any. After, we emit the next character or the done event.
 
-    function (char) {
+    function (command, char) {
         var global = this;
         global.store[0].push(char);
 
-        switch (char) {
-            case "(" :
-            case "{" :
-            case "[" :
-                emitter.emit("open bracket", char);
-            break;
-            case ")" :
-            case "}" :
-            case "]" :
-                emitter.emit("close bracket", {rightbracket:char});
-            break;
-            case "'":
-            case "\"" :
-                emitter.emit("quote", char);
-            break;
-            case "\\" :
-                emitter.emit("escape", char);
-            break;
+        if (command === "check") {
+            switch (char) {
+                case "(" :
+                case "{" :
+                case "[" :
+                    emitter.emit("open bracket", char);
+                break;
+                case ")" :
+                case "}" :
+                case "]" :
+                    emitter.emit("close bracket", {rightbracket:char});
+                break;
+                case "'":
+                case "\"" :
+                    emitter.emit("quote", char);
+                break;
+                case "\\" :
+                    global.store[0].pop(); // fix this later 
+                    emitter.emit("escape", char);
+                break;
+            }
         }
 
         char = global.text.shift();
@@ -104,7 +115,10 @@ For each parenthetical, we create a new array that will store everything that go
         var brackets = {
             "(" : ")",
             "[" : "]",
-            "{" : "}"
+            "{" : "}",
+            ")" : ")",
+            "]" : "]",
+            "}" : "}"
         };
 
         leftbracket = char; 
@@ -115,6 +129,8 @@ For each parenthetical, we create a new array that will store everything that go
         handlers.pusher = emitter.on("next character", [newstore, function (char) {
             this.push(char);
         }]).last;
+
+        emitter.on("literal character", handlers.pusher);
 
         handlers.open = emitter.on("open bracket", function () {
             handlers.close.add("close bracket");
@@ -135,6 +151,8 @@ This is a cleanup action that removes handlers once all done
         var handlers = this;
 
         emitter.off("next character", handlers.pusher);
+        emitter.off("literal character", handlers.pusher);
+
         handlers.close.cancel();
         emitter.off("text processing done", handlers.fail);
 
@@ -157,7 +175,7 @@ Check for a match? This is the problem of having an example without a reason.
 
 ### Quote processing
 
-
+For quotes, we do not want to parse the brackets. Quoting is considered a literal kind of thing. 
 
     function () {
 
@@ -165,7 +183,22 @@ Check for a match? This is the problem of having an example without a reason.
 
 ### Escape character
 
-    function () {
+We suck up the next character and check if it has any special meaning (tab, newline) and then either report the special character or report the literal. 
+
+    function (d, emitter) {
+        var global = this;
+
+        var escaped = global.text.shift(); 
+        switch (escaped) {
+            case "t" : 
+                emitter.emit("next character", "\t");
+            break;
+            case "n" : 
+                emitter.emit("next character", "\n");
+            break;
+            default: 
+                emitter.emit("literal character", escaped);
+        }
 
     }
 
