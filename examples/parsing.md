@@ -22,7 +22,7 @@ Most of the handlers are defined in start processing to use closures. We could u
     emitter.on("text ready", _"start processing");
 
     var text = "(cool, ( [great] right) yay!";
-    //emitter.emit("text ready", text);
+    emitter.emit("text ready", text);
 
     var text2 = "We shall use \\( just a little \\\\ \\t (some escaping \\( for \\) us) right?";
     console.log(text2);

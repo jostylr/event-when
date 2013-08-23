@@ -386,19 +386,23 @@ So either we emit an event, we
 
 Takes in an event and a function. It also has an optional this; if none specified, an empty object is used. If first is used, the function is put at the start of the (current) handler array. 
 
-The function will be passed a data object and the event whose firing triggered. It will be called without context unless it is bound with .bind or the function is an array, which is assumed to be of the form [state, fun]. 
+The function will be passed a data object and the event whose firing triggered. It will be called without context unless it is bound with .bind or the function is an array, which is assumed to be of the form [state, fun, arg(s)]. This latter form does not bind the function to the state; see [pmuellr](http://pmuellr.blogspot.com/2010/06/bind-considered-harmful.html) and [amasad](http://blog.amasad.me/2012/07/02/the-dark-side-of-functionprototypebind/) for some reasons (namely, a new function is being created each time and dissociates itself from the object. We also support [state, "method name", ...] which will keep the function reference alive.  Note that these arrays are what is stored in .last and are to be used for matching (1-level deep comparison for removal...oh, boy). 
 
 The idea is that the event handles the data while the handler manipulates the state, taking in the data to deal with it. 
 
 
     function (ev, f, first) {
+        var emitter = this;
+
         var handlers = this._handlers;
         if (Array.isArray(f) ) {
-            if (f.length === 2) {
-                f = f[1].bind(f[0]);
-            } else {
-                f = Function.prototype.bind.apply(f[1], [f[0]].concat(f.slice(2)));
+            if (typeof f[1] !== "function") ) {
+                emitter.log("arrayed handler does not have second element as function", ev, f);
+                return this;
             }
+        } else if (typeof f !== "function") {
+            emitter.log("handler assigned is not a function", ev, f);
+            return this;
         }
         if (handlers.hasOwnProperty(ev)) {
             if (first) {
@@ -434,9 +438,20 @@ This removes handlers. The nowhen boolean, when true, will leave the when handle
             return emitter;
         }
 
+        if (!handlers.hasOwnProperty(ev) ) {
+            emitter.log("no event found to remove handlers", ev);
+            return emitter;
+        }
+
         if (typeof fun === "function") {
             _":remove handler"
             emitter.log("handler for event removed", ev + fun.name);
+            return emitter;
+        }
+
+        if (Array.isArray(fun) ) {
+            _":remove array handler"
+            emitter.log("handler for event removed", ev + fun[1].name);
             return emitter;
         }
 
@@ -473,6 +488,23 @@ This will remove all duplicate handlers of the passed in function as well.
     }
 
 
+[remove array handler](# "js")
+
+This will remove all remove all duplicates, but the handler is defined by obj, function, args. All must be the same as the original object (in reference, not value). 
+
+    handlers[ev] = handlers[ev].filter(function (el) {
+        if (Array.isArray(el)) {
+            if ( (el[0] === fun[0]) && (el[1] === fun[1]) (el[2] === fun[2]) ) {
+                return false;
+            } else {
+                return true;
+            }
+        } else {
+            return true;
+        }
+    }); 
+
+
 [remove handlers checking for when handlers](# "js")
 
     
@@ -505,25 +537,33 @@ This method produces a wrapper around a provided function that automatically rem
             n = 1;
         }
 
-
-        g = function () {
-            var n = g.n -= 1;
-
-            if ( n < 1) {
-                emitter.off(ev, g);
-            }
-            if (n >= 0 ) {
-                if (typeof f === "function" ) {
-                    return f.apply(null, arguments); 
-                } else if (Array.isArray(f) && typeof f[0] === "function" ) {
-                    return f[0].apply(f[1], arguments);
-                } else {
-                    emitter.log("not a callable function", f, arguments);
+        if (typeof f === "function") {
+            g = function (a, b, c) {
+                var n = g.n -= 1;
+                if ( n < 1) {
+                    emitter.off(ev, g);
                 }
-            } else {
-                return true;
-            }
-        };
+                if (n >= 0 ) {
+                    return f.call(null, a, b, c); 
+                } else {
+                    return true;
+                }
+            };
+        } else if (Array.isArray(f) && typeof f[1] === "function") {
+            g = function (a, b, c) {
+                var n = g.n -= 1;
+                if ( n < 1) {
+                    emitter.off(ev, g);
+                }
+                if (n >= 0 ) {
+                    return f.call(f[0], a, b, c, f[2]); 
+                } else {
+                    return true;
+                }
+            };
+        } else {
+            emitter.log("not a callable function", ev, f);
+        }            
 
         g.n = n;
 
@@ -597,7 +637,7 @@ To handle "soon", we check to see if the current queue item has anything in the 
 
      function () {
 
-        var q, f, ev, data, cont, cur,
+        var q, f, ev, data, cont, cur, args, obj,
             emitter = this,
             queue = emitter._queue,
             handlers = emitter._handlers,
@@ -618,9 +658,7 @@ To handle "soon", we check to see if the current queue item has anything in the 
                 queue.shift();
             }
             if (f) {
-                emitter.log("handler firing", (f.name || "") + " for "+ ev, data);
-                cont = f(data, emitter, ev);
-                _":do we halt event emission"
+                _":deal with handler calling"
             }
             this.next(this.resume);
         } else if (waiting.length > 0) {
@@ -632,6 +670,23 @@ To handle "soon", we check to see if the current queue item has anything in the 
         }
 
     }
+
+[deal with handler calling](js "#")
+
+We need to implement plain function calling or callbacks with global, function, initial arguments. 
+
+    if (typeof f === "function") {
+        emitter.log("handler firing", (f.name || "") + " for "+ ev, data);
+        cont = f(data, emitter, ev);
+    } else if (Array.isArray(f)) {
+        emitter.log("handler firing", (f.name || "") + " for " + ev, data);
+        f[1].call.(f[0], data, emitter, ev, f[2]);
+    } else {
+        emitter.log("warning: handler not understood", ev + f, data);
+    }
+        
+    _":do we halt event emission"
+
 
 [do we halt event emission](js "#")
 

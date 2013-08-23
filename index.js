@@ -78,6 +78,7 @@ EvW.prototype.off = function (ev, fun, nowhen) {
         }
     
         if (typeof fun === "function") {
+            debugger;
             handlers[ev] = handlers[ev].filter(function (el) {
                 if (el === fun) {
                     return false;

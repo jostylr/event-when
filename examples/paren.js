@@ -39,9 +39,12 @@ emitter.on("text ready", function (text, emitter) {
                 }
             
                 char = global.text.shift();
+
+
                 if (char) {
                     emitter.emit("next character", char);
                 } else {
+
                     emitter.emit("text processing done");
                 }
             
@@ -177,7 +180,10 @@ emitter.on("text ready", function (text, emitter) {
     });
 
 var text = "(cool, ( [great] right) yay!";
-//emitter.emit("text ready", text);
+
+
+emitter.emit("text ready", text);
+
 
 var text2 = "We shall use \\( just a little \\\\ \\t (some escaping \\( for \\) us) right?";
 console.log(text2);
