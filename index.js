@@ -13,13 +13,12 @@ var EvW = function () {
     };
 
 EvW.prototype.on = function (ev, f, first) {
+    var emitter = this;
+
     var handlers = this._handlers;
-    if (Array.isArray(f) ) {
-        if (f.length === 2) {
-            f = f[1].bind(f[0]);
-        } else {
-            f = Function.prototype.bind.apply(f[1], [f[0]].concat(f.slice(2)));
-        }
+    if ( (typeof f !== "function") && (!Array.isArray(f) ) ) {
+        emitter.log("handler assigned is not a function", ev, f);
+        return this;
     }
     if (handlers.hasOwnProperty(ev)) {
         if (first) {
@@ -77,8 +76,12 @@ EvW.prototype.off = function (ev, fun, nowhen) {
             return emitter;
         }
     
+        if (!handlers.hasOwnProperty(ev) ) {
+            emitter.log("no event found to remove handlers", ev);
+            return emitter;
+        }
+    
         if (typeof fun === "function") {
-            debugger;
             handlers[ev] = handlers[ev].filter(function (el) {
                 if (el === fun) {
                     return false;
@@ -90,6 +93,24 @@ EvW.prototype.off = function (ev, fun, nowhen) {
                 fun.tracker.removeStr(ev);
             }
             emitter.log("handler for event removed", ev + fun.name);
+            return emitter;
+        }
+    
+        if (Array.isArray(fun) ) {
+            handlers[ev] = handlers[ev].filter(function (el) {
+                if (Array.isArray(el)) {
+                    if ( (el[0] === fun[0]) && (el[1] === fun[1]) && (el[2] === fun[2]) ) {
+                        return false;
+                    } else {
+                        return true;
+                    }
+                } else {
+                    return true;
+                }
+            }); 
+            emitter.log("handler for event removed", ev + 
+                fun.name || ( (typeof fun[1] === "string") ? fun[1] : (fun[1].name || "") ) 
+            );
             return emitter;
         }
     
@@ -177,8 +198,24 @@ EvW.prototype.resume = function () {
                 queue.shift();
             }
             if (f) {
-                emitter.log("handler firing", (f.name || "") + " for "+ ev, data);
-                cont = f(data, emitter, ev);
+                if (typeof f === "function") {
+                    emitter.log("handler firing", (f.name || "") + " for "+ ev, data);
+                    cont = f(data, emitter, ev);
+                } else if (Array.isArray(f)) {
+                    emitter.log("handler firing", (f.name || "") + " for " + ev, data);
+                    if (typeof f[1] === "function") {
+                        cont = f[1].call(f[0], data, emitter, ev, f[2]);
+                    } else if (f[0].hasOwnProperty(f[1]) && (typeof f[0][f[1]] === "function") ) {
+                        cont = f[0][f[1]](data, emitter, ev, f[2]);
+                    } else {
+                        emitter.log("warning: handler not understood", ev + f, data);
+                        cont = true;
+                    }            
+                } else {
+                        emitter.log("warning: handler not understood", ev + f, data);
+                        cont = true;
+                }
+                    
                 if ( (cont === false) && (cur === queue[0]) ) {
                     queue.shift(); 
                 }
@@ -250,24 +287,47 @@ EvW.prototype.once = function (ev, f, n, first) {
             n = 1;
         }
     
-        g = function () {
-            var n = g.n -= 1;
-    
-            if ( n < 1) {
-                emitter.off(ev, g);
-            }
-            if (n >= 0 ) {
-                if (typeof f === "function" ) {
-                    return f.apply(null, arguments); 
-                } else if (Array.isArray(f) && typeof f[0] === "function" ) {
-                    return f[0].apply(f[1], arguments);
-                } else {
-                    emitter.log("not a callable function", f, arguments);
-                }
-            } else {
-                return true;
-            }
-        };
+        if (typeof f === "function") {
+            g = function (a, b, c) {
+                    var n = g.n -= 1;
+                    if ( n < 1) {
+                        emitter.off(ev, g);
+                    }
+                    if (n >= 0 ) {
+                        return f.call(null, a, b, c); 
+                    } else {
+                        return true;
+                    }
+                };
+        } else if ( Array.isArray(f) && (typeof f[1] === "function") ) {
+            g =function (a, b, c) {
+                    var n = g.n -= 1;
+                    if ( n < 1) {
+                        emitter.off(ev, g);
+                    }
+                    if (n >= 0 ) {
+                        return f[1].call(f[0], a, b, c, f[2]); 
+                    } else {
+                        return true;
+                    }
+                };
+        } else if (Array.isArray(f) ) {
+            g =function (a, b, c) {
+                    var n = g.n -= 1;
+                    if ( n < 1) {
+                        emitter.off(ev, g);
+                    }
+                    if (n >= 0 ) {
+                        if  ( f[0].hasOwnProperty(f[1]) &&  (typeof f[0][f[1]] === "function") ) {
+                            return f[0][f[1]](a, b, c, f[2]);
+                        }
+                    } else {
+                        return true;
+                    }
+                };
+        } else {
+            emitter.log("not a callable function", ev, f);
+        }            
     
         g.n = n;
     

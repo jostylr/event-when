@@ -386,7 +386,7 @@ So either we emit an event, we
 
 Takes in an event and a function. It also has an optional this; if none specified, an empty object is used. If first is used, the function is put at the start of the (current) handler array. 
 
-The function will be passed a data object and the event whose firing triggered. It will be called without context unless it is bound with .bind or the function is an array, which is assumed to be of the form [state, fun, arg(s)]. This latter form does not bind the function to the state; see [pmuellr](http://pmuellr.blogspot.com/2010/06/bind-considered-harmful.html) and [amasad](http://blog.amasad.me/2012/07/02/the-dark-side-of-functionprototypebind/) for some reasons (namely, a new function is being created each time and dissociates itself from the object. We also support [state, "method name", ...] which will keep the function reference alive.  Note that these arrays are what is stored in .last and are to be used for matching (1-level deep comparison for removal...oh, boy). 
+The function will be passed a data object and the event whose firing triggered. It will be called without context unless it is bound with .bind or the function is an array, which is assumed to be of the form [state, fun, arg(s)]. This latter form does not bind the function to the state; see [pmuellr](http://pmuellr.blogspot.com/2010/06/bind-considered-harmful.html) and [amasad](http://blog.amasad.me/2012/07/02/the-dark-side-of-functionprototypebind/) for some reasons (namely, a new function is being created each time and dissociates itself from the object. We also support [state, "method name", ...] which will keep the function reference alive but mean we need to check that it is a function each time.  Note that these arrays are what is stored in .last and are to be used for matching (1-level deep comparison for removal...oh, boy). 
 
 The idea is that the event handles the data while the handler manipulates the state, taking in the data to deal with it. 
 
@@ -395,12 +395,7 @@ The idea is that the event handles the data while the handler manipulates the st
         var emitter = this;
 
         var handlers = this._handlers;
-        if (Array.isArray(f) ) {
-            if (typeof f[1] !== "function") ) {
-                emitter.log("arrayed handler does not have second element as function", ev, f);
-                return this;
-            }
-        } else if (typeof f !== "function") {
+        if ( (typeof f !== "function") && (!Array.isArray(f) ) ) {
             emitter.log("handler assigned is not a function", ev, f);
             return this;
         }
@@ -451,7 +446,9 @@ This removes handlers. The nowhen boolean, when true, will leave the when handle
 
         if (Array.isArray(fun) ) {
             _":remove array handler"
-            emitter.log("handler for event removed", ev + fun[1].name);
+            emitter.log("handler for event removed", ev + 
+                fun.name || ( (typeof fun[1] === "string") ? fun[1] : (fun[1].name || "") ) 
+            );
             return emitter;
         }
 
@@ -494,7 +491,7 @@ This will remove all remove all duplicates, but the handler is defined by obj, f
 
     handlers[ev] = handlers[ev].filter(function (el) {
         if (Array.isArray(el)) {
-            if ( (el[0] === fun[0]) && (el[1] === fun[1]) (el[2] === fun[2]) ) {
+            if ( (el[0] === fun[0]) && (el[1] === fun[1]) && (el[2] === fun[2]) ) {
                 return false;
             } else {
                 return true;
@@ -519,7 +516,7 @@ This will remove all remove all duplicates, but the handler is defined by obj, f
 
 
 
-## Once
+### Once
 
 This method produces a wrapper around a provided function that automatically removes the handler after a certain number of event firings (once is default). To grab the new handler for possible manual removal, check the .last property immediately. 
 
@@ -538,29 +535,11 @@ This method produces a wrapper around a provided function that automatically rem
         }
 
         if (typeof f === "function") {
-            g = function (a, b, c) {
-                var n = g.n -= 1;
-                if ( n < 1) {
-                    emitter.off(ev, g);
-                }
-                if (n >= 0 ) {
-                    return f.call(null, a, b, c); 
-                } else {
-                    return true;
-                }
-            };
-        } else if (Array.isArray(f) && typeof f[1] === "function") {
-            g = function (a, b, c) {
-                var n = g.n -= 1;
-                if ( n < 1) {
-                    emitter.off(ev, g);
-                }
-                if (n >= 0 ) {
-                    return f.call(f[0], a, b, c, f[2]); 
-                } else {
-                    return true;
-                }
-            };
+            g = _":f as function";
+        } else if ( Array.isArray(f) && (typeof f[1] === "function") ) {
+            g =_":f as array with function";
+        } else if (Array.isArray(f) ) {
+            g =_":f as array with string";
         } else {
             emitter.log("not a callable function", ev, f);
         }            
@@ -574,8 +553,58 @@ This method produces a wrapper around a provided function that automatically rem
         return this;
     }
 
+[main g body](# "js")
+
+Eventually this will have the main body and the "f as ..." will just be a line or two that gets subbed or templated in. Something like `_":main g body | substitute (FEVAL, _'f as function' ) "`
+
+Need to implement events in lit pro first. 
 
 
+[f as function](# "js")
+
+
+    function (a, b, c) {
+        var n = g.n -= 1;
+        if ( n < 1) {
+            emitter.off(ev, g);
+        }
+        if (n >= 0 ) {
+            return f.call(null, a, b, c); 
+        } else {
+            return true;
+        }
+    }
+
+[f as array with function](# "js")
+
+    function (a, b, c) {
+        var n = g.n -= 1;
+        if ( n < 1) {
+            emitter.off(ev, g);
+        }
+        if (n >= 0 ) {
+            return f[1].call(f[0], a, b, c, f[2]); 
+        } else {
+            return true;
+        }
+    }
+
+[f as array with string](# "js")
+    
+    function (a, b, c) {
+        var n = g.n -= 1;
+        if ( n < 1) {
+            emitter.off(ev, g);
+        }
+        if (n >= 0 ) {
+            if  ( f[0].hasOwnProperty(f[1]) &&  (typeof f[0][f[1]] === "function") ) {
+                return f[0][f[1]](a, b, c, f[2]);
+            }
+        } else {
+            return true;
+        }
+    }
+    
 
 ### Stop
 
@@ -637,7 +666,7 @@ To handle "soon", we check to see if the current queue item has anything in the 
 
      function () {
 
-        var q, f, ev, data, cont, cur, args, obj,
+        var q, f, ev, data, cont, cur,
             emitter = this,
             queue = emitter._queue,
             handlers = emitter._handlers,
@@ -680,21 +709,35 @@ We need to implement plain function calling or callbacks with global, function, 
         cont = f(data, emitter, ev);
     } else if (Array.isArray(f)) {
         emitter.log("handler firing", (f.name || "") + " for " + ev, data);
-        f[1].call.(f[0], data, emitter, ev, f[2]);
+        if (typeof f[1] === "function") {
+            cont = f[1].call(f[0], data, emitter, ev, f[2]);
+        } else if (f[0].hasOwnProperty(f[1]) && (typeof f[0][f[1]] === "function") ) {
+            cont = f[0][f[1]](data, emitter, ev, f[2]);
+        } else {
+            _":warning failed handler"
+        }            
     } else {
-        emitter.log("warning: handler not understood", ev + f, data);
+            _":warning failed handler"
     }
         
     _":do we halt event emission"
 
 
-[do we halt event emission](js "#")
+[do we halt event emission](# "js")
 
 If f returns false, this is supposed to tell us to stop. So we shift the queue meaning on the next round it will be something different. But if f was the last one, then we already shifted and so we just do a quick check to make sure that we are removing the right emitted event. 
 
     if ( (cont === false) && (cur === queue[0]) ) {
         queue.shift(); 
     }
+
+[warning failed handler](# "js")
+
+We return `cont = true` to continue the handling.
+
+    emitter.log("warning: handler not understood", ev + f, data);
+    cont = true;
+
 
 
 ### Next
