@@ -344,7 +344,7 @@ This is the primary activator.
 
 If reset is true, then we add those events before firing off the next round. 
 
-We might have an event, a handle, or an array of such things. 
+We might have an event, a handle, or an array of such things. The array could also hold an array of the array handler type. 
 
     function () {
         var tracker = this, 
@@ -360,7 +360,11 @@ We might have an event, a handle, or an array of such things.
             }
             _":go event handle" else if (Array.isArray(ev) ) {
                 ev.forEach(function (ev) {
-                    _":go event handle" 
+                    _":go event handle" else if (Array.isArray(ev)) {
+                        _":go array handle"
+                    } else {
+                        _":go error"
+                    }
                 });
             }
         }
@@ -370,17 +374,35 @@ We might have an event, a handle, or an array of such things.
 
 [go event handle](# "js") 
 
-So either we emit an event, we 
+So either we emit an event or we call a handler
 
             if (typeof ev === "string") {
                 tracker.emitter.emit(ev, data, timing);
             } else if (typeof ev === "function") {
-                ev(data, tracker.emitter, "emitWhen handler called");
+                ev(_":arg list");
             }
 
+[go array handle](# "js")
+
+Array handle
+
+    if (typeof ev[1] === "function") {
+        ev[1].call(ev[0], _":arg list", ev[2]);
+    } else if (ev[0].hasOwnProperty(ev[1]) && typeof (ev[0][ev[1]] === "function") ) {
+        ev[0][ev[1]](_":arg list", ev[2]);
+    } else {
+        _":go error"
+    }
 
 
+[arg list](# "js") 
 
+    data, tracker.emitter, "emitWhen handler called"
+
+[go error](# "js")
+
+    tracker.emitter.log("emitWhen handle failed to be fired", ev, data);
+    
 
 ### On
 
@@ -666,7 +688,7 @@ To handle "soon", we check to see if the current queue item has anything in the 
 
      function () {
 
-        var q, f, ev, data, cont, cur,
+        var q, f, ev, data, cont, cur,  
             emitter = this,
             queue = emitter._queue,
             handlers = emitter._handlers,

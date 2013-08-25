@@ -177,7 +177,7 @@ EvW.prototype.stop = function (a) {
     };
 EvW.prototype.resume = function () {
     
-        var q, f, ev, data, cont, cur,
+        var q, f, ev, data, cont, cur,  
             emitter = this,
             queue = emitter._queue,
             handlers = emitter._handlers,
@@ -496,17 +496,27 @@ Tracker.prototype.go = function () {
             if (tracker.reset === true) {
                 tracker.add(tracker.original);
             }
-                    if (typeof ev === "string") {
+            if (typeof ev === "string") {
                         tracker.emitter.emit(ev, data, timing);
                     } else if (typeof ev === "function") {
                         ev(data, tracker.emitter, "emitWhen handler called");
                     } else if (Array.isArray(ev) ) {
                 ev.forEach(function (ev) {
-                            if (typeof ev === "string") {
+                    if (typeof ev === "string") {
                                 tracker.emitter.emit(ev, data, timing);
                             } else if (typeof ev === "function") {
                                 ev(data, tracker.emitter, "emitWhen handler called");
-                            } 
+                            } else if (Array.isArray(ev)) {
+                        if (typeof ev[1] === "function") {
+                            ev[1].call(ev[0], data, tracker.emitter, "emitWhen handler called", ev[2]);
+                        } else if (ev[0].hasOwnProperty(ev[1]) && typeof (ev[0][ev[1]] === "function") ) {
+                            ev[0][ev[1]](data, tracker.emitter, "emitWhen handler called", ev[2]);
+                        } else {
+                            tracker.emitter.log("emitWhen handle failed to be fired", ev, data);
+                        }
+                    } else {
+                        tracker.emitter.log("emitWhen handle failed to be fired", ev, data);
+                    }
                 });
             }
         }
