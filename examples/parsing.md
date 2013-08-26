@@ -65,7 +65,7 @@ We have a global variable to store state. The text passed in is split into an ar
 
 We get a new character and pop it into the globa store 0 array. Then we analyze it and emit the appropriate event, if any. After, we emit the next character or the done event.
 
-    function (command, char) {
+    function (char, em, ev, command) {
         var global = this;
         global.store[0].push(char);
 
@@ -136,7 +136,7 @@ For each parenthetical, we create a new array that will store everything that go
             handlers.close.add("close bracket");
         });
 
-        handlers.close = emitter.when("close bracket", [_"end parenthetical", _"remove bracket handlers".bind(handlers)]).last;
+        handlers.close = emitter.when("close bracket", [_"end parenthetical", [handlers, _"remove bracket handlers"]).last;
 
         handlers.fail = emitter.on("text processing done", [handlers, _"remove bracket handlers"]).last;
 
@@ -208,5 +208,6 @@ This is the end of the line. We have
 
     function () {
         //emitter.log.print();
+        debugger;
         console.log(global.store.map(function (el) {return el.join('');}) );
     }
