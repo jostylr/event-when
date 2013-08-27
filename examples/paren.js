@@ -126,8 +126,18 @@ var parserF =  function () {
                     
                     }]);
             
-                emitter.on("quote", [global, function () {
-                    
+                emitter.on("quote", [global, function (char, emitter) {
+                        var global = this; 
+                        var orig = char;
+                        var ret = "";
+                        while ( (char = global.text.shift() ) ) {
+                            ret += char;
+                            if (char === orig) {
+                                break;
+                            }
+                        }
+                        emitter.emit("next character", [ret, "literal"]);
+                        return true;
                     }]);
             
                 emitter.on("escape", [global, function (d, emitter) {
@@ -198,3 +208,5 @@ var parserF =  function () {
 parserF().emit("text ready", "(cool, ( [great] right) yay!");
 
 parserF().emit("text ready", "We shall use \\( just a little \\\\ \\t (some escaping \\( for \\) us) right?");
+
+parserF().emit("text ready", "We (shall 'use' us \"rig(ht\")?");

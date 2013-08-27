@@ -22,6 +22,8 @@ Most of the handlers are defined in start processing to use closures. We could u
 
     parserF().emit("text ready", "We shall use \\( just a little \\\\ \\t (some escaping \\( for \\) us) right?");
 
+    parserF().emit("text ready", "We (shall 'use' us \"rig(ht\")");
+
 
 ### Make Parser
 
@@ -195,8 +197,20 @@ Check for a match? This is the problem of having an example without a reason.
 
 For quotes, we do not want to parse the brackets. Quoting is considered a literal kind of thing. 
 
-    function () {
+An easy way is to gobble up the rest of the text until a quote occurs. In more generality, one could intitate a separate parsing emitter that runs until it returns.
 
+    function (char, emitter) {
+        var global = this; 
+        var orig = char;
+        var ret = "";
+        while ( (char = global.text.shift() ) ) {
+            ret += char;
+            if (char === orig) {
+                break;
+            }
+        }
+        emitter.emit("next character", [ret, "literal"]);
+        return true;
     }
 
 ### Escape character
