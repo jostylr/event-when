@@ -15,21 +15,24 @@ Most of the handlers are defined in start processing to use closures. We could u
     /*global require, console*/
 
     var EventWhen = require('../index.js');
-    var emitter = new EventWhen();
-    emitter.makeLog();
+
+    var parserF =  _"make parser";
+
+    parserF().emit("text ready", "(cool, ( [great] right) yay!");
+
+    parserF().emit("text ready", "We shall use \\( just a little \\\\ \\t (some escaping \\( for \\) us) right?");
 
 
-    emitter.on("text ready", _"start processing");
+### Make Parser
 
-    var text = "(cool, ( [great] right) yay!";
-    emitter.emit("text ready", text);
+So we just create and return an emitter
 
-    var text2 = "We shall use \\( just a little \\\\ \\t (some escaping \\( for \\) us) right?";
-    console.log(text2);
-    emitter.emit("text ready", text2);
-
-    //emitter.log.print();
-
+    function () {
+        var emitter = new EventWhen();
+        emitter.makeLog();
+        emitter.on("text ready", _"start processing");
+        return emitter;
+    }
 
 ### Start processing
 
@@ -57,6 +60,8 @@ We have a global variable to store state. The text passed in is split into an ar
 
         emitter.on("text processing done", [global, _"report processed"]);
 
+        emitter.on("text processing done", function () {console.log("done")});
+
         emitter.emit("next character", global.text.shift());
 
     }
@@ -67,7 +72,12 @@ We get a new character and pop it into the globa store 0 array. Then we analyze 
 
     function (char, em, ev, command) {
         var global = this;
+
+        if (typeof char === "object") {
+            console.log(arguments);
+        }
         global.store[0].push(char);
+
 
         if (command === "check") {
             switch (char) {
@@ -96,6 +106,7 @@ We get a new character and pop it into the globa store 0 array. Then we analyze 
         if (char) {
             emitter.emit("next character", char);
         } else {
+            console.log(char, ev, command)
             emitter.emit("text processing done");
         }
 
@@ -136,7 +147,7 @@ For each parenthetical, we create a new array that will store everything that go
             handlers.close.add("close bracket");
         });
 
-        handlers.close = emitter.when("close bracket", [_"end parenthetical", [handlers, _"remove bracket handlers"]).last;
+        handlers.close = emitter.when("close bracket", [_"end parenthetical", [handlers, _"remove bracket handlers"]]).last;
 
         handlers.fail = emitter.on("text processing done", [handlers, _"remove bracket handlers"]).last;
 
@@ -208,6 +219,8 @@ This is the end of the line. We have
 
     function () {
         //emitter.log.print();
-        debugger;
-        console.log(global.store.map(function (el) {return el.join('');}) );
+        //console.log(global.store.map(function (el) {return el.join('');}) );
+        //console.log(global);
+                console.log(global.original);
+
     }

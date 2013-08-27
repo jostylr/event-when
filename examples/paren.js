@@ -1,187 +1,199 @@
 /*global require, console*/
 
 var EventWhen = require('../index.js');
-var emitter = new EventWhen();
-emitter.makeLog();
 
-emitter.on("text ready", function (text, emitter) {
-        var global = {};
-    
-        global.store = [[]];
-        global.original = text;
-        global.text = text.split('');
-    
-        emitter.on("next character", [global, function (char, em, ev, command) {
-                var global = this;
-                global.store[0].push(char);
+var parserF =  function () {
+        var emitter = new EventWhen();
+        emitter.makeLog();
+        emitter.on("text ready", function (text, emitter) {
+                var global = {};
             
-                if (command === "check") {
-                    switch (char) {
-                        case "(" :
-                        case "{" :
-                        case "[" :
-                            emitter.emit("open bracket", char);
-                        break;
-                        case ")" :
-                        case "}" :
-                        case "]" :
-                            emitter.emit("close bracket", {rightbracket:char});
-                        break;
-                        case "'":
-                        case "\"" :
-                            emitter.emit("quote", char);
-                        break;
-                        case "\\" :
-                            global.store[0].pop(); // fix this later 
-                            emitter.emit("escape", char);
-                        break;
-                    }
-                }
+                global.store = [[]];
+                global.original = text;
+                global.text = text.split('');
             
-                char = global.text.shift();
-                if (char) {
-                    emitter.emit("next character", char);
-                } else {
-                    emitter.emit("text processing done");
-                }
-            
-            }, "check"]); 
-    
-        emitter.on("open bracket", [global, function (char) {
-                var global = this;
-                var newstore,
-                    leftbracket,
-                    handlers = {},  
-                    rightbracket;
-            
-                var brackets = {
-                    "(" : ")",
-                    "[" : "]",
-                    "{" : "}",
-                    ")" : ")",
-                    "]" : "]",
-                    "}" : "}"
-                };
-            
-                leftbracket = char; 
-                newstore = [char];
-                global.store.push(newstore);
-            
-                handlers.pusher = emitter.on("next character", [newstore, function (char) {
-                    this.push(char);
-                }]).last;
-            
-                emitter.on("literal character", handlers.pusher);
-            
-                handlers.open = emitter.on("open bracket", function () {
-                    handlers.close.add("close bracket");
-                });
-            
-                handlers.close = emitter.when("close bracket", [function (char) {
-                        rightbracket = char;
-                        if (brackets[leftbracket] !== rightbracket) {
-                            emitter.emit("mismatched brackets", [leftbracket+rightbracket, newstore.join('')]);
-                        } else {
-                            emitter.emit("matching brackets", newstore.join(''));
+                emitter.on("next character", [global, function (char, em, ev, command) {
+                        var global = this;
+                    
+                        if (typeof char === "object") {
+                            console.log(arguments);
                         }
-                    }, function (d, emitter) {
-                        var handlers = this;
+                        global.store[0].push(char);
                     
-                        emitter.off("next character", handlers.pusher);
-                        emitter.off("literal character", handlers.pusher);
+                        if (command === "check") {
+                            switch (char) {
+                                case "(" :
+                                case "{" :
+                                case "[" :
+                                    emitter.emit("open bracket", char);
+                                break;
+                                case ")" :
+                                case "}" :
+                                case "]" :
+                                    emitter.emit("close bracket", {rightbracket:char});
+                                break;
+                                case "'":
+                                case "\"" :
+                                    emitter.emit("quote", char);
+                                break;
+                                case "\\" :
+                                    global.store[0].pop(); // fix this later 
+                                    emitter.emit("escape", char);
+                                break;
+                            }
+                        }
                     
-                        handlers.close.cancel();
-                        emitter.off("text processing done", handlers.fail);
+                        char = global.text.shift();
+                        if (char) {
+                            emitter.emit("next character", char);
+                        } else {
+                            console.log(char, ev, command)
+                            emitter.emit("text processing done");
+                        }
                     
-                        return true;
-                    }.bind(handlers)]).last;
+                    }, "check"]); 
             
-                handlers.fail = emitter.on("text processing done", [handlers, function (d, emitter) {
-                        var handlers = this;
+                emitter.on("open bracket", [global, function (char) {
+                        var global = this;
+                        var newstore,
+                            leftbracket,
+                            handlers = {},  
+                            rightbracket;
                     
-                        emitter.off("next character", handlers.pusher);
-                        emitter.off("literal character", handlers.pusher);
+                        var brackets = {
+                            "(" : ")",
+                            "[" : "]",
+                            "{" : "}",
+                            ")" : ")",
+                            "]" : "]",
+                            "}" : "}"
+                        };
                     
-                        handlers.close.cancel();
-                        emitter.off("text processing done", handlers.fail);
+                        leftbracket = char; 
+                        newstore = [char];
+                        global.store.push(newstore);
                     
-                        return true;
-                    }]).last;
+                        handlers.pusher = emitter.on("next character", [newstore, function (char) {
+                            this.push(char);
+                        }]).last;
+                    
+                        emitter.on("literal character", handlers.pusher);
+                    
+                        handlers.open = emitter.on("open bracket", function () {
+                            handlers.close.add("close bracket");
+                        });
+                    
+                        handlers.close = emitter.when("close bracket", [function (char) {
+                                rightbracket = char;
+                                if (brackets[leftbracket] !== rightbracket) {
+                                    emitter.emit("mismatched brackets", [leftbracket+rightbracket, newstore.join('')]);
+                                } else {
+                                    emitter.emit("matching brackets", newstore.join(''));
+                                }
+                            }, [handlers, function (d, emitter) {
+                                var handlers = this;
+                            
+                                emitter.off("next character", handlers.pusher);
+                                emitter.off("literal character", handlers.pusher);
+                            
+                                handlers.close.cancel();
+                                emitter.off("text processing done", handlers.fail);
+                            
+                                return true;
+                            }]]).last;
+                    
+                        handlers.fail = emitter.on("text processing done", [handlers, function (d, emitter) {
+                                var handlers = this;
+                            
+                                emitter.off("next character", handlers.pusher);
+                                emitter.off("literal character", handlers.pusher);
+                            
+                                handlers.close.cancel();
+                                emitter.off("text processing done", handlers.fail);
+                            
+                                return true;
+                            }]).last;
+                    
+                    }]);
             
-            }]);
-    
-        emitter.on("quote", [global, function () {
+                emitter.on("quote", [global, function () {
+                    
+                    }]);
             
-            }]);
-    
-        emitter.on("escape", [global, function (d, emitter) {
-                var global = this;
+                emitter.on("escape", [global, function (d, emitter) {
+                        var global = this;
+                    
+                        var escaped = global.text.shift(); 
+                        switch (escaped) {
+                            case "t" : 
+                                emitter.emit("next character", "\t");
+                            break;
+                            case "n" : 
+                                emitter.emit("next character", "\n");
+                            break;
+                            default: 
+                                emitter.emit("literal character", escaped);
+                        }
+                    
+                    }]);
             
-                var escaped = global.text.shift(); 
-                switch (escaped) {
-                    case "t" : 
-                        emitter.emit("next character", "\t");
-                    break;
-                    case "n" : 
-                        emitter.emit("next character", "\n");
-                    break;
-                    default: 
-                        emitter.emit("literal character", escaped);
-                }
+                emitter.on("literal character", [global, function (char, em, ev, command) {
+                        var global = this;
+                    
+                        if (typeof char === "object") {
+                            console.log(arguments);
+                        }
+                        global.store[0].push(char);
+                    
+                        if (command === "check") {
+                            switch (char) {
+                                case "(" :
+                                case "{" :
+                                case "[" :
+                                    emitter.emit("open bracket", char);
+                                break;
+                                case ")" :
+                                case "}" :
+                                case "]" :
+                                    emitter.emit("close bracket", {rightbracket:char});
+                                break;
+                                case "'":
+                                case "\"" :
+                                    emitter.emit("quote", char);
+                                break;
+                                case "\\" :
+                                    global.store[0].pop(); // fix this later 
+                                    emitter.emit("escape", char);
+                                break;
+                            }
+                        }
+                    
+                        char = global.text.shift();
+                        if (char) {
+                            emitter.emit("next character", char);
+                        } else {
+                            console.log(char, ev, command)
+                            emitter.emit("text processing done");
+                        }
+                    
+                    }, "store only"]);
             
-            }]);
-    
-        emitter.on("literal character", [global, function (char, em, ev, command) {
-                var global = this;
-                global.store[0].push(char);
+                emitter.on("text processing done", [global, function () {
+                        //emitter.log.print();
+                        //console.log(global.store.map(function (el) {return el.join('');}) );
+                        //console.log(global);
+                                console.log(global.original);
+                    
+                    }]);
             
-                if (command === "check") {
-                    switch (char) {
-                        case "(" :
-                        case "{" :
-                        case "[" :
-                            emitter.emit("open bracket", char);
-                        break;
-                        case ")" :
-                        case "}" :
-                        case "]" :
-                            emitter.emit("close bracket", {rightbracket:char});
-                        break;
-                        case "'":
-                        case "\"" :
-                            emitter.emit("quote", char);
-                        break;
-                        case "\\" :
-                            global.store[0].pop(); // fix this later 
-                            emitter.emit("escape", char);
-                        break;
-                    }
-                }
+                emitter.on("text processing done", function () {console.log("done")});
             
-                char = global.text.shift();
-                if (char) {
-                    emitter.emit("next character", char);
-                } else {
-                    emitter.emit("text processing done");
-                }
+                emitter.emit("next character", global.text.shift());
             
-            }, "store only"]);
-    
-        emitter.on("text processing done", [global, function () {
-                //emitter.log.print();
-                debugger;
-                console.log(global.store.map(function (el) {return el.join('');}) );
-            }]);
-    
-        emitter.emit("next character", global.text.shift());
-    
-    });
+            });
+        return emitter;
+    };
 
-var text = "(cool, ( [great] right) yay!";
-emitter.emit("text ready", text);
+parserF().emit("text ready", "(cool, ( [great] right) yay!");
 
-var text2 = "We shall use \\( just a little \\\\ \\t (some escaping \\( for \\) us) right?";
-console.log(text2);
-emitter.emit("text ready", text2);
-
-//emitter.log.print();
+parserF().emit("text ready", "We shall use \\( just a little \\\\ \\t (some escaping \\( for \\) us) right?");
