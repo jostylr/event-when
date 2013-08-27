@@ -12,15 +12,13 @@ var parserF =  function () {
                 global.original = text;
                 global.text = text.split('');
             
-                emitter.on("next character", [global, function (char, em, ev, command) {
+                emitter.on("next character", [global, function (char, em, ev) {
                         var global = this;
                     
-                        if (typeof char === "object") {
-                            console.log(arguments);
-                        }
-                        global.store[0].push(char);
-                    
-                        if (command === "check") {
+                        if (Array.isArray(char) ) {
+                            global.store[0].push(char[0]);            
+                        } else {
+                            global.store[0].push(char);                              
                             switch (char) {
                                 case "(" :
                                 case "{" :
@@ -37,8 +35,7 @@ var parserF =  function () {
                                     emitter.emit("quote", char);
                                 break;
                                 case "\\" :
-                                    global.store[0].pop(); // fix this later 
-                                    emitter.emit("escape", char);
+                                    emitter.emit("escape");
                                 break;
                             }
                         }
@@ -47,11 +44,14 @@ var parserF =  function () {
                         if (char) {
                             emitter.emit("next character", char);
                         } else {
-                            console.log(char, ev, command)
                             emitter.emit("text processing done");
                         }
                     
-                    }, "check"]); 
+                    }, "check"]);
+            
+                emitter.on("escape", [global, function () {
+                    this.store[0].pop(); // fix this later 
+                }]);
             
                 emitter.on("open bracket", [global, function (char) {
                         var global = this;
@@ -74,7 +74,11 @@ var parserF =  function () {
                         global.store.push(newstore);
                     
                         handlers.pusher = emitter.on("next character", [newstore, function (char) {
-                            this.push(char);
+                            if (Array.isArray(char) ) {
+                                this.push(char[0]);                
+                            } else {
+                                this.push(char);
+                            }
                         }]).last;
                     
                         emitter.on("literal character", handlers.pusher);
@@ -82,6 +86,10 @@ var parserF =  function () {
                         handlers.open = emitter.on("open bracket", function () {
                             handlers.close.add("close bracket");
                         });
+                    
+                        handlers.escaper = emitter.on("escape", [newstore, function () {
+                            this.pop(); // fix this later 
+                        }]);
                     
                         handlers.close = emitter.when("close bracket", [function (char) {
                                 rightbracket = char;
@@ -95,6 +103,7 @@ var parserF =  function () {
                             
                                 emitter.off("next character", handlers.pusher);
                                 emitter.off("literal character", handlers.pusher);
+                                emitter.off("escape character", handlers.escaper);
                             
                                 handlers.close.cancel();
                                 emitter.off("text processing done", handlers.fail);
@@ -107,6 +116,7 @@ var parserF =  function () {
                             
                                 emitter.off("next character", handlers.pusher);
                                 emitter.off("literal character", handlers.pusher);
+                                emitter.off("escape character", handlers.escaper);
                             
                                 handlers.close.cancel();
                                 emitter.off("text processing done", handlers.fail);
@@ -132,20 +142,18 @@ var parserF =  function () {
                                 emitter.emit("next character", "\n");
                             break;
                             default: 
-                                emitter.emit("literal character", escaped);
+                                emitter.emit("literal character", [escaped, "literal"]);
                         }
                     
                     }]);
             
-                emitter.on("literal character", [global, function (char, em, ev, command) {
+                emitter.on("literal character", [global, function (char, em, ev) {
                         var global = this;
                     
-                        if (typeof char === "object") {
-                            console.log(arguments);
-                        }
-                        global.store[0].push(char);
-                    
-                        if (command === "check") {
+                        if (Array.isArray(char) ) {
+                            global.store[0].push(char[0]);            
+                        } else {
+                            global.store[0].push(char);                              
                             switch (char) {
                                 case "(" :
                                 case "{" :
@@ -162,8 +170,7 @@ var parserF =  function () {
                                     emitter.emit("quote", char);
                                 break;
                                 case "\\" :
-                                    global.store[0].pop(); // fix this later 
-                                    emitter.emit("escape", char);
+                                    emitter.emit("escape");
                                 break;
                             }
                         }
@@ -172,21 +179,15 @@ var parserF =  function () {
                         if (char) {
                             emitter.emit("next character", char);
                         } else {
-                            console.log(char, ev, command)
                             emitter.emit("text processing done");
                         }
                     
                     }, "store only"]);
             
-                emitter.on("text processing done", [global, function () {
+                emitter.once("text processing done", [global, function () {
                         //emitter.log.print();
-                        //console.log(global.store.map(function (el) {return el.join('');}) );
-                        //console.log(global);
-                                console.log(global.original);
-                    
+                        console.log(global.store.map(function (el) {return el.join('');}) );
                     }]);
-            
-                emitter.on("text processing done", function () {console.log("done")});
             
                 emitter.emit("next character", global.text.shift());
             

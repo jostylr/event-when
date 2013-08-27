@@ -48,7 +48,11 @@ We have a global variable to store state. The text passed in is split into an ar
         global.original = text;
         global.text = text.split('');
 
-        emitter.on("next character", [global, _"store character", "check"]); 
+        emitter.on("next character", [global, _"store character", "check"]);
+
+        emitter.on("escape", [global, function () {
+            this.store[0].pop(); // fix this later 
+        }]);
 
         emitter.on("open bracket", [global, _"create new parenthetical"]);
 
@@ -58,9 +62,7 @@ We have a global variable to store state. The text passed in is split into an ar
 
         emitter.on("literal character", [global, _"store character", "store only"]);
 
-        emitter.on("text processing done", [global, _"report processed"]);
-
-        emitter.on("text processing done", function () {console.log("done")});
+        emitter.once("text processing done", [global, _"report processed"]);
 
         emitter.emit("next character", global.text.shift());
 
@@ -70,16 +72,14 @@ We have a global variable to store state. The text passed in is split into an ar
 
 We get a new character and pop it into the globa store 0 array. Then we analyze it and emit the appropriate event, if any. After, we emit the next character or the done event.
 
-    function (char, em, ev, command) {
+    function (char, em, ev) {
         var global = this;
 
-        if (typeof char === "object") {
-            console.log(arguments);
-        }
-        global.store[0].push(char);
 
-
-        if (command === "check") {
+        if (Array.isArray(char) ) {
+            global.store[0].push(char[0]);            
+        } else {
+            global.store[0].push(char);                              
             switch (char) {
                 case "(" :
                 case "{" :
@@ -96,8 +96,7 @@ We get a new character and pop it into the globa store 0 array. Then we analyze 
                     emitter.emit("quote", char);
                 break;
                 case "\\" :
-                    global.store[0].pop(); // fix this later 
-                    emitter.emit("escape", char);
+                    emitter.emit("escape");
                 break;
             }
         }
@@ -106,7 +105,6 @@ We get a new character and pop it into the globa store 0 array. Then we analyze 
         if (char) {
             emitter.emit("next character", char);
         } else {
-            console.log(char, ev, command)
             emitter.emit("text processing done");
         }
 
@@ -138,7 +136,11 @@ For each parenthetical, we create a new array that will store everything that go
 
 
         handlers.pusher = emitter.on("next character", [newstore, function (char) {
-            this.push(char);
+            if (Array.isArray(char) ) {
+                this.push(char[0]);                
+            } else {
+                this.push(char);
+            }
         }]).last;
 
         emitter.on("literal character", handlers.pusher);
@@ -146,6 +148,10 @@ For each parenthetical, we create a new array that will store everything that go
         handlers.open = emitter.on("open bracket", function () {
             handlers.close.add("close bracket");
         });
+
+        handlers.escaper = emitter.on("escape", [newstore, function () {
+            this.pop(); // fix this later 
+        }]);
 
         handlers.close = emitter.when("close bracket", [_"end parenthetical", [handlers, _"remove bracket handlers"]]).last;
 
@@ -163,6 +169,7 @@ This is a cleanup action that removes handlers once all done
 
         emitter.off("next character", handlers.pusher);
         emitter.off("literal character", handlers.pusher);
+        emitter.off("escape character", handlers.escaper);
 
         handlers.close.cancel();
         emitter.off("text processing done", handlers.fail);
@@ -208,7 +215,7 @@ We suck up the next character and check if it has any special meaning (tab, newl
                 emitter.emit("next character", "\n");
             break;
             default: 
-                emitter.emit("literal character", escaped);
+                emitter.emit("literal character", [escaped, "literal"]);
         }
 
     }
@@ -219,8 +226,5 @@ This is the end of the line. We have
 
     function () {
         //emitter.log.print();
-        //console.log(global.store.map(function (el) {return el.join('');}) );
-        //console.log(global);
-                console.log(global.original);
-
+        console.log(global.store.map(function (el) {return el.join('');}) );
     }
