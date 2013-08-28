@@ -12,6 +12,8 @@ var parserF =  function () {
                 global.original = text;
                 global.text = text.split('');
             
+                emitter.global = global;
+            
                 emitter.on("next character", [global, function (char, em, ev) {
                         var global = this;
                     
@@ -130,13 +132,29 @@ var parserF =  function () {
                         var global = this; 
                         var orig = char;
                         var ret = "";
-                        while ( (char = global.text.shift() ) ) {
-                            ret += char;
+                        var qemitter = parserF();
+                    
+                        qemitter.off("quote");
+                        qemitter.off("open bracket");
+                        qemitter.off("text processing done");
+                        qemitter.on("quote", function (char) {
                             if (char === orig) {
-                                break;
+                                qemitter.emit("end quote");
                             }
-                        }
-                        emitter.emit("next character", [ret, "literal"]);
+                        });
+                        qemitter.on("text processing done", function () {
+                            emitter.log("unfinished quote");
+                            qemitter.emit("end quote");
+                        });
+                    
+                        qemitter.on("end quote", function () {
+                            var quote = qemitter.global.store[0].join('');
+                            emitter.global.text = emitter.global.text.slice(quote.length);
+                            emitter.emit("next character", [quote, "quote"]);   
+                        });
+                    
+                        qemitter.emit("text ready", global.text.join(''));
+                    
                         return true;
                     }]);
             
@@ -209,4 +227,4 @@ parserF().emit("text ready", "(cool, ( [great] right) yay!");
 
 parserF().emit("text ready", "We shall use \\( just a little \\\\ \\t (some escaping \\( for \\) us) right?");
 
-parserF().emit("text ready", "We (shall 'use' us \"rig(ht\")?");
+parserF().emit("text ready", "We (shall 'use' us \"rig(ht\")");

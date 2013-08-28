@@ -50,6 +50,8 @@ We have a global variable to store state. The text passed in is split into an ar
         global.original = text;
         global.text = text.split('');
 
+        emitter.global = global;
+
         emitter.on("next character", [global, _"store character", "check"]);
 
         emitter.on("escape", [global, function () {
@@ -197,19 +199,36 @@ Check for a match? This is the problem of having an example without a reason.
 
 For quotes, we do not want to parse the brackets. Quoting is considered a literal kind of thing. 
 
-An easy way is to gobble up the rest of the text until a quote occurs. In more generality, one could intitate a separate parsing emitter that runs until it returns.
+An easy way is to gobble up the rest of the text until a quote occurs. In more generality, one could intitate a separate parsing emitter that runs until it returns. So this is what we demonstrate here. We create a new emitter, strip away the bracket stuff, leave in the quoutes and look out for the original quote character.
 
     function (char, emitter) {
         var global = this; 
         var orig = char;
         var ret = "";
-        while ( (char = global.text.shift() ) ) {
-            ret += char;
+        var qemitter = parserF();
+
+        qemitter.off("quote");
+        qemitter.off("open bracket");
+        qemitter.off("text processing done");
+        qemitter.on("quote", function (char) {
             if (char === orig) {
-                break;
+                qemitter.emit("end quote");
             }
-        }
-        emitter.emit("next character", [ret, "literal"]);
+        });
+        qemitter.on("text processing done", function () {
+            emitter.log("unfinished quote");
+            qemitter.emit("end quote");
+        });
+
+        qemitter.on("end quote", function () {
+            var quote = qemitter.global.store[0].join('');
+            emitter.global.text = emitter.global.text.slice(quote.length);
+            emitter.emit("next character", [quote, "quote"]);   
+        });
+
+
+        qemitter.emit("text ready", global.text.join(''));
+
         return true;
     }
 
