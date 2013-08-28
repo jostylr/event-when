@@ -22,7 +22,7 @@ Most of the handlers are defined in start processing to use closures. We could u
 
     parserF().emit("text ready", "We shall use \\( just a little \\\\ \\t (some escaping \\( for \\) us) right?");
 
-    parserF().emit("text ready", "We (shall 'use' us \"rig(ht\")");
+    parserF().emit("text ready", "We (shall 'use' us \"ri(gh)t\")");
 
 
 ### Make Parser
@@ -33,22 +33,10 @@ So we just create and return an emitter
         var emitter = new EventWhen();
         emitter.makeLog();
         emitter.on("text ready", _"start processing");
-        return emitter;
-    }
 
-### Start processing
-
-Here we set it up once we have the bit of text.
-
-We have a global variable to store state. The text passed in is split into an array to be shifted until it is empty. 
-
-
-    function (text, emitter) {
-        var global = {};
+       var global = {};
 
         global.store = [[]];
-        global.original = text;
-        global.text = text.split('');
 
         emitter.global = global;
 
@@ -67,6 +55,22 @@ We have a global variable to store state. The text passed in is split into an ar
         emitter.on("literal character", [global, _"store character", "store only"]);
 
         emitter.once("text processing done", [global, _"report processed"]);
+
+        return emitter;
+    }
+
+### Start processing
+
+Here we set it up once we have the bit of text.
+
+We have a global variable to store state. The text passed in is split into an array to be shifted until it is empty. 
+
+
+    function (text, emitter) {
+        var global = emitter.global;
+     
+        global.original = text;
+        global.text = text.split('');
 
         emitter.emit("next character", global.text.shift());
 
