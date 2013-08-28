@@ -8,7 +8,9 @@ It is a node module that allows you to create object with event methods. Fairly 
 
 As an example, let's say you need to read/parse a file ("file parsed") and get some data from a database ("db parsed"). Both events can happen in either order. Once both are done, then the "data is ready".
 
-We can then implement this with  `evw.emitWhen("data is ready", ["file parsed", "db parsed"]);`
+We can then implement this with  `evw.when(["file parsed", "db parsed"], "data is ready" );` 
+
+Nifty!
 
 
 ### Methods
