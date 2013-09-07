@@ -50,7 +50,9 @@ emitter.on("near first", function () {
 
 console.log("all", emitter.events());
 
-console.log("alice", emitter.events("alice"));
+var evs; 
+console.log("alice", (evs = emitter.events("alice") ) );
+console.log("handles", emitter.handlers(evs));
 
 console.log("not alice", emitter.events("alice", true));
 

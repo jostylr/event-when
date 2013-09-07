@@ -1,4 +1,4 @@
-# [event-when](# "version: 0.2.1 | jostylr")
+# [event-when](# "version: 0.2.2 | jostylr")
 
 This is my own little event library. It has most the usual methods and conventions, more or less. 
 
@@ -73,6 +73,7 @@ The various prototype methods on the event emitter.
     EvW.prototype.log = function () {}; //noop stub
     EvW.prototype.makeLog = _"log";
     EvW.prototype.events = _"event listing";
+    EvW.prototype.handlers = _"handlers for events";
 
 ### Emit
 
@@ -416,6 +417,7 @@ The idea is that the event handles the data while the handler manipulates the st
 
     function (ev, f, first) {
         var emitter = this;
+
 
         var handlers = this._handlers;
         if ( (typeof f !== "function") && (!Array.isArray(f) ) ) {
@@ -853,13 +855,26 @@ If nothing is passed in, then we return all the events that have handlers.
 
 Given a list of events, such as given by event listing, produce an object with those events as keys and the values as the handlers. 
 
-### Add event handler objects
+    function (events) {
+        if (!events) {
+            events = this.events();
+        }
+        var emitter = this, 
+            handlers = emitter._handlers, 
+            i, n=events.length, event, 
+            ret = {}; 
 
-Given an object of event:handler setup, as given by handlers for events, we can add in those events to the existing emitter. Optional unique boolean will flag to add handlers only if not already on there. 
 
-### Remove event handler objects
+        for (i= 0; i < n; i +=1) {
+            event = events[i];
+            if ( handlers.hasOwnProperty(event) ) {
+                ret[event] = handlers[event].slice();
+            }
+        }
 
-The opposite of the above. We take out the events. Optional 
+        return ret;
+
+    }
 
 
 ###  Log
@@ -960,6 +975,7 @@ Nifty!
 * .off()  Removes all events. Ouch. 
 * .stop([str event/bool current]) Removes queued handlers either globally (no args), on an event (str given), or current (TRUE)
 * .events(fun partial | str match, bool negate) It lists all events that have handlers. No arguments lead to all events being reported; if partial is a function, then it is used as a filter. If the match string is provided, then that is used to match with the negate boolean allowing a reversal of the selection for the function filter. 
+* .handlers(arr events) If no arguments, it returns all events and their handlers. If there is an event listing, then it uses that list of keys to pull handlers. 
 
 If a function handler returns FALSE, then no further handlers from that event emit incident will occur. 
 

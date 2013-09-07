@@ -98,7 +98,10 @@ Now let's involve some when action.
 
     console.log("all", emitter.events());
 
-    console.log("alice", emitter.events("alice"));
+    var evs; 
+    console.log("alice", (evs = emitter.events("alice") ) );
+    console.log("handles", emitter.handlers(evs));
+
 
     console.log("not alice", emitter.events("alice", true));
 

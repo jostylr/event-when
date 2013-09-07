@@ -46,6 +46,7 @@ Each place where there is a handler, it could be a function or it could be array
 * .off()  Removes all events. Ouch. 
 * .stop([str event/bool current]) Removes queued handlers either globally (no args), on an event (str given), or current (TRUE)
 * .events(fun partial | str match, bool negate) It lists all events that have handlers. No arguments lead to all events being reported; if partial is a function, then it is used as a filter. If the match string is provided, then that is used to match with the negate boolean allowing a reversal of the selection for the function filter. 
+* .handlers(arr events) If no arguments, it returns all events and their handlers. If there is an event listing, then it uses that list of keys to pull handlers. 
 
 If a function handler returns FALSE, then no further handlers from that event emit incident will occur. 
 

@@ -438,6 +438,25 @@ EvW.prototype.events = function (partial, negate) {
         }
     
     };
+EvW.prototype.handlers = function (events) {
+        if (!events) {
+            events = this.events();
+        }
+        var emitter = this, 
+            handlers = emitter._handlers, 
+            i, n=events.length, event, 
+            ret = {}; 
+    
+        for (i= 0; i < n; i +=1) {
+            event = events[i];
+            if ( handlers.hasOwnProperty(event) ) {
+                ret[event] = handlers[event].slice();
+            }
+        }
+    
+        return ret;
+    
+    };
 
 var Tracker = function () {
         this.events = {};
