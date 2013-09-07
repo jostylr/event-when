@@ -1,4 +1,4 @@
-# [event-when](# "version: 0.2.0 | jostylr")
+# [event-when](# "version: 0.2.1 | jostylr")
 
 This is my own little event library. It has most the usual methods and conventions, more or less. 
 
@@ -72,6 +72,7 @@ The various prototype methods on the event emitter.
 
     EvW.prototype.log = function () {}; //noop stub
     EvW.prototype.makeLog = _"log";
+    EvW.prototype.events = _"event listing";
 
 ### Emit
 
@@ -463,6 +464,7 @@ This removes handlers. The nowhen boolean, when true, will leave the when handle
         if (typeof fun === "function") {
             _":remove handler"
             emitter.log("handler for event removed", ev + fun.name);
+            _":is event empty"
             return emitter;
         }
 
@@ -489,6 +491,16 @@ This removes handlers. The nowhen boolean, when true, will leave the when handle
         
         return emitter;
     }
+
+
+[is event empty](# "js")
+
+After removing handlers, check if there is any left. If not, remove event. This allows one to check to see if there handlers that are not removed. 
+
+    if (handlers[ev].length === 0) {
+        emitter.log("event " + ev+ " removed as no handlers left"); 
+        delete handlers[ev];
+    }            
 
 
 [remove handler](# "js")
@@ -796,6 +808,60 @@ The cede control function -- node vs browser.
         : (function (f) {setTimeout(f, 0);})
     
 
+### Event listing
+
+This allows us to see what events have handlers and the number of handlers they have. 
+
+We can pass in a function as first argument that should return true/false when fed an event string to indicate include/exclude. Alternatively, we can pass in a string that will be used as a regex to determine that. Given a string, we can include a negate boolean which will negate the match semantics. 
+
+If nothing is passed in, then we return all the events that have handlers.
+
+    function (partial, negate) {
+        var emitter = this, 
+            handlers = emitter._handlers,
+            keys = Object.keys(handlers), 
+            regex; 
+
+        if (typeof partial === "function") {
+            return keys.filter(partial);
+        } else if (typeof partial === "string") {
+            regex = new RegExp(partial);
+            if (negate !== true) {
+                return keys.filter(function (el) {
+                    if (regex.test(el)) {
+                        return true;
+                    } else {
+                        return false;
+                    }
+                });
+            } else {
+                return keys.filter(function (el) {
+                    if (regex.test(el)) {
+                        return false;
+                    } else {
+                        return true;
+                    }
+                });
+            }
+        } else {
+            return keys;
+        }
+
+    }
+
+### Handlers for events
+
+Given a list of events, such as given by event listing, produce an object with those events as keys and the values as the handlers. 
+
+### Add event handler objects
+
+Given an object of event:handler setup, as given by handlers for events, we can add in those events to the existing emitter. Optional unique boolean will flag to add handlers only if not already on there. 
+
+### Remove event handler objects
+
+The opposite of the above. We take out the events. Optional 
+
+
 ###  Log
 
 This is a sample log function that could be used. To use it, simply set the instance's property log to `this.makeLog()` which generates a log function with its own log data. This will prevent garbage collection so profile it if using this with a large event system. 
@@ -893,6 +959,7 @@ Nifty!
 * Both variants of .off above also have optional boolean that if true will prevent the removal of when handles from their tracker objects meaning those events may never fire. 
 * .off()  Removes all events. Ouch. 
 * .stop([str event/bool current]) Removes queued handlers either globally (no args), on an event (str given), or current (TRUE)
+* .events(fun partial | str match, bool negate) It lists all events that have handlers. No arguments lead to all events being reported; if partial is a function, then it is used as a filter. If the match string is provided, then that is used to match with the negate boolean allowing a reversal of the selection for the function filter. 
 
 If a function handler returns FALSE, then no further handlers from that event emit incident will occur. 
 

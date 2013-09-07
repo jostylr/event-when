@@ -93,6 +93,10 @@ EvW.prototype.off = function (ev, fun, nowhen) {
                 fun.tracker.removeStr(ev);
             }
             emitter.log("handler for event removed", ev + fun.name);
+            if (handlers[ev].length === 0) {
+                emitter.log("event " + ev+ " removed as no handlers left"); 
+                delete handlers[ev];
+            }            
             return emitter;
         }
     
@@ -401,6 +405,38 @@ EvW.prototype.makeLog = function () {
         };
         emitter.log = ret; 
         return ret;
+    };
+EvW.prototype.events = function (partial, negate) {
+        var emitter = this, 
+            handlers = emitter._handlers,
+            keys = Object.keys(handlers), 
+            regex; 
+    
+        if (typeof partial === "function") {
+            return keys.filter(partial);
+        } else if (typeof partial === "string") {
+            regex = new RegExp(partial);
+            if (negate !== true) {
+                return keys.filter(function (el) {
+                    if (regex.test(el)) {
+                        return true;
+                    } else {
+                        return false;
+                    }
+                });
+            } else {
+                return keys.filter(function (el) {
+                    if (regex.test(el)) {
+                        return false;
+                    } else {
+                        return true;
+                    }
+                });
+            }
+        } else {
+            return keys;
+        }
+    
     };
 
 var Tracker = function () {

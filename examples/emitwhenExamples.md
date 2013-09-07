@@ -28,6 +28,7 @@ Let's just do a basic simple example
         emitter.emit("test 1 on");
     });
 
+
     emitter.emit("test 1 on");
 
     emitter.log.print();
@@ -60,6 +61,10 @@ Now let's involve some when action.
         log.push("bob fired");
     });
 
+    emitter.once("alice rocks", function () {
+        log.push("alice rocks");
+    });
+
     emitter.on("string notes both fired", function (data) {
         log.push("from a string, both have fired " + data.alice);
     });
@@ -90,6 +95,14 @@ Now let's involve some when action.
         log.push("called immediately");
     });
 
+
+    console.log("all", emitter.events());
+
+    console.log("alice", emitter.events("alice"));
+
+    console.log("not alice", emitter.events("alice", true));
+
+    emitter.emit("alice rocks");
     emitter.emit("alice fires");
     emitter.emit("bob fires", {alice: "rocks"});
 
@@ -101,6 +114,7 @@ Now let's involve some when action.
     emitter.emit("near first", {}, true); 
 
     process.on("exit", function () {
+        console.log("all", emitter.events());
         emitter.log.print();
         console.log(log);
     });
