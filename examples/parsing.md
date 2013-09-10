@@ -149,7 +149,7 @@ For each parenthetical, we create a new array that will store everything that go
             } else {
                 this.push(char);
             }
-        }]).last;
+        }]);
 
         emitter.on("literal character", handlers.pusher);
 
@@ -161,9 +161,9 @@ For each parenthetical, we create a new array that will store everything that go
             this.pop(); // fix this later 
         }]);
 
-        handlers.close = emitter.when("close bracket", [_"end parenthetical", [handlers, _"remove bracket handlers"]]).last;
+        handlers.close = emitter.when("close bracket", [_"end parenthetical", [handlers, _"remove bracket handlers"]]);
 
-        handlers.fail = emitter.on("text processing done", [handlers, _"remove bracket handlers"]).last;
+        handlers.fail = emitter.on("text processing done", [handlers, _"remove bracket handlers"]);
 
 
     }

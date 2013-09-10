@@ -30,9 +30,8 @@ EvW.prototype.on = function (ev, f, first) {
         handlers[ev] = [f];
     }
 
-    this.last = f;
+    return f;
 
-    return this;
 };
 EvW.prototype.emit = function (ev, data,  timing) {
         var emitter = this;
@@ -273,9 +272,7 @@ EvW.prototype.when = function (events, ev, timing, reset) {
     
         tracker.add(events);
     
-        emitter.last = tracker;
-    
-        return emitter;
+        return tracker;
     };
 EvW.prototype.once = function (ev, f, n, first) {
         var emitter = this, 
@@ -339,7 +336,7 @@ EvW.prototype.once = function (ev, f, n, first) {
         g.name = "once wrapping "+ (f.name || "");
         emitter.log("assigned event times", ev + " :: " + n);
     
-        return this;
+        return g;
     };
 
 EvW.prototype.next =  function (f) {

@@ -88,7 +88,7 @@ var parserF =  function () {
                     } else {
                         this.push(char);
                     }
-                }]).last;
+                }]);
             
                 emitter.on("literal character", handlers.pusher);
             
@@ -118,7 +118,7 @@ var parserF =  function () {
                         emitter.off("text processing done", handlers.fail);
                     
                         return true;
-                    }]]).last;
+                    }]]);
             
                 handlers.fail = emitter.on("text processing done", [handlers, function (d, emitter) {
                         var handlers = this;
@@ -131,7 +131,7 @@ var parserF =  function () {
                         emitter.off("text processing done", handlers.fail);
                     
                         return true;
-                    }]).last;
+                    }]);
             
             }]);
     

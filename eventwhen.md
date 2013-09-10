@@ -1,4 +1,4 @@
-# [event-when](# "version: 0.2.2 | jostylr")
+# [event-when](# "version: 0.3.0 | jostylr")
 
 This is my own little event library. It has most the usual methods and conventions, more or less. 
 
@@ -6,6 +6,7 @@ But the one feature that it has that I am not aware of in other libraries is the
 
 As an example, let's say you need to read/parse a file and get some data from a database. Both events can happen in either order. Once both are done, then the message gets formed and sent. This is not handled well in most event libraries, as far as I know. But what if we had a method called `.emitWhen("all data retrieved", ["file parsed", "database returned"])` which is to mean to block the event "all data retrieved" until both events "file parsed" and "database returned" have fired. 
 
+Some of the methods will return the emitter, but the ones involving handlers will return them instead. It ocurred to me that chaining of events does not seem that useful for event emitters. 
 
 ## Files
 
@@ -174,11 +175,9 @@ If the third argument is a boolean, then it is assumed to be the reset string an
 
         tracker.add(events);
 
-We assign the tracker to the last property since one should use that to remove it. If you want the handler itself, it is in tracker.handler. It just seems more natural this way since the manipulations use tracker. 
+We return the tracker since one should use that to remove it. If you want the handler itself, it is in tracker.handler. It just seems more natural this way since the manipulations use tracker. 
 
-        emitter.last = tracker;
-
-        return emitter;
+        return tracker;
     }
 
 
@@ -410,7 +409,7 @@ Array handle
 
 Takes in an event and a function. It also has an optional this; if none specified, an empty object is used. If first is used, the function is put at the start of the (current) handler array. 
 
-The function will be passed a data object and the event whose firing triggered. It will be called without context unless it is bound with .bind or the function is an array, which is assumed to be of the form [state, fun, arg(s)]. This latter form does not bind the function to the state; see [pmuellr](http://pmuellr.blogspot.com/2010/06/bind-considered-harmful.html) and [amasad](http://blog.amasad.me/2012/07/02/the-dark-side-of-functionprototypebind/) for some reasons (namely, a new function is being created each time and dissociates itself from the object. We also support [state, "method name", ...] which will keep the function reference alive but mean we need to check that it is a function each time.  Note that these arrays are what is stored in .last and are to be used for matching (1-level deep comparison for removal...oh, boy). 
+The function will be passed a data object and the event whose firing triggered. It will be called without context unless it is bound with .bind or the function is an array, which is assumed to be of the form [state, fun, arg(s)]. This latter form does not bind the function to the state; see [pmuellr](http://pmuellr.blogspot.com/2010/06/bind-considered-harmful.html) and [amasad](http://blog.amasad.me/2012/07/02/the-dark-side-of-functionprototypebind/) for some reasons (namely, a new function is being created each time and dissociates itself from the object. We also support [state, "method name", ...] which will keep the function reference alive but mean we need to check that it is a function each time.  Note that these arrays are what is returned and are to be used for matching (1-level deep comparison for removal...oh, boy). 
 
 The idea is that the event handles the data while the handler manipulates the state, taking in the data to deal with it. 
 
@@ -434,9 +433,8 @@ The idea is that the event handles the data while the handler manipulates the st
             handlers[ev] = [f];
         }
 
-        this.last = f;
+        return f;
 
-        return this;
     }
 
 
@@ -554,7 +552,7 @@ This will remove all remove all duplicates, but the handler is defined by obj, f
 
 ### Once
 
-This method produces a wrapper around a provided function that automatically removes the handler after a certain number of event firings (once is default). To grab the new handler for possible manual removal, check the .last property immediately. 
+This method produces a wrapper around a provided function that automatically removes the handler after a certain number of event firings (once is default). The new handler is what is returned.
 
     function (ev, f, n, first) {
         var emitter = this, 
@@ -586,7 +584,7 @@ This method produces a wrapper around a provided function that automatically rem
         g.name = "once wrapping "+ (f.name || "");
         emitter.log("assigned event times", ev + " :: " + n);
 
-        return this;
+        return g;
     }
 
 [main g body](# "js")
