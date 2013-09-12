@@ -1,4 +1,4 @@
-# [event-when](# "version: 0.3.0 | jostylr")
+# [event-when](# "version: 0.4.0 | jostylr")
 
 This is my own little event library. It has most the usual methods and conventions, more or less. 
 
@@ -49,6 +49,7 @@ We bind resume to the instance since it will be passed in without context to the
         this._handlers = {};
         this._queue = [];
         this._waiting = [];
+        this._actions = {};
 
         evw.resume = evw.resume.bind(evw);
         evw.next.max = 1000;
@@ -75,6 +76,7 @@ The various prototype methods on the event emitter.
     EvW.prototype.makeLog = _"log";
     EvW.prototype.events = _"event listing";
     EvW.prototype.handlers = _"handlers for events";
+    EvW.prototype.action = _"name an action";
 
 ### Emit
 
@@ -807,6 +809,21 @@ The cede control function -- node vs browser.
     (typeof process !== "undefined" && process.nextTick) ? process.nextTick 
         : (function (f) {setTimeout(f, 0);})
     
+
+### Name an action
+
+The idea is to create a handler-type object (whatever could be in a handler spot) that is listed under an action name. An action object actually is a function whose handler part is under the handler key and is prototyped with a few methods. 
+
+
+The lock value indicates whether we can overwrite the function. The default is yes we can (but don't do that). Nothing prevents `delete emitter._actions[name]`
+
+    function (name, handler, lock) {
+        var emitter = this;
+
+        emitter._actions[handler] = function () {
+            
+        }
+    }
 
 ### Event listing
 
