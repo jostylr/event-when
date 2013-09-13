@@ -236,3 +236,27 @@ Handlers as arrays: [obj, fun/method name, arg]
     emitter.emit("first", {n: 5});
 
     emitter.log.print();
+
+## [action.js](#action.js "save: |jshint")
+
+This is a demonstration of how the action ideas work. An action is a string-invoked function. While events should be declaration of facts ("such and such happened"), actions should be, well, active ("spell checking")
+
+    /*global require, console*/
+    var EventWhen = require('../index.js'),
+        emitter = new EventWhen(), 
+        glob = {};
+
+    emitter.makeLog();
+
+    emitter.action("firing test 2", function (data, emitter, ev, args) {
+        var g = this;
+
+        emitter.emit("test 2 fired", [data.msg, args.recipient]);
+    }
+
+    emitter.on("test 1 fires", [glob, "fire test 2", {recipient: "king"}]);
+
+    emitter.emit("test 1 fires", {msg: "See you tonight."});
+
+    emitter.log.print();
+

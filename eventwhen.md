@@ -8,6 +8,10 @@ As an example, let's say you need to read/parse a file and get some data from a 
 
 Some of the methods will return the emitter, but the ones involving handlers will return them instead. It ocurred to me that chaining of events does not seem that useful for event emitters. 
 
+### Version 0.4.0 Thoughts
+
+The idea is to create an action sentence that invokes the handler. So we attach the sentence to the event and then stuff happens to that. The handler can be a function or it could be an array of functions, etc. The point of invocation is when the sentence is used as a key to get the handler. So this allows dynamism which could be good, could be bad. The hard work, I think, is to rewrite the handler calling to be abstracted out to another level. I probably need to introduce an object of type handler. 
+
 ## Files
 
 The file structure is fairly simple. 
@@ -821,7 +825,7 @@ The lock value indicates whether we can overwrite the function. The default is y
         var emitter = this;
 
         emitter._actions[handler] = function () {
-            
+
         }
     }
 
