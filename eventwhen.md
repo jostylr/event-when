@@ -35,6 +35,9 @@ This is the main structure of the module file.
 
     _"tracker:prototype"
 
+    var Handler = _"handler";
+
+    _"handler:prototype"
 
     module.exports = EvW;
 
@@ -81,6 +84,7 @@ The various prototype methods on the event emitter.
     EvW.prototype.events = _"event listing";
     EvW.prototype.handlers = _"handlers for events";
     EvW.prototype.action = _"name an action";
+    EvW.prototype.makeHandler = _"handler:make";
 
 ### Emit
 
@@ -442,6 +446,89 @@ The idea is that the event handles the data while the handler manipulates the st
         return f;
 
     }
+
+### Handler
+
+This is where we define handlers. It seems appropriate to sandwich them between on and off. 
+
+The idea is that we will encapsulate all handlers into a handler object. When a function or something else is passed into .on and the others, it will be converted into a handler object and that object gets returned. If a handler object is passed in, then it gets attached. It will record which events it is attached to and one can use it to remove itself from any or all events that it is attached to. 
+
+    function (value, ev, options) {
+        if (value instanceof Handler) {
+            value.add(ev);
+            return Handler;
+        }
+        var handler = this;
+        handler.value = value;
+        handler.events = {};
+        if (options) {
+            for (prop in options) {
+                value[prop] = options[prop];
+            }
+        }
+        handler.add(ev);
+        return this;
+    }
+
+[prototype](# "js")
+
+The prototype object
+
+    Handler.prototype.add = _":add";
+    Handler.prototype.remove = _":remove";
+    Handler.prototype.name = _":name";
+    Handler.execute = _":execute";
+
+[add](# "js")
+
+Adding an event to the list. We are assuming a handler object is strongly associated with an emitter and not being used for multiple ones; note a function could be used multiple emitters, just not the encapsulating handler.
+
+    function (ev) {
+        var handler = this;
+        if (handler.events.hasOwnProperty(ev) ) {
+            handler.events[ev] += 1;
+        } else {
+            handler.events[ev] = 1;
+        }
+    } 
+
+[remove](# "remove")
+
+Removing an event from the handler.
+
+    function (ev) {
+        var handler = this;
+        if (handler.events.hasOwnProperty(ev) ) {
+            handler.events[ev] += 1;
+            if (handler.events[ev] < 1) {
+                delete handler.events[ev];
+            }
+        }
+    }
+
+[name](# "name")
+
+We can add a name to it or report its name.
+
+    function (name) {
+        if (name) {
+            this.name = name;
+        } else {
+            return (this.name || "");
+        }
+    }
+
+
+[execute](# "execute")
+
+Here we can execute a handler this. This is the whole point. We could have a variety of values here. 
+* string. This could be an action, in which case it is executed as if it is a function. Or it could be an event which case it is emitted, the data going along for the ride. 
+* function. Classic. It gets executed. no given context
+* [glob, fun, data] function executed in context of glob, passed in with data
+* [possible handler types...]. This level adds in possible object form: {name: function || [glob,fun,data]}. But you need an array for this form. The array form gets executed in order, the object form does not. 
+
+Maybe that's a lot of options. How to distinguish? 
+
 
 
 ### Off
