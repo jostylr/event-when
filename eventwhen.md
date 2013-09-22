@@ -453,13 +453,19 @@ This is where we define handlers. It seems appropriate to sandwich them between 
 
 The idea is that we will encapsulate all handlers into a handler object. When a function or something else is passed into .on and the others, it will be converted into a handler object and that object gets returned. If a handler object is passed in, then it gets attached. It will record which events it is attached to and one can use it to remove itself from any or all events that it is attached to. 
 
+This is a constructor and it should return this if it is creating or the value if it is already an instance.
+
     function (value, ev, options) {
         if (value instanceof Handler) {
             value.add(ev);
-            return Handler;
+            return value;
         }
         var handler = this;
-        handler.value = value;
+        if (Array.isArray) {
+            handler.value = value;
+        } else {
+            handler.value = [value];
+        }
         handler.events = {};
         if (options) {
             for (prop in options) {
@@ -492,7 +498,7 @@ Adding an event to the list. We are assuming a handler object is strongly associ
         }
     } 
 
-[remove](# "remove")
+[remove](# "js")
 
 Removing an event from the handler.
 
@@ -506,7 +512,7 @@ Removing an event from the handler.
         }
     }
 
-[name](# "name")
+[name](# "js")
 
 We can add a name to it or report its name.
 
@@ -519,16 +525,59 @@ We can add a name to it or report its name.
     }
 
 
-[execute](# "execute")
+[execute](# "js")
 
 Here we can execute a handler this. This is the whole point. We could have a variety of values here. 
 * string. This could be an action, in which case it is executed as if it is a function. Or it could be an event which case it is emitted, the data going along for the ride. 
 * function. Classic. It gets executed. no given context
-* [glob, fun, data] function executed in context of glob, passed in with data
-* [possible handler types...]. This level adds in possible object form: {name: function || [glob,fun,data]}. But you need an array for this form. The array form gets executed in order, the object form does not. 
+* [possible handler types...]. The array form gets executed in order, the object form does not. 
 
-Maybe that's a lot of options. How to distinguish? 
+We have a cont value that if false will terminate execution of further handlers.
 
+!!! not sure about the types still. Do we need a general object? string types don't get that and args passed in. Problem?
+
+    function (data, emitter, ev) {
+        var handler = this,
+            value = handler.value,
+            i, n = value.length, 
+            verb, vtype, cont = true, 
+            that = handler.that || null, 
+            args = handler.args || null;
+
+        if (emitter.countExecute > emitter.maxExecute) {
+            emitter.log("Exceeded max execute limit in one call", ev);
+            return false;
+        } else {
+            emitter.countExecute += 1;
+        }
+
+        for (i = 0; i <n; i += 1) {
+            verb = value[i];
+            vtype = typeof verb;
+            if (vtype === "string") {
+                _":string verb"
+            } else if (vtype === "function") {
+                cont = verb.call(that, data, emitter, ev, args);
+            } 
+            if (cont === false) {
+                return cont;
+            }
+        }
+
+        return cont;
+    }
+
+[string verb](# "js")
+
+The verb could be either an action, if it matches, or it is treated as an event to emit which is a simple default emit. 
+
+An action is an instanceof Handler. So we call its execute method. Hope it is not self-referential...but if it is is the countExecute variable should stop infinity in its tracks.
+
+    if (emitter.actions.hasOwnProperty(verb) ) {
+        cont = emitter.actions[verb].execute(data, emitter, ev);
+    } else if (emitter._handlers.hasOwnProperty(verb) ) {
+        emitter.emit(verb, data);
+    }
 
 
 ### Off
@@ -800,6 +849,7 @@ To handle "soon", we check to see if the current queue item has anything in the 
             waiting = emitter._waiting; 
 
         emitter.log("events on queue", queue.length+waiting.length, queue, waiting);
+        emitter.countExecute = 0;
 
         if (queue.length >0) {
             cur = queue[0];
