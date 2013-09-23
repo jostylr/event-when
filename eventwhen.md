@@ -528,13 +528,11 @@ We can add a name to it or report its name.
 [execute](# "js")
 
 Here we can execute a handler this. This is the whole point. We could have a variety of values here. 
-* string. This could be an action, in which case it is executed as if it is a function. Or it could be an event which case it is emitted, the data going along for the ride. 
+* string. This could be an action, in which case it is . Or it could be an event which case it is emitted, the data going along for the ride. 
 * function. Classic. It gets executed. no given context
-* [possible handler types...]. The array form gets executed in order, the object form does not. 
+* [possible handler types...]. The array form gets executed in order. The array can contain Handler objects that are then handled 
 
 We have a cont value that if false will terminate execution of further handlers.
-
-!!! not sure about the types still. Do we need a general object? string types don't get that and args passed in. Problem?
 
     function (data, emitter, ev) {
         var handler = this,
@@ -558,7 +556,9 @@ We have a cont value that if false will terminate execution of further handlers.
                 _":string verb"
             } else if (vtype === "function") {
                 cont = verb.call(that, data, emitter, ev, args);
-            } 
+            } else if (verb instanceof Handler) {
+
+            }
             if (cont === false) {
                 return cont;
             }
