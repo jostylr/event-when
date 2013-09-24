@@ -132,18 +132,22 @@ Given an event string, we run through the handlers, passing in the data to const
 
 This is the key innovation. The idea is that once this is called, a handler is created that attaches to all the listed events and takes care of figuring when they have all called. 
 
-This handler is stored in the `.last` property (until the next handler assignment). The handler exposes methods to manage the addition and removal of the events. 
+When all the events have fired, then `ev` fires. This should be of a handler type object. Strings are actions or events, depending on if they exist in either object. 
+
+The return is the tracker which contains all things that might need to be accessed. It also contains the remove methods to cancel the `.when`.
 
 As each event fires, this handler merges in the data object to the existing data. It also stores the original data object in _archive[event name] = ... in the data object passed to the event for posterity, log recordings, and hacking. 
 
-The timing string is passed on to emit with the event `ev` finally fires. The reset flag allows for the emitWhen to be reinitialized after it fires. It uses the original state. 
+The third argument is an object of options: 
 
-If the third argument is an object, then it is considered an options object and the properties reset and timing will be checked for. 
+* that Will be the context for functions fired from ev
+* args Will be the arguments passed to such functions
+* timing Is the timing passed to emitting events
+* reset Should the .when parameters be reset to the initial state once fired?
 
-If the third argument is a boolean, then it is assumed to be the reset string and timing will not be set, falling through to the default in emit.  
 
+All options are optional.
 
-!!! Better logging dealing with str. 
 
     function (events, ev, timing, reset) {    
 
@@ -171,17 +175,16 @@ If the third argument is a boolean, then it is assumed to be the reset string an
 
         var tracker = new Tracker();
 
-        tracker.event = ev;
+        tracker.event = new Handler(ev);
         tracker.emitter = emitter;
         tracker.timing = timing;
         tracker.reset = reset;
         tracker.original = events;
 
-        var handler = function (data, emitter, fired) {
+        var handler = new Handler (function (data, emitter, fired) {
             tracker.addData(data, fired); 
-            tracker.remove(fired);
-            return true;
-        };
+            return tracker.remove(fired);
+        });
 
 
         handler.tracker = tracker;
@@ -302,7 +305,7 @@ Note the `true` for the .off command is to make sure the `.remove` is not called
                 } 
             } 
         });
-        tracker.go();
+        return tracker.go();
     }
     
 [remove string](# "js")
@@ -314,7 +317,7 @@ This is mainly for use with the `.off` method where the handler has already been
 
         delete tracker.events[ev];
 
-        tracker.go();
+        return tracker.go();
     }
 
 [add data](# "js")
@@ -338,7 +341,7 @@ When an event fires, that data gets merged in with all previous data for the emi
 
 [cancel](# "js")
 
-This cancels the emitWhen, removing the handler from all remaining events. 
+This cancels the .when, removing the handler from all remaining events. 
 
     function () {
         var tracker = this, 
@@ -367,57 +370,18 @@ We might have an event, a handle, or an array of such things. The array could al
             ev = tracker.event, 
             data = tracker.data,
             events = tracker.events,
-            timing = tracker.timing;
+            cont = true;
 
 
         if (Object.keys(events).length === 0) {
             if (tracker.reset === true) {
                 tracker.add(tracker.original);
             }
-            _":go event handle" else if (Array.isArray(ev) ) {
-                ev.forEach(function (ev) {
-                    _":go event handle" else if (Array.isArray(ev)) {
-                        _":go array handle"
-                    } else {
-                        _":go error"
-                    }
-                });
-            }
+            cont = ev.execute(data, tracker.emitter, "emitWhen handler called");
         }
 
-        return true;
+        return cont;
     }
-
-[go event handle](# "js") 
-
-So either we emit an event or we call a handler
-
-            if (typeof ev === "string") {
-                tracker.emitter.emit(ev, data, timing);
-            } else if (typeof ev === "function") {
-                ev(_":arg list");
-            }
-
-[go array handle](# "js")
-
-Array handle
-
-    if (typeof ev[1] === "function") {
-        ev[1].call(ev[0], _":arg list", ev[2]);
-    } else if (ev[0].hasOwnProperty(ev[1]) && typeof (ev[0][ev[1]] === "function") ) {
-        ev[0][ev[1]](_":arg list", ev[2]);
-    } else {
-        _":go error"
-    }
-
-
-[arg list](# "js") 
-
-    data, tracker.emitter, "emitWhen handler called"
-
-[go error](# "js")
-
-    tracker.emitter.log("emitWhen handle failed to be fired", ev, data);
 
 
 ### On
