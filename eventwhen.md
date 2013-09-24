@@ -422,24 +422,24 @@ Array handle
 
 ### On
 
-Takes in an event and a function. It also has an optional this; if none specified, an empty object is used. If first is used, the function is put at the start of the (current) handler array. 
-
-The function will be passed a data object and the event whose firing triggered. It will be called without context unless it is bound with .bind or the function is an array, which is assumed to be of the form [state, fun, arg(s)]. This latter form does not bind the function to the state; see [pmuellr](http://pmuellr.blogspot.com/2010/06/bind-considered-harmful.html) and [amasad](http://blog.amasad.me/2012/07/02/the-dark-side-of-functionprototypebind/) for some reasons (namely, a new function is being created each time and dissociates itself from the object. We also support [state, "method name", ...] which will keep the function reference alive but mean we need to check that it is a function each time.  Note that these arrays are what is returned and are to be used for matching (1-level deep comparison for removal...oh, boy). 
-
-The idea is that the event handles the data while the handler manipulates the state, taking in the data to deal with it. 
+It takes an event (a string) and a Handler or something that converts to a Handler.  To have segments that are always in order, use a Handler with an array value of handler-types that will be executed in order.
 
 
-    function (ev, f, first) {
-        var emitter = this;
+"first" should be rarely used hence last. Pass TRUE in that slot; if that and args are not needed, pass in null. 
+
+
+    function (ev, f, that, args, first) {
+        var emitter = this,
+            hand;
+
 
 
         var handlers = this._handlers;
-        if ( (typeof f !== "function") && (!Array.isArray(f) ) ) {
-            emitter.log("handler assigned is not a function", ev, f);
-            return this;
-        }
+
+        hand = new Handler(f, ev, that, args); 
+
         if (handlers.hasOwnProperty(ev)) {
-            if (first) {
+            if (first === true) {
                 handlers[ev].unshift(f);
             } else {
                 handlers[ev].push(f);
@@ -458,9 +458,9 @@ This is where we define handlers. It seems appropriate to sandwich them between 
 
 The idea is that we will encapsulate all handlers into a handler object. When a function or something else is passed into .on and the others, it will be converted into a handler object and that object gets returned. If a handler object is passed in, then it gets attached. It will record which events it is attached to and one can use it to remove itself from any or all events that it is attached to. 
 
-This is a constructor and it should return this if it is creating or the value if it is already an instance.
+This is a constructor and it should return `this` if it is creating or the value if it is already an instance.
 
-    function (value, ev, options) {
+    function (value, ev, that, args) {
         if (value instanceof Handler) {
             value.add(ev);
             return value;
@@ -472,10 +472,11 @@ This is a constructor and it should return this if it is creating or the value i
             handler.value = [value];
         }
         handler.events = {};
-        if (options) {
-            for (prop in options) {
-                value[prop] = options[prop];
-            }
+        if (that) {
+            handler.that = that;
+        } 
+        if (typeof args !== undefined) {
+            handler.args = args;
         }
         handler.add(ev);
         return this;
@@ -616,20 +617,27 @@ This removes handlers. The nowhen boolean, when true, will leave the when handle
             return emitter;
         }
 
-        if (typeof fun === "function") {
+        if () {
             _":remove handler"
-            emitter.log("handler for event removed", ev + fun.name);
+            emitter.log("handler for event removed " + ev + fun.name);
             _":is event empty"
             return emitter;
         }
 
-        if (Array.isArray(fun) ) {
-            _":remove array handler"
-            emitter.log("handler for event removed", ev + 
-                fun.name || ( (typeof fun[1] === "string") ? fun[1] : (fun[1].name || "") ) 
-            );
+        // easy case -- check for equality of reference
+        if (fun instanceof Handler) {
+            _":remove Handler"
+            emitter.log("handler for event removed" +  ev + " :: " + fun.name() );
             return emitter;
         }
+
+        // harder -- check for handler whose value is one of these
+        if (typeof fun === "function" || Array.isArray(fun) ||  typeof fun === "string") {
+            _":find and remove handler with matching value"
+            emitter.log("handler for event removed" +  ev);            
+            return emitter;
+        }
+
 
         if (typeof fun === "boolean") {
             nowhen = fun;
@@ -709,91 +717,31 @@ This will remove all remove all duplicates, but the handler is defined by obj, f
 
 This method produces a wrapper around a provided function that automatically removes the handler after a certain number of event firings (once is default). The new handler is what is returned.
 
-    function (ev, f, n, first) {
+The way it works is the f is put into a handler object. This handler object then has a function placed as the first to be invoked. When invoked, it will decrement the number of times and remove the handler if it is less than or equal to 0. That's it. No function wrapping in a function.
+
+    function (ev, f, n, that, args, first) {
         var emitter = this, 
             g;
 
-        // allow shortened list
-        if (arguments.length === 3 && n === true) { 
-            n = 1;
-            first = true; 
+        f = new Handler(f, ev, that, args);
+
+        f.n = n || 1;
+
+        g = function() {
+            f.n -=1;
+            if (f.n <== 0) {
+                emitter.off(ev, f);
+            }
         }
 
-        if (typeof n === "undefined") {
-            n = 1;
-        }
+        f.value.shift(g);
 
-        if (typeof f === "function") {
-            g = _":f as function";
-        } else if ( Array.isArray(f) && (typeof f[1] === "function") ) {
-            g =_":f as array with function";
-        } else if (Array.isArray(f) ) {
-            g =_":f as array with string";
-        } else {
-            emitter.log("not a callable function", ev, f);
-        }            
+        emitter.on(ev, f, first); 
 
-        g.n = n;
-
-        emitter.on(ev, g, first); 
-        g.name = "once wrapping "+ (f.name || "");
         emitter.log("assigned event times", ev + " :: " + n);
 
-        return g;
+        return f;
     }
-
-[main g body](# "js")
-
-Eventually this will have the main body and the "f as ..." will just be a line or two that gets subbed or templated in. Something like `_":main g body | substitute (FEVAL, _'f as function' ) "`
-
-Need to implement events in lit pro first. 
-
-
-[f as function](# "js")
-
-
-    function (a, b, c) {
-        var n = g.n -= 1;
-        if ( n < 1) {
-            emitter.off(ev, g);
-        }
-        if (n >= 0 ) {
-            return f.call(null, a, b, c); 
-        } else {
-            return true;
-        }
-    }
-
-[f as array with function](# "js")
-
-    function (a, b, c) {
-        var n = g.n -= 1;
-        if ( n < 1) {
-            emitter.off(ev, g);
-        }
-        if (n >= 0 ) {
-            return f[1].call(f[0], a, b, c, f[2]); 
-        } else {
-            return true;
-        }
-    }
-
-[f as array with string](# "js")
-    
-    function (a, b, c) {
-        var n = g.n -= 1;
-        if ( n < 1) {
-            emitter.off(ev, g);
-        }
-        if (n >= 0 ) {
-            if  ( f[0].hasOwnProperty(f[1]) &&  (typeof f[0][f[1]] === "function") ) {
-                return f[0][f[1]](a, b, c, f[2]);
-            }
-        } else {
-            return true;
-        }
-    }
-    
 
 ### Stop
 
