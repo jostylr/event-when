@@ -95,7 +95,7 @@ We have four possible timings:
 * now  This takes the current handlers for the event and pushes it all on the queue. 
 * immediate This jump the response to the front of the queue. 
 
-Given an event string, we run through the handlers, passing in the data to construct the array to be added to the queue. If immediate is TRUE, we put it at the top of the queue. Otherwise it goes at the end. 
+Given an event string, we run through the handlers, passing in the data to construct the array to be added to the queue. 
     
     function (ev, data,  timing) {
         var emitter = this;
@@ -148,12 +148,17 @@ If the third argument is a boolean, then it is assumed to be the reset string an
     function (events, ev, timing, reset) {    
 
         var emitter = this, 
-            options;    
+            options, str;    
 
-        var str = (typeof ev === "function") ? (ev.name || "") : ev;
-        str = (Array.isArray(ev) ) ? "array" : str;
+        if (typeof ev === "string") {
+            str = ev;
+        } else if (ev) {
+            str = ev.name || "";
+        } else {
+            str = "";
+        }
 
-        emitter.log("emit when loaded", str, events, timing, reset);
+        emitter.log(".when loaded to fire "+ str, events, timing, reset);
 
         if (typeof timing === "object") {
             options = timing;
@@ -527,20 +532,26 @@ We can add a name to it or report its name.
 
 [execute](# "js")
 
-Here we can execute a handler this. This is the whole point. We could have a variety of values here. 
+Here we can execute a handler this. This is the whole point. We could have a variety of values here.
+
 * string. This could be an action, in which case it is . Or it could be an event which case it is emitted, the data going along for the ride. 
 * function. Classic. It gets executed. no given context
+* handler. This is an object of type handler. It allows us to stash stuff in the object. 
 * [possible handler types...]. The array form gets executed in order. The array can contain Handler objects that are then handled 
 
 We have a cont value that if false will terminate execution of further handlers.
 
-    function (data, emitter, ev) {
+That and args are mainly for passing in when calling a handler from a handler. If a handler already has these bound, it will use the bound ones. 
+
+
+    function (data, emitter, ev, that, args) {
         var handler = this,
             value = handler.value,
             i, n = value.length, 
-            verb, vtype, cont = true, 
-            that = handler.that || null, 
-            args = handler.args || null;
+            verb, vtype, 
+            cont = true;
+        that = handler.that || that || null, 
+        args = handler.args || args || null;
 
         if (emitter.countExecute > emitter.maxExecute) {
             emitter.log("Exceeded max execute limit in one call", ev);
@@ -557,7 +568,7 @@ We have a cont value that if false will terminate execution of further handlers.
             } else if (vtype === "function") {
                 cont = verb.call(that, data, emitter, ev, args);
             } else if (verb instanceof Handler) {
-
+                cont = verb.execute(data, emitter, ev, that, args);
             }
             if (cont === false) {
                 return cont;
@@ -569,14 +580,16 @@ We have a cont value that if false will terminate execution of further handlers.
 
 [string verb](# "js")
 
-The verb could be either an action, if it matches, or it is treated as an event to emit which is a simple default emit. 
+The verb could be either an action, if it matches, or it is treated as an event to emit which allows one to pass in a timing event. It 
 
 An action is an instanceof Handler. So we call its execute method. Hope it is not self-referential...but if it is is the countExecute variable should stop infinity in its tracks.
 
     if (emitter.actions.hasOwnProperty(verb) ) {
-        cont = emitter.actions[verb].execute(data, emitter, ev);
+        emitter.log("calling action" + verb + " for event " + ev);
+        cont = emitter.actions[verb].execute(data, emitter, ev, that, args);
     } else if (emitter._handlers.hasOwnProperty(verb) ) {
-        emitter.emit(verb, data);
+        emitter.log("emitting " + verb + " for event " + ev);
+        emitter.emit(verb, data, handler.timing[verb]);
     }
 
 
