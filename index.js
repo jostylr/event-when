@@ -5,6 +5,7 @@ var EvW = function () {
         this._handlers = {};
         this._queue = [];
         this._waiting = [];
+        this._actions = {};
     
         evw.resume = evw.resume.bind(evw);
         evw.next.max = 1000;
@@ -12,16 +13,14 @@ var EvW = function () {
         return this; 
     };
 
-EvW.prototype.on = function (ev, f, first) {
-    var emitter = this;
+EvW.prototype.on = function (ev, f, that, args, first) {
+    var emitter = this,
+        handlers = emitter._handlers;
 
-    var handlers = this._handlers;
-    if ( (typeof f !== "function") && (!Array.isArray(f) ) ) {
-        emitter.log("handler assigned is not a function", ev, f);
-        return this;
-    }
+    f = new Handler(f, {events:[ev], that: that, args:args} ); 
+
     if (handlers.hasOwnProperty(ev)) {
-        if (first) {
+        if (first === true) {
             handlers[ev].unshift(f);
         } else {
             handlers[ev].push(f);
@@ -80,9 +79,11 @@ EvW.prototype.off = function (ev, fun, nowhen) {
             return emitter;
         }
     
-        if (typeof fun === "function") {
+        // easy case -- check for equality of reference
+        if (fun instanceof Handler) {
             handlers[ev] = handlers[ev].filter(function (el) {
                 if (el === fun) {
+                    fun.remove(ev);
                     return false;
                 } else {
                     return true;
@@ -91,29 +92,21 @@ EvW.prototype.off = function (ev, fun, nowhen) {
             if ( (nowhen !== true) && fun.hasOwnProperty("tracker") )  {
                 fun.tracker.removeStr(ev);
             }
-            emitter.log("handler for event removed", ev + fun.name);
-            if (handlers[ev].length === 0) {
-                emitter.log("event " + ev+ " removed as no handlers left"); 
-                delete handlers[ev];
-            }            
+            emitter.log("handler for event removed" +  ev + " :: " + fun.name() );
             return emitter;
         }
     
-        if (Array.isArray(fun) ) {
+        // harder -- check for handler whose value is one of these
+        if (typeof fun === "function" || Array.isArray(fun) ||  typeof fun === "string") {
             handlers[ev] = handlers[ev].filter(function (el) {
-                if (Array.isArray(el)) {
-                    if ( (el[0] === fun[0]) && (el[1] === fun[1]) && (el[2] === fun[2]) ) {
-                        return false;
-                    } else {
-                        return true;
-                    }
+                if (el.value[0] === fun) {
+                    el.remove(ev);
+                    return false;
                 } else {
                     return true;
                 }
             }); 
-            emitter.log("handler for event removed", ev + 
-                fun.name || ( (typeof fun[1] === "string") ? fun[1] : (fun[1].name || "") ) 
-            );
+            emitter.log("handler for event removed" +  ev);            
             return emitter;
         }
     
@@ -178,7 +171,7 @@ EvW.prototype.stop = function (a) {
     
         return emitter;
     };
-EvW.prototype.resume = function () {
+EvW.prototype.resume =  function () {
     
         var q, f, ev, data, cont, cur,  
             emitter = this,
@@ -187,6 +180,7 @@ EvW.prototype.resume = function () {
             waiting = emitter._waiting; 
     
         emitter.log("events on queue", queue.length+waiting.length, queue, waiting);
+        emitter.countExecute = 0;
     
         if (queue.length >0) {
             cur = queue[0];
@@ -201,27 +195,7 @@ EvW.prototype.resume = function () {
                 queue.shift();
             }
             if (f) {
-                if (typeof f === "function") {
-                    emitter.log("handler firing", (f.name || "") + " for "+ ev, data);
-                    cont = f(data, emitter, ev);
-                } else if (Array.isArray(f)) {
-                    emitter.log("handler firing", (f.name || "") + " for " + ev, data);
-                    if (typeof f[1] === "function") {
-                        cont = f[1].call(f[0], data, emitter, ev, f[2]);
-                    } else if (f[0].hasOwnProperty(f[1]) && (typeof f[0][f[1]] === "function") ) {
-                        cont = f[0][f[1]](data, emitter, ev, f[2]);
-                    } else {
-                        emitter.log("warning: handler not understood", ev + f, data);
-                        cont = true;
-                    }            
-                } else {
-                        emitter.log("warning: handler not understood", ev + f, data);
-                        cont = true;
-                }
-                    
-                if ( (cont === false) && (cur === queue[0]) ) {
-                    queue.shift(); 
-                }
+                cont = f.execute(data, emitter, ev);
             }
             this.next(this.resume);
         } else if (waiting.length > 0) {
@@ -233,38 +207,33 @@ EvW.prototype.resume = function () {
         }
     
     };
-EvW.prototype.when = function (events, ev, timing, reset) {    
+EvW.prototype.when = function (events, ev, options) {    
     
         var emitter = this, 
-            options;    
+            str;    
     
-        var str = (typeof ev === "function") ? (ev.name || "") : ev;
-        str = (Array.isArray(ev) ) ? "array" : str;
-    
-        emitter.log("emit when loaded", str, events, timing, reset);
-    
-        if (typeof timing === "object") {
-            options = timing;
-            reset = options.reset || false;
-            timing = options.timing || undefined;
-        } else if (timing === true) {
-            reset = timing; 
-            timing = undefined;
+        if (typeof ev === "string") {
+            str = ev;
+        } else if (ev) {
+            str = ev.name || "";
+        } else {
+            str = "";
         }
+    
+        emitter.log(".when loaded to fire "+ str, events);
     
         var tracker = new Tracker();
     
-        tracker.event = ev;
+        tracker.event = new Handler(ev, options);
         tracker.emitter = emitter;
-        tracker.timing = timing;
-        tracker.reset = reset;
+        tracker.timing = options.timing;
+        tracker.reset = options.reset || false;
         tracker.original = events;
     
-        var handler = function (data, emitter, fired) {
+        var handler = new Handler (function (data, emitter, fired) {
             tracker.addData(data, fired); 
-            tracker.remove(fired);
-            return true;
-        };
+            return tracker.remove(fired);
+        });
     
         handler.tracker = tracker;
     
@@ -274,69 +243,28 @@ EvW.prototype.when = function (events, ev, timing, reset) {
     
         return tracker;
     };
-EvW.prototype.once = function (ev, f, n, first) {
+EvW.prototype.once = function (ev, f, n, options, first) {
         var emitter = this, 
             g;
     
-        // allow shortened list
-        if (arguments.length === 3 && n === true) { 
-            n = 1;
-            first = true; 
-        }
+        f = new Handler(f, options);
     
-        if (typeof n === "undefined") {
-            n = 1;
-        }
+        f.n = n || 1;
     
-        if (typeof f === "function") {
-            g = function (a, b, c) {
-                    var n = g.n -= 1;
-                    if ( n < 1) {
-                        emitter.off(ev, g);
-                    }
-                    if (n >= 0 ) {
-                        return f.call(null, a, b, c); 
-                    } else {
-                        return true;
-                    }
-                };
-        } else if ( Array.isArray(f) && (typeof f[1] === "function") ) {
-            g =function (a, b, c) {
-                    var n = g.n -= 1;
-                    if ( n < 1) {
-                        emitter.off(ev, g);
-                    }
-                    if (n >= 0 ) {
-                        return f[1].call(f[0], a, b, c, f[2]); 
-                    } else {
-                        return true;
-                    }
-                };
-        } else if (Array.isArray(f) ) {
-            g =function (a, b, c) {
-                    var n = g.n -= 1;
-                    if ( n < 1) {
-                        emitter.off(ev, g);
-                    }
-                    if (n >= 0 ) {
-                        if  ( f[0].hasOwnProperty(f[1]) &&  (typeof f[0][f[1]] === "function") ) {
-                            return f[0][f[1]](a, b, c, f[2]);
-                        }
-                    } else {
-                        return true;
-                    }
-                };
-        } else {
-            emitter.log("not a callable function", ev, f);
-        }            
+        g = function() {
+            f.n -=1;
+            if (f.n <= 0) {
+                emitter.off(ev, f);
+            }
+        };
     
-        g.n = n;
+        f.value.shift(g);
     
-        emitter.on(ev, g, first); 
-        g.name = "once wrapping "+ (f.name || "");
+        emitter.on(ev, f, first); 
+    
         emitter.log("assigned event times", ev + " :: " + n);
     
-        return g;
+        return f;
     };
 
 EvW.prototype.next =  function (f) {
@@ -454,6 +382,36 @@ EvW.prototype.handlers = function (events) {
         return ret;
     
     };
+EvW.prototype.action = function (name, handler, options) {
+        var emitter = this;
+    
+        if (arguments.length === 1) {
+            return emitter._actions[name];
+        }
+    
+        if ( (arguments.length === 2) && (handler === null) ) {
+            delete emitter._actions[name];
+            emitter.log("Removed action " + name);
+            return false;
+        }
+        
+        options = options || {};
+    
+        var action = new Handler(handler, options); 
+    
+        action.name = name;
+    
+        if (emitter._actions.hasOwnProperty(name) ) {
+            emitter.log("Overwriting action " + name);
+        }
+    
+        emitter._actions[name] = action;
+    
+        return name;
+    };
+EvW.prototype.makeHandler = function (value, options) {
+        return new Handler(value, options);
+    };
 
 var Tracker = function () {
         this.events = {};
@@ -528,52 +486,30 @@ Tracker.prototype.remove = function () {
                 } 
             } 
         });
-        tracker.go();
+        return tracker.go();
     };
 Tracker.prototype.removeStr = function (ev) {
         var tracker = this;
     
         delete tracker.events[ev];
     
-        tracker.go();
+        return tracker.go();
     };
 Tracker.prototype.go = function () {
         var tracker = this, 
             ev = tracker.event, 
             data = tracker.data,
             events = tracker.events,
-            timing = tracker.timing;
+            cont = true;
     
         if (Object.keys(events).length === 0) {
             if (tracker.reset === true) {
                 tracker.add(tracker.original);
             }
-            if (typeof ev === "string") {
-                        tracker.emitter.emit(ev, data, timing);
-                    } else if (typeof ev === "function") {
-                        ev(data, tracker.emitter, "emitWhen handler called");
-                    } else if (Array.isArray(ev) ) {
-                ev.forEach(function (ev) {
-                    if (typeof ev === "string") {
-                                tracker.emitter.emit(ev, data, timing);
-                            } else if (typeof ev === "function") {
-                                ev(data, tracker.emitter, "emitWhen handler called");
-                            } else if (Array.isArray(ev)) {
-                        if (typeof ev[1] === "function") {
-                            ev[1].call(ev[0], data, tracker.emitter, "emitWhen handler called", ev[2]);
-                        } else if (ev[0].hasOwnProperty(ev[1]) && typeof (ev[0][ev[1]] === "function") ) {
-                            ev[0][ev[1]](data, tracker.emitter, "emitWhen handler called", ev[2]);
-                        } else {
-                            tracker.emitter.log("emitWhen handle failed to be fired", ev, data);
-                        }
-                    } else {
-                        tracker.emitter.log("emitWhen handle failed to be fired", ev, data);
-                    }
-                });
-            }
+            cont = ev.execute(data, tracker.emitter, "emitWhen handler called");
         }
     
-        return true;
+        return cont;
     };
 Tracker.prototype.addData = function (eventData, event) {
         var tracker = this,
@@ -599,6 +535,82 @@ Tracker.prototype.cancel = function () {
             emitter.off(event, handler);
         }
     
+    };
+
+var Handler = function (value, options) {
+        if (value instanceof Handler) {
+            if (options.ev) {
+                if (value.events) {
+                    value.events.push(options.ev);
+                } else {
+                    value.events = [options.ev];
+                }
+            }
+            return value;
+        }
+    
+        var handler = this,
+            key;
+        options  = options || {};
+    
+        if (Array.isArray(value) ) {
+            handler.value = value;
+        } else {
+            handler.value = [value];
+        }
+    
+        for (key in options) {
+            handler[key] = options[key];
+        }
+    
+        return this;
+    };
+
+Handler.prototype.name = function (name) {
+    if (name) {
+        this.name = name;
+    } else {
+        return (this.name || "");
+    }
+};
+Handler.prototype.execute = function (data, emitter, ev, that, args) {
+        var handler = this,
+            value = handler.value,
+            i, n = value.length, 
+            verb, vtype, act, 
+            cont = true;
+        that = handler.that || that || null, 
+        args = handler.args || args || null;
+    
+        if (emitter.countExecute > emitter.maxExecute) {
+            emitter.log("Exceeded max execute limit in one call", ev);
+            return false;
+        } else {
+            emitter.countExecute += 1;
+        }
+    
+        for (i = 0; i <n; i += 1) {
+            verb = value[i];
+            vtype = typeof verb;
+            if (vtype === "string") {
+                if (  (act = emitter.action(verb)) ) {
+                    emitter.log("calling action" + verb + " for event " + ev);
+                    cont = act.execute(data, emitter, ev, that, args);
+                } else if (emitter._handlers.hasOwnProperty(verb) ) {
+                    emitter.log("emitting " + verb + " for event " + ev);
+                    emitter.emit(verb, data, handler.timing[verb]);
+                }
+            } else if (vtype === "function") {
+                cont = verb.call(that, data, emitter, ev, args);
+            } else if (verb instanceof Handler) {
+                cont = verb.execute(data, emitter, ev, that, args);
+            }
+            if (cont === false) {
+                return cont;
+            }
+        }
+    
+        return cont;
     };
 
 module.exports = EvW;

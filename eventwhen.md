@@ -1,4 +1,4 @@
-# [event-when](# "version: 0.4.0 | jostylr")
+# [event-when](# "version: 0.4.0-pre | jostylr")
 
 This is my own little event library. It has most the usual methods and conventions, more or less. 
 
@@ -149,10 +149,10 @@ The third argument is an object of options:
 All options are optional.
 
 
-    function (events, ev, timing, reset) {    
+    function (events, ev, options) {    
 
         var emitter = this, 
-            options, str;    
+            str;    
 
         if (typeof ev === "string") {
             str = ev;
@@ -162,23 +162,15 @@ All options are optional.
             str = "";
         }
 
-        emitter.log(".when loaded to fire "+ str, events, timing, reset);
+        emitter.log(".when loaded to fire "+ str, events);
 
-        if (typeof timing === "object") {
-            options = timing;
-            reset = options.reset || false;
-            timing = options.timing || undefined;
-        } else if (timing === true) {
-            reset = timing; 
-            timing = undefined;
-        }
 
         var tracker = new Tracker();
 
-        tracker.event = new Handler(ev);
+        tracker.event = new Handler(ev, options);
         tracker.emitter = emitter;
-        tracker.timing = timing;
-        tracker.reset = reset;
+        tracker.timing = options.timing;
+        tracker.reset = options.reset || false;
         tracker.original = events;
 
         var handler = new Handler (function (data, emitter, fired) {
@@ -394,13 +386,9 @@ It takes an event (a string) and a Handler or something that converts to a Handl
 
     function (ev, f, that, args, first) {
         var emitter = this,
-            hand;
+            handlers = emitter._handlers;
 
-
-
-        var handlers = this._handlers;
-
-        hand = new Handler(f, ev, that, args); 
+        f = new Handler(f, {events:[ev], that: that, args:args} ); 
 
         if (handlers.hasOwnProperty(ev)) {
             if (first === true) {
@@ -424,25 +412,33 @@ The idea is that we will encapsulate all handlers into a handler object. When a 
 
 This is a constructor and it should return `this` if it is creating or the value if it is already an instance.
 
-    function (value, ev, that, args) {
+    function (value, options) {
         if (value instanceof Handler) {
-            value.add(ev);
+            if (options.ev) {
+                if (value.events) {
+                    value.events.push(options.ev);
+                } else {
+                    value.events = [options.ev];
+                }
+            }
             return value;
         }
-        var handler = this;
-        if (Array.isArray) {
+
+        var handler = this,
+            key;
+        options  = options || {};
+
+
+        if (Array.isArray(value) ) {
             handler.value = value;
         } else {
             handler.value = [value];
         }
-        handler.events = {};
-        if (that) {
-            handler.that = that;
-        } 
-        if (typeof args !== undefined) {
-            handler.args = args;
+
+        for (key in options) {
+            handler[key] = options[key];
         }
-        handler.add(ev);
+
         return this;
     }
 
@@ -450,10 +446,12 @@ This is a constructor and it should return `this` if it is creating or the value
 
 The prototype object
 
-    Handler.prototype.add = _":add";
-    Handler.prototype.remove = _":remove";
+Due to be removed. 
+Handler.prototype.add = _":add";
+Handler.prototype.remove = _":remove";
+
     Handler.prototype.name = _":name";
-    Handler.execute = _":execute";
+    Handler.prototype.execute = _":execute";
 
 [add](# "js")
 
@@ -475,7 +473,7 @@ Removing an event from the handler.
     function (ev) {
         var handler = this;
         if (handler.events.hasOwnProperty(ev) ) {
-            handler.events[ev] += 1;
+            handler.events[ev] -= 1;
             if (handler.events[ev] < 1) {
                 delete handler.events[ev];
             }
@@ -513,7 +511,7 @@ That and args are mainly for passing in when calling a handler from a handler. I
         var handler = this,
             value = handler.value,
             i, n = value.length, 
-            verb, vtype, 
+            verb, vtype, act, 
             cont = true;
         that = handler.that || that || null, 
         args = handler.args || args || null;
@@ -549,12 +547,20 @@ The verb could be either an action, if it matches, or it is treated as an event 
 
 An action is an instanceof Handler. So we call its execute method. Hope it is not self-referential...but if it is is the countExecute variable should stop infinity in its tracks.
 
-    if (emitter.actions.hasOwnProperty(verb) ) {
+    if (  (act = emitter.action(verb)) ) {
         emitter.log("calling action" + verb + " for event " + ev);
-        cont = emitter.actions[verb].execute(data, emitter, ev, that, args);
+        cont = act.execute(data, emitter, ev, that, args);
     } else if (emitter._handlers.hasOwnProperty(verb) ) {
         emitter.log("emitting " + verb + " for event " + ev);
         emitter.emit(verb, data, handler.timing[verb]);
+    }
+
+[make](# "js")
+
+This is a simple wrapper for new Handler
+
+    function (value, options) {
+        return new Handler(value, options);
     }
 
 
@@ -581,12 +587,6 @@ This removes handlers. The nowhen boolean, when true, will leave the when handle
             return emitter;
         }
 
-        if () {
-            _":remove handler"
-            emitter.log("handler for event removed " + ev + fun.name);
-            _":is event empty"
-            return emitter;
-        }
 
         // easy case -- check for equality of reference
         if (fun instanceof Handler) {
@@ -636,6 +636,7 @@ This will remove all duplicate handlers of the passed in function as well.
 
     handlers[ev] = handlers[ev].filter(function (el) {
         if (el === fun) {
+            fun.remove(ev);
             return false;
         } else {
             return true;
@@ -646,21 +647,19 @@ This will remove all duplicate handlers of the passed in function as well.
     }
 
 
-[remove array handler](# "js")
+[find and remove handler with matching value](# "js")
 
-This will remove all remove all duplicates, but the handler is defined by obj, function, args. All must be the same as the original object (in reference, not value). 
+Each el is a Handler object. They store all their values in value 
 
     handlers[ev] = handlers[ev].filter(function (el) {
-        if (Array.isArray(el)) {
-            if ( (el[0] === fun[0]) && (el[1] === fun[1]) && (el[2] === fun[2]) ) {
-                return false;
-            } else {
-                return true;
-            }
+        if (el.value[0] === fun) {
+            el.remove(ev);
+            return false;
         } else {
             return true;
         }
     }); 
+
 
 
 [remove handlers checking for when handlers](# "js")
@@ -683,20 +682,20 @@ This method produces a wrapper around a provided function that automatically rem
 
 The way it works is the f is put into a handler object. This handler object then has a function placed as the first to be invoked. When invoked, it will decrement the number of times and remove the handler if it is less than or equal to 0. That's it. No function wrapping in a function.
 
-    function (ev, f, n, that, args, first) {
+    function (ev, f, n, options, first) {
         var emitter = this, 
             g;
 
-        f = new Handler(f, ev, that, args);
+        f = new Handler(f, options);
 
         f.n = n || 1;
 
         g = function() {
             f.n -=1;
-            if (f.n <== 0) {
+            if (f.n <= 0) {
                 emitter.off(ev, f);
             }
-        }
+        };
 
         f.value.shift(g);
 
@@ -789,7 +788,8 @@ To handle "soon", we check to see if the current queue item has anything in the 
                 queue.shift();
             }
             if (f) {
-                _":deal with handler calling"
+                cont = f.execute(data, emitter, ev);
+_":deal with handler calling"
             }
             this.next(this.resume);
         } else if (waiting.length > 0) {
@@ -878,18 +878,42 @@ The cede control function -- node vs browser.
 
 ### Name an action
 
-The idea is to create a handler-type object (whatever could be in a handler spot) that is listed under an action name. An action object actually is a function whose handler part is under the handler key and is prototyped with a few methods. 
+This is for storing Handler type objects under a name string, generally some active description of what is supposed to take place. The Handler type can be anything that converts to Handler. 
+
+If just one argument is provided, then the handler is returned. 
+
+If two arguments are provided, but the second is null, then this is a signal to delete the action. 
 
 
-The lock value indicates whether we can overwrite the function. The default is yes we can (but don't do that). Nothing prevents `delete emitter._actions[name]`
-
-    function (name, handler, lock) {
+    function (name, handler, options) {
         var emitter = this;
 
-        emitter._actions[handler] = function () {
-
+        if (arguments.length === 1) {
+            return emitter._actions[name];
         }
+
+        if ( (arguments.length === 2) && (handler === null) ) {
+            delete emitter._actions[name];
+            emitter.log("Removed action " + name);
+            return false;
+        }
+        
+        options = options || {};
+
+        var action = new Handler(handler, options); 
+
+        action.name = name;
+
+        if (emitter._actions.hasOwnProperty(name) ) {
+            emitter.log("Overwriting action " + name);
+        }
+
+        emitter._actions[name] = action;
+
+        return name;
     }
+
+We return the name so that one can define an action and then use it. 
 
 ### Event listing
 
