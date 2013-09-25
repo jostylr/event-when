@@ -40,21 +40,21 @@ So we just create and return an emitter
 
         emitter.global = global;
 
-        emitter.on("next character", [global, _"store character", "check"]);
+        emitter.on("next character",  _"store character", global, "check" );
 
-        emitter.on("escape", [global, function () {
+        emitter.on("escape", function () {
             this.store[0].pop(); // fix this later 
-        }]);
+        }, global);
 
-        emitter.on("open bracket", [global, _"create new parenthetical"]);
+        emitter.on("open bracket", _"create new parenthetical", global);
 
-        emitter.on("quote", [global, _"quote processing"]);
+        emitter.on("quote",  _"quote processing", global);
 
-        emitter.on("escape", [global, _"escape character"]);
+        emitter.on("escape", _"escape character", global);
 
-        emitter.on("literal character", [global, _"store character", "store only"]);
+        emitter.on("literal character",  _"store character", global, "store only" );
 
-        emitter.once("text processing done", [global, _"report processed"]);
+        emitter.once("text processing done",  _"report processed", global );
 
         return emitter;
     }
@@ -143,13 +143,13 @@ For each parenthetical, we create a new array that will store everything that go
         global.store.push(newstore);
 
 
-        handlers.pusher = emitter.on("next character", [newstore, function (char) {
+        handlers.pusher = emitter.on("next character",  function (char) {
             if (Array.isArray(char) ) {
                 this.push(char[0]);                
             } else {
                 this.push(char);
             }
-        }]);
+        }, newstore);
 
         emitter.on("literal character", handlers.pusher);
 
@@ -157,13 +157,13 @@ For each parenthetical, we create a new array that will store everything that go
             handlers.close.add("close bracket");
         });
 
-        handlers.escaper = emitter.on("escape", [newstore, function () {
+        handlers.escaper = emitter.on("escape", function () {
             this.pop(); // fix this later 
-        }]);
+        }, newstore);
 
         handlers.close = emitter.when("close bracket", [_"end parenthetical", [handlers, _"remove bracket handlers"]]);
 
-        handlers.fail = emitter.on("text processing done", [handlers, _"remove bracket handlers"]);
+        handlers.fail = emitter.on("text processing done", _"remove bracket handlers", handlers );
 
 
     }

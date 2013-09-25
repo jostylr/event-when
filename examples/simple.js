@@ -5,12 +5,12 @@ var EventWhen = require('../index.js'),
 
 emitter.makeLog();
 
-f = emitter.on("test 1 on", function () {
+emitter.on("test 1 on", function () {
     console.log("test 1 starts");
     emitter.emit("test 1 finishes");
 });
 
-console.log(f);
+f = emitter.last;
 
 emitter.on("test 1 finishes", function () {
     console.log("test 1 finishes");

@@ -140,7 +140,7 @@ Testing the once method
 
 
     emitter.once("test 2", function() {
-        console.log("never fires");
+        console.log("actually does fire, once means at least once");
     }, 0);
 
     emitter.once("test 2", function () {
@@ -250,13 +250,16 @@ This is a demonstration of how the action ideas work. An action is a string-invo
 
     emitter.action("firing test 2", function (data, emitter, ev, args) {
         var g = this;
-
+        g.record = 2;
         emitter.emit("test 2 fired", [data.msg, args.recipient]);
-    }
+    });
 
-    emitter.on("test 1 fires", [glob, "fire test 2", {recipient: "king"}]);
+    emitter.on("test 1 fires", ["firing test 2", "test 1 fired"], glob, {recipient: "king"});
+
+    emitter.on("test 1 fired", function () {console.log("test 1 done!");});
 
     emitter.emit("test 1 fires", {msg: "See you tonight."});
 
     emitter.log.print();
 
+    console.log(glob);

@@ -17,7 +17,7 @@ EvW.prototype.on = function (ev, f, that, args, first) {
     var emitter = this,
         handlers = emitter._handlers;
 
-    f = new Handler(f, {events:[ev], that: that, args:args} ); 
+    f = new Handler(f, {that: that, args:args} ); 
 
     if (handlers.hasOwnProperty(ev)) {
         if (first === true) {
@@ -39,7 +39,7 @@ EvW.prototype.emit = function (ev, data,  timing) {
         data = data || {};
         var h = this._handlers[ev] || [];
     
-        emitter.log("emit", ev, data, timing);
+        emitter.log("emitting: " + ev, arguments);
     
         switch (timing) {
             case "later" : 
@@ -83,7 +83,6 @@ EvW.prototype.off = function (ev, fun, nowhen) {
         if (fun instanceof Handler) {
             handlers[ev] = handlers[ev].filter(function (el) {
                 if (el === fun) {
-                    fun.remove(ev);
                     return false;
                 } else {
                     return true;
@@ -92,7 +91,7 @@ EvW.prototype.off = function (ev, fun, nowhen) {
             if ( (nowhen !== true) && fun.hasOwnProperty("tracker") )  {
                 fun.tracker.removeStr(ev);
             }
-            emitter.log("handler for event removed" +  ev + " :: " + fun.name() );
+            emitter.log("handler for event removed" +  ev + " :: " + (fun.name || "") );
             return emitter;
         }
     
@@ -179,7 +178,7 @@ EvW.prototype.resume =  function () {
             handlers = emitter._handlers,
             waiting = emitter._waiting; 
     
-        emitter.log("events on queue", queue.length+waiting.length, queue, waiting);
+        // emitter.log("events on queue", queue.length+waiting.length, queue, waiting);
         emitter.countExecute = 0;
     
         if (queue.length >0) {
@@ -211,6 +210,7 @@ EvW.prototype.when = function (events, ev, options) {
     
         var emitter = this, 
             str;    
+        options = options || {};
     
         if (typeof ev === "string") {
             str = ev;
@@ -258,7 +258,7 @@ EvW.prototype.once = function (ev, f, n, options, first) {
             }
         };
     
-        f.value.shift(g);
+        f.value.unshift(g);
     
         emitter.on(ev, f, first); 
     
@@ -302,7 +302,7 @@ EvW.prototype.makeLog = function () {
         var ret = function (description, specific) {
             var f; 
             log._full.push(Array.prototype.slice.call(arguments, 0));
-            log._simple.push(description+":" + (specific || ""));
+            log._simple.push(description);
             if (ret.hasOwnProperty(description) ) {
                 f = ret.description;
             } else {
@@ -539,13 +539,6 @@ Tracker.prototype.cancel = function () {
 
 var Handler = function (value, options) {
         if (value instanceof Handler) {
-            if (options.ev) {
-                if (value.events) {
-                    value.events.push(options.ev);
-                } else {
-                    value.events = [options.ev];
-                }
-            }
             return value;
         }
     
@@ -566,51 +559,46 @@ var Handler = function (value, options) {
         return this;
     };
 
-Handler.prototype.name = function (name) {
-    if (name) {
-        this.name = name;
-    } else {
-        return (this.name || "");
-    }
-};
 Handler.prototype.execute = function (data, emitter, ev, that, args) {
-        var handler = this,
-            value = handler.value,
-            i, n = value.length, 
-            verb, vtype, act, 
-            cont = true;
-        that = handler.that || that || null, 
-        args = handler.args || args || null;
-    
-        if (emitter.countExecute > emitter.maxExecute) {
-            emitter.log("Exceeded max execute limit in one call", ev);
-            return false;
-        } else {
-            emitter.countExecute += 1;
-        }
-    
-        for (i = 0; i <n; i += 1) {
-            verb = value[i];
-            vtype = typeof verb;
-            if (vtype === "string") {
-                if (  (act = emitter.action(verb)) ) {
-                    emitter.log("calling action" + verb + " for event " + ev);
-                    cont = act.execute(data, emitter, ev, that, args);
-                } else if (emitter._handlers.hasOwnProperty(verb) ) {
-                    emitter.log("emitting " + verb + " for event " + ev);
-                    emitter.emit(verb, data, handler.timing[verb]);
-                }
-            } else if (vtype === "function") {
-                cont = verb.call(that, data, emitter, ev, args);
-            } else if (verb instanceof Handler) {
-                cont = verb.execute(data, emitter, ev, that, args);
+    var handler = this,
+        value = handler.value,
+        i, n = value.length, 
+        verb, vtype, act, 
+        cont = true;
+    that = handler.that || that || null, 
+    args = handler.args || args || null;
+
+    if (emitter.countExecute > emitter.maxExecute) {
+        emitter.log("Exceeded max execute limit in one call", ev);
+        return false;
+    } else {
+        emitter.countExecute += 1;
+    }
+
+    for (i = 0; i <n; i += 1) {
+        verb = value[i];
+        vtype = typeof verb;
+        if (vtype === "string") {
+            if (  (act = emitter.action(verb)) ) {
+                emitter.log(ev + " --> " + verb);
+                cont = act.execute(data, emitter, ev, that, args);
+            } else if (emitter._handlers.hasOwnProperty(verb) ) {
+                emitter.log(ev + " --emitting: " + verb );
+                emitter.emit(verb, data, handler.timing);
             }
-            if (cont === false) {
-                return cont;
-            }
+        } else if (vtype === "function") {
+            cont = verb.call(that, data, emitter, ev, args);
+        } else if (verb instanceof Handler) {
+            cont = verb.execute(data, emitter, ev, that, args);
+        } else if (Array.isArray(verb) ) {
+            cont = verb[1].call(verb[0] || that, data, emitter, ev, verb[2] || args);
         }
-    
-        return cont;
-    };
+        if (cont === false) {
+            return cont;
+        }
+    }
+
+    return cont;
+};
 
 module.exports = EvW;

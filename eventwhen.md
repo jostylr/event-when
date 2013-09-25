@@ -104,7 +104,7 @@ Given an event string, we run through the handlers, passing in the data to const
         data = data || {};
         var h = this._handlers[ev] || [];
 
-        emitter.log("emit", ev, data, timing);
+        emitter.log("emitting: " + ev, arguments);
 
         switch (timing) {
             case "later" : 
@@ -153,6 +153,7 @@ All options are optional.
 
         var emitter = this, 
             str;    
+        options = options || {};
 
         if (typeof ev === "string") {
             str = ev;
@@ -163,7 +164,6 @@ All options are optional.
         }
 
         emitter.log(".when loaded to fire "+ str, events);
-
 
         var tracker = new Tracker();
 
@@ -388,7 +388,7 @@ It takes an event (a string) and a Handler or something that converts to a Handl
         var emitter = this,
             handlers = emitter._handlers;
 
-        f = new Handler(f, {events:[ev], that: that, args:args} ); 
+        f = new Handler(f, {that: that, args:args} ); 
 
         if (handlers.hasOwnProperty(ev)) {
             if (first === true) {
@@ -414,13 +414,6 @@ This is a constructor and it should return `this` if it is creating or the value
 
     function (value, options) {
         if (value instanceof Handler) {
-            if (options.ev) {
-                if (value.events) {
-                    value.events.push(options.ev);
-                } else {
-                    value.events = [options.ev];
-                }
-            }
             return value;
         }
 
@@ -446,51 +439,7 @@ This is a constructor and it should return `this` if it is creating or the value
 
 The prototype object
 
-Due to be removed. 
-Handler.prototype.add = _":add";
-Handler.prototype.remove = _":remove";
-
-    Handler.prototype.name = _":name";
     Handler.prototype.execute = _":execute";
-
-[add](# "js")
-
-Adding an event to the list. We are assuming a handler object is strongly associated with an emitter and not being used for multiple ones; note a function could be used multiple emitters, just not the encapsulating handler.
-
-    function (ev) {
-        var handler = this;
-        if (handler.events.hasOwnProperty(ev) ) {
-            handler.events[ev] += 1;
-        } else {
-            handler.events[ev] = 1;
-        }
-    } 
-
-[remove](# "js")
-
-Removing an event from the handler.
-
-    function (ev) {
-        var handler = this;
-        if (handler.events.hasOwnProperty(ev) ) {
-            handler.events[ev] -= 1;
-            if (handler.events[ev] < 1) {
-                delete handler.events[ev];
-            }
-        }
-    }
-
-[name](# "js")
-
-We can add a name to it or report its name.
-
-    function (name) {
-        if (name) {
-            this.name = name;
-        } else {
-            return (this.name || "");
-        }
-    }
 
 
 [execute](# "js")
@@ -500,7 +449,7 @@ Here we can execute a handler this. This is the whole point. We could have a var
 * string. This could be an action, in which case it is . Or it could be an event which case it is emitted, the data going along for the ride. 
 * function. Classic. It gets executed. no given context
 * handler. This is an object of type handler. It allows us to stash stuff in the object. 
-* [possible handler types...]. The array form gets executed in order. The array can contain Handler objects that are then handled 
+* [possible handler types...]. The array form gets executed in order. The array can contain Handler objects that are then handled. It can also contain an array of global, fun, args. 
 
 We have a cont value that if false will terminate execution of further handlers.
 
@@ -532,6 +481,8 @@ That and args are mainly for passing in when calling a handler from a handler. I
                 cont = verb.call(that, data, emitter, ev, args);
             } else if (verb instanceof Handler) {
                 cont = verb.execute(data, emitter, ev, that, args);
+            } else if (Array.isArray(verb) ) {
+                cont = verb[1].call(verb[0] || that, data, emitter, ev, verb[2] || args);
             }
             if (cont === false) {
                 return cont;
@@ -548,11 +499,11 @@ The verb could be either an action, if it matches, or it is treated as an event 
 An action is an instanceof Handler. So we call its execute method. Hope it is not self-referential...but if it is is the countExecute variable should stop infinity in its tracks.
 
     if (  (act = emitter.action(verb)) ) {
-        emitter.log("calling action" + verb + " for event " + ev);
+        emitter.log(ev + " --> " + verb);
         cont = act.execute(data, emitter, ev, that, args);
     } else if (emitter._handlers.hasOwnProperty(verb) ) {
-        emitter.log("emitting " + verb + " for event " + ev);
-        emitter.emit(verb, data, handler.timing[verb]);
+        emitter.log(ev + " --emitting: " + verb );
+        emitter.emit(verb, data, handler.timing);
     }
 
 [make](# "js")
@@ -591,7 +542,7 @@ This removes handlers. The nowhen boolean, when true, will leave the when handle
         // easy case -- check for equality of reference
         if (fun instanceof Handler) {
             _":remove Handler"
-            emitter.log("handler for event removed" +  ev + " :: " + fun.name() );
+            emitter.log("handler for event removed" +  ev + " :: " + (fun.name || "") );
             return emitter;
         }
 
@@ -636,7 +587,6 @@ This will remove all duplicate handlers of the passed in function as well.
 
     handlers[ev] = handlers[ev].filter(function (el) {
         if (el === fun) {
-            fun.remove(ev);
             return false;
         } else {
             return true;
@@ -697,7 +647,7 @@ The way it works is the f is put into a handler object. This handler object then
             }
         };
 
-        f.value.shift(g);
+        f.value.unshift(g);
 
         emitter.on(ev, f, first); 
 
@@ -772,7 +722,7 @@ To handle "soon", we check to see if the current queue item has anything in the 
             handlers = emitter._handlers,
             waiting = emitter._waiting; 
 
-        emitter.log("events on queue", queue.length+waiting.length, queue, waiting);
+        // emitter.log("events on queue", queue.length+waiting.length, queue, waiting);
         emitter.countExecute = 0;
 
         if (queue.length >0) {
@@ -1000,7 +950,7 @@ Logs everything, storing the result in the function itself under the name log. T
         var ret = function (description, specific) {
             var f; 
             log._full.push(Array.prototype.slice.call(arguments, 0));
-            log._simple.push(description+":" + (specific || ""));
+            log._simple.push(description);
             if (ret.hasOwnProperty(description) ) {
                 f = ret.description;
             } else {

@@ -10,7 +10,7 @@ emitter.once("test 1", function () {
 });
 
 emitter.once("test 2", function() {
-    console.log("never fires");
+    console.log("actually does fire, once means at least once");
 }, 0);
 
 emitter.once("test 2", function () {

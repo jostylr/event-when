@@ -21,7 +21,7 @@ var parserF =  function () {
     
         emitter.global = global;
     
-        emitter.on("next character", [global, function (char, em, ev) {
+        emitter.on("next character",  function (char, em, ev) {
                 var global = this;
             
                 if (Array.isArray(char) ) {
@@ -56,13 +56,13 @@ var parserF =  function () {
                     emitter.emit("text processing done");
                 }
             
-            }, "check"]);
+            }, global, "check" );
     
-        emitter.on("escape", [global, function () {
+        emitter.on("escape", function () {
             this.store[0].pop(); // fix this later 
-        }]);
+        }, global);
     
-        emitter.on("open bracket", [global, function (char) {
+        emitter.on("open bracket", function (char) {
                 var global = this;
                 var newstore,
                     leftbracket,
@@ -82,13 +82,13 @@ var parserF =  function () {
                 newstore = [char];
                 global.store.push(newstore);
             
-                handlers.pusher = emitter.on("next character", [newstore, function (char) {
+                handlers.pusher = emitter.on("next character",  function (char) {
                     if (Array.isArray(char) ) {
                         this.push(char[0]);                
                     } else {
                         this.push(char);
                     }
-                }]);
+                }, newstore);
             
                 emitter.on("literal character", handlers.pusher);
             
@@ -96,9 +96,9 @@ var parserF =  function () {
                     handlers.close.add("close bracket");
                 });
             
-                handlers.escaper = emitter.on("escape", [newstore, function () {
+                handlers.escaper = emitter.on("escape", function () {
                     this.pop(); // fix this later 
-                }]);
+                }, newstore);
             
                 handlers.close = emitter.when("close bracket", [function (char) {
                         rightbracket = char;
@@ -120,7 +120,7 @@ var parserF =  function () {
                         return true;
                     }]]);
             
-                handlers.fail = emitter.on("text processing done", [handlers, function (d, emitter) {
+                handlers.fail = emitter.on("text processing done", function (d, emitter) {
                         var handlers = this;
                     
                         emitter.off("next character", handlers.pusher);
@@ -131,11 +131,11 @@ var parserF =  function () {
                         emitter.off("text processing done", handlers.fail);
                     
                         return true;
-                    }]);
+                    }, handlers );
             
-            }]);
+            }, global);
     
-        emitter.on("quote", [global, function (char, emitter) {
+        emitter.on("quote",  function (char, emitter) {
                 var global = this; 
                 var orig = char;
                 var ret = "";
@@ -163,9 +163,9 @@ var parserF =  function () {
                 qemitter.emit("text ready", global.text.join(''));
             
                 return true;
-            }]);
+            }, global);
     
-        emitter.on("escape", [global, function (d, emitter) {
+        emitter.on("escape", function (d, emitter) {
                 var global = this;
             
                 var escaped = global.text.shift(); 
@@ -180,9 +180,9 @@ var parserF =  function () {
                         emitter.emit("literal character", [escaped, "literal"]);
                 }
             
-            }]);
+            }, global);
     
-        emitter.on("literal character", [global, function (char, em, ev) {
+        emitter.on("literal character",  function (char, em, ev) {
                 var global = this;
             
                 if (Array.isArray(char) ) {
@@ -217,12 +217,12 @@ var parserF =  function () {
                     emitter.emit("text processing done");
                 }
             
-            }, "store only"]);
+            }, global, "store only" );
     
-        emitter.once("text processing done", [global, function () {
+        emitter.once("text processing done",  function () {
                 //emitter.log.print();
                 console.log(global.store.map(function (el) {return el.join('');}) );
-            }]);
+            }, global );
     
         return emitter;
     };
