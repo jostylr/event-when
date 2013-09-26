@@ -26,6 +26,7 @@
   },
   "dependencies":{
   },
+  "scripts" : { "test" : "node ./test/testrunner.js"},
   "keywords": ["event"],
   "preferGlobal": "false"
 }

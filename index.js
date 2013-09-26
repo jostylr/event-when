@@ -32,14 +32,16 @@ EvW.prototype.on = function (ev, f, that, args, first) {
     return f;
 
 };
-EvW.prototype.emit = function (ev, data,  timing) {
+EvW.prototype.emit = function (ev, data,  timing, nolog) {
         var emitter = this;
     
         timing = timing || "soon";
         data = data || {};
         var h = this._handlers[ev] || [];
     
-        emitter.log("emitting: " + ev, arguments);
+        if (!nolog) {
+            emitter.log("emitting: " + ev, arguments);
+        }
     
         switch (timing) {
             case "later" : 
@@ -96,10 +98,11 @@ EvW.prototype.off = function (ev, fun, nowhen) {
         }
     
         // harder -- check for handler whose value is one of these
-        if (typeof fun === "function" || Array.isArray(fun) ||  typeof fun === "string") {
+        if (typeof fun === "function" || Array.isArray(fun) || typeof fun === "string") {
             handlers[ev] = handlers[ev].filter(function (el) {
-                if (el.value[0] === fun) {
-                    el.remove(ev);
+                if ((el.value.length === 1) && (el.value[0] === fun)) {
+                    return false;
+                } else if (el.value === fun) {
                     return false;
                 } else {
                     return true;
@@ -243,11 +246,11 @@ EvW.prototype.when = function (events, ev, options) {
     
         return tracker;
     };
-EvW.prototype.once = function (ev, f, n, options, first) {
+EvW.prototype.once = function (ev, f, n, that, args, first) {
         var emitter = this, 
             g;
     
-        f = new Handler(f, options);
+        f = new Handler(f, {that:that, args:args});
     
         f.n = n || 1;
     
@@ -299,7 +302,7 @@ EvW.prototype.makeLog = function () {
         var pass = function () {
             return Array.prototype.slice.call(arguments, 0);
         };
-        var ret = function (description, specific) {
+        var ret = function (description) {
             var f; 
             log._full.push(Array.prototype.slice.call(arguments, 0));
             log._simple.push(description);
@@ -382,7 +385,7 @@ EvW.prototype.handlers = function (events) {
         return ret;
     
     };
-EvW.prototype.action = function (name, handler, options) {
+EvW.prototype.action = function (name, handler, that, args) {
         var emitter = this;
     
         if (arguments.length === 1) {
@@ -395,11 +398,7 @@ EvW.prototype.action = function (name, handler, options) {
             return false;
         }
         
-        options = options || {};
-    
-        var action = new Handler(handler, options); 
-    
-        action.name = name;
+        var action = new Handler(handler, {that:that, args:args, name: name}); 
     
         if (emitter._actions.hasOwnProperty(name) ) {
             emitter.log("Overwriting action " + name);
@@ -584,7 +583,7 @@ Handler.prototype.execute = function (data, emitter, ev, that, args) {
                 cont = act.execute(data, emitter, ev, that, args);
             } else if (emitter._handlers.hasOwnProperty(verb) ) {
                 emitter.log(ev + " --emitting: " + verb );
-                emitter.emit(verb, data, handler.timing);
+                emitter.emit(verb, data, handler.timing, true);
             }
         } else if (vtype === "function") {
             cont = verb.call(that, data, emitter, ev, args);
