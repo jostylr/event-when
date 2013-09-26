@@ -153,6 +153,81 @@ Testing actions.
         return Test.same(input, output);
     }
 
+
+## Handlers in context
+
+    function () {
+
+        var emitter = new EventWhen();
+
+        var output = [
+            "first fired"
+            ],
+            input = [];
+        
+
+        emitter.on("
+     
+
+
+        emitter.emit("first ready");
+
+        return Test.same(input, output);
+    }
+
+## Listing handlers and events
+
+Can we filter events appropriately? 
+
+    function () {
+
+        var emitter = new EventWhen();
+
+        var expected = [
+            "first : great",
+            "second",
+            "first : great",
+            "first : greatsecond",
+            "works",
+            "worksyadda"
+            ],
+            actual = [];
+        
+
+        emitter.on("first : great",  "works");
+
+        emitter.on("second", "yadda");
+
+        actual.push(emitter.events(":").join(''));
+
+        actual.push(emitter.events(":", true).join(''));
+     
+        actual.push(emitter.events(function (ev) {
+            if (ev === "first : great") {
+                return true;
+            } else {
+                return false;
+            }
+        }).join(''));
+
+        actual.push(emitter.events().join(''));
+
+        actual.push(emitter.handlers(["first : great"])["first : great"][0].value[0]);
+
+        // handlers
+        (function () {
+            var key, str='', hs; 
+            hs = emitter.handlers();
+            for (key in hs) {
+                str += hs[key][0].value[0];
+            }
+            actual.push(str);
+        } () );
+
+        return Test.same(actual, expected);
+    }
+
+
     
 
 ## [test.js](#test.js "save: |jshint")
@@ -189,7 +264,8 @@ This is a simple test runner.
         "simple once test" : _"once",
         "turning off a handler" : _"off",
         ".when waiting for 2 events" : _"when",
-        "checking action naming" : _"action"
+        "checking action naming" : _"action",
+        "checking handlers and events" : _"Listing handlers and events"
     };
 
     var key, result, fail = 0;

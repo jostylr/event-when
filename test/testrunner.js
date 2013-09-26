@@ -123,6 +123,53 @@ var tests = {
             emitter.emit("first ready");
         
             return Test.same(input, output);
+        },
+    "checking handlers and events" : function () {
+        
+            var emitter = new EventWhen();
+        
+            var expected = [
+                "first : great",
+                "second",
+                "first : great",
+                "first : greatsecond",
+                "works",
+                "worksyadda"
+                ],
+                actual = [];
+            
+        
+            emitter.on("first : great",  "works");
+        
+            emitter.on("second", "yadda");
+        
+            actual.push(emitter.events(":").join(''));
+        
+            actual.push(emitter.events(":", true).join(''));
+         
+            actual.push(emitter.events(function (ev) {
+                if (ev === "first : great") {
+                    return true;
+                } else {
+                    return false;
+                }
+            }).join(''));
+        
+            actual.push(emitter.events().join(''));
+        
+            actual.push(emitter.handlers(["first : great"])["first : great"][0].value[0]);
+        
+            // handlers
+            (function () {
+                var key, str='', hs; 
+                hs = emitter.handlers();
+                for (key in hs) {
+                    str += hs[key][0].value[0];
+                }
+                actual.push(str);
+            } () );
+        
+            return Test.same(actual, expected);
         }
 };
 
