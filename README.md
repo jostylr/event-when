@@ -1,4 +1,4 @@
-##event-when
+##event-when  [![Build Status](https://travis-ci.org/jostylr/event-when.png)](https://travis-ci.org/jostylr/event-when)
 
 Install using `npm install event-when`
 

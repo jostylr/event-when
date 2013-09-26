@@ -21,7 +21,7 @@ The file structure is fairly simple.
 * [package.json](#npm-package "save: json  | jshint") The requisite package file for a npm project. 
 * [TODO.md](#todo "save: | clean raw") A list of growing and shrinking items todo.
 * [LICENSE](#license-mit "save: | clean raw") The MIT license.
-* [travis.yml](#travis "save:")
+* [.travis.yml](#travis "save:") A .travis.yml file for [Travis CI](https://travis-ci.org/)
 
 ## Main
 
@@ -985,7 +985,8 @@ Logs everything, storing the result in the function itself under the name log. T
 
 ## README
 
- ##event-when
+
+ ##event-when  [![Build Status](https://travis-ci.org/jostylr/event-when.png)](https://travis-ci.org/jostylr/event-when)
 
 Install using `npm install event-when`
 
