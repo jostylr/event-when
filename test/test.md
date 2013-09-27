@@ -154,25 +154,26 @@ Testing actions.
     }
 
 
-## Handlers in context
+## Handler with context
 
     function () {
 
         var emitter = new EventWhen();
 
-        var output = [
-            "first fired"
+        var expected = [
+            "jt:hi!"
             ],
-            input = [];
+            actual = [];
         
 
-        emitter.on("
-     
-
+        emitter.on("first ready", function (data, emitter, ev, args) {
+            var self = this;
+            actual.push(self.name + ":" + args);
+        }, {name:"jt"}, "hi!");
 
         emitter.emit("first ready");
 
-        return Test.same(input, output);
+        return Test.same(actual, expected);
     }
 
 ## Listing handlers and events
@@ -265,7 +266,8 @@ This is a simple test runner.
         "turning off a handler" : _"off",
         ".when waiting for 2 events" : _"when",
         "checking action naming" : _"action",
-        "checking handlers and events" : _"Listing handlers and events"
+        "checking handlers and events" : _"Listing handlers and events",
+        "handler with context" : _"handler with context"
     };
 
     var key, result, fail = 0;

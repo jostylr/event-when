@@ -170,6 +170,25 @@ var tests = {
             } () );
         
             return Test.same(actual, expected);
+        },
+    "handler with context" : function () {
+        
+            var emitter = new EventWhen();
+        
+            var expected = [
+                "jt:hi!"
+                ],
+                actual = [];
+            
+        
+            emitter.on("first ready", function (data, emitter, ev, args) {
+                var self = this;
+                actual.push(self.name + ":" + args);
+            }, {name:"jt"}, "hi!");
+        
+            emitter.emit("first ready");
+        
+            return Test.same(actual, expected);
         }
 };
 
