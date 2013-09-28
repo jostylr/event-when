@@ -176,6 +176,37 @@ Testing actions.
         return Test.same(actual, expected);
     }
 
+## Handler with two handles
+
+Let's have a function that acts and then an event that emits saying it acted. 
+
+
+    function () {
+
+        var emitter = new EventWhen();
+
+        var expected = [
+            "jt:hi!",
+            "action fired received"
+            ],
+            actual = [];
+        
+
+        emitter.on("first ready", [function (data, emitter, ev, args) {
+            var self = this;
+            actual.push(self.name + ":" + args);
+        }, "an action fired"], {name:"jt"}, "hi!");
+
+        emitter.on("an action fired", function () {
+            actual.push("action fired received");
+        });
+
+        emitter.emit("first ready");
+
+        return Test.same(actual, expected);
+
+    }
+
 ## Listing handlers and events
 
 Can we filter events appropriately? 
@@ -267,7 +298,8 @@ This is a simple test runner.
         ".when waiting for 2 events" : _"when",
         "checking action naming" : _"action",
         "checking handlers and events" : _"Listing handlers and events",
-        "handler with context" : _"handler with context"
+        "handler with context" : _"handler with context",
+        "Handler with two handles" : _"Handler with two handles"
     };
 
     var key, result, fail = 0;

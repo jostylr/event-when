@@ -189,6 +189,31 @@ var tests = {
             emitter.emit("first ready");
         
             return Test.same(actual, expected);
+        },
+    "Handler with two handles" : function () {
+        
+            var emitter = new EventWhen();
+        
+            var expected = [
+                "jt:hi!",
+                "action fired received"
+                ],
+                actual = [];
+            
+        
+            emitter.on("first ready", [function (data, emitter, ev, args) {
+                var self = this;
+                actual.push(self.name + ":" + args);
+            }, "an action fired"], {name:"jt"}, "hi!");
+        
+            emitter.on("an action fired", function () {
+                actual.push("action fired received");
+            });
+        
+            emitter.emit("first ready");
+        
+            return Test.same(actual, expected);
+        
         }
 };
 
