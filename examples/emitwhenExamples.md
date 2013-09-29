@@ -196,7 +196,7 @@ Checking out the binding/arguments for handlers.
     };
 
 
-    emitter.on("fires",  [global, fredf, [n, something]]);
+    emitter.on("fires",  [[global, fredf, [n, something]]]);
 
 
     emitter.emit("fires", {inc : 3});

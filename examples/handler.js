@@ -19,7 +19,7 @@ var fredf = function (data, em, ev, arr) {
     this.fred += data.inc;
 };
 
-emitter.on("fires",  [global, fredf, [n, something]]);
+emitter.on("fires",  [[global, fredf, [n, something]]]);
 
 emitter.emit("fires", {inc : 3});
 
