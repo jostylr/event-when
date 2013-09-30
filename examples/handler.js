@@ -9,7 +9,7 @@ var global = {fred : 1};
 var n = 4;
 var something = [3];
 
-var fredf = function (data, em, ev, arr) {
+var fredf = function (data, em, arr, ev) {
     var jack = arr[0];
     var jill = arr[1];
     jack += 1;

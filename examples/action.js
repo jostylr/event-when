@@ -5,7 +5,7 @@ var EventWhen = require('../index.js'),
 
 emitter.makeLog();
 
-emitter.action("firing test 2", function (data, emitter, ev, args) {
+emitter.action("firing test 2", function (data, emitter, args) {
     var g = this;
     g.record = 2;
     emitter.emit("test 2 fired", [data.msg, args.recipient]);

@@ -5,11 +5,11 @@ var EventWhen = require('../index.js'),
 
 emitter.makeLog();
 
-emitter.on("first", [glob, function (data, emitter, ev) {
+emitter.on("first", [glob, function (data, emitter, args, ev) {
     var g = this; 
     var n = data.n;
     console.log(ev, n);
-    g.seconder = function (data, emitter, ev) {
+    g.seconder = function (data, emitter, args, ev) {
         n += 1;
         console.log(n, ev);
         if ( n < 10) {

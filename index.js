@@ -233,7 +233,7 @@ EvW.prototype.when = function (events, ev, options) {
         tracker.reset = options.reset || false;
         tracker.original = events;
     
-        var handler = new Handler (function (data, emitter, fired) {
+        var handler = new Handler (function (data, emitter, args, fired) {
             tracker.addData(data, fired); 
             return tracker.remove(fired);
         });
@@ -580,17 +580,17 @@ Handler.prototype.execute = function (data, emitter, ev, that, args) {
         if (vtype === "string") {
             if (  (act = emitter.action(verb)) ) {
                 emitter.log(ev + " --> " + verb);
-                cont = act.execute(data, emitter, ev, that, args);
+                cont = act.execute(data, emitter, that, args, ev);
             } else if (emitter._handlers.hasOwnProperty(verb) ) {
                 emitter.log(ev + " --emitting: " + verb );
                 emitter.emit(verb, data, handler.timing, true);
             }
         } else if (vtype === "function") {
-            cont = verb.call(that, data, emitter, ev, args);
+            cont = verb.call(that, data, emitter, args, ev);
         } else if (verb instanceof Handler) {
-            cont = verb.execute(data, emitter, ev, that, args);
+            cont = verb.execute(data, emitter, that, args, ev);
         } else if (Array.isArray(verb) ) {
-            cont = verb[1].call(verb[0] || that, data, emitter, ev, verb[2] || args);
+            cont = verb[1].call(verb[0] || that, data, emitter, verb[2] || args, ev);
         }
         if (cont === false) {
             return cont;

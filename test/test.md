@@ -166,7 +166,7 @@ Testing actions.
             actual = [];
         
 
-        emitter.on("first ready", function (data, emitter, ev, args) {
+        emitter.on("first ready", function (data, emitter, args, ev) {
             var self = this;
             actual.push(self.name + ":" + args);
         }, {name:"jt"}, "hi!");
@@ -192,7 +192,7 @@ Let's have a function that acts and then an event that emits saying it acted.
             actual = [];
         
 
-        emitter.on("first ready", [function (data, emitter, ev, args) {
+        emitter.on("first ready", [function (data, emitter, args) {
             var self = this;
             actual.push(self.name + ":" + args);
         }, "an action fired"], {name:"jt"}, "hi!");

@@ -1,1 +1,1 @@
-do an example of logs and get the log stuff strewn in.
+Do server example, fix up the escape part of the paren parser.

@@ -185,7 +185,7 @@ Checking out the binding/arguments for handlers.
     var n = 4;
     var something = [3];
 
-    var fredf = function (data, em, ev, arr) {
+    var fredf = function (data, em, arr, ev) {
         var jack = arr[0];
         var jill = arr[1];
         jack += 1;
@@ -216,11 +216,11 @@ Handlers as arrays: [obj, fun/method name, arg]
 
     emitter.makeLog();
 
-    emitter.on("first", [glob, function (data, emitter, ev) {
+    emitter.on("first", [glob, function (data, emitter, args, ev) {
         var g = this; 
         var n = data.n;
         console.log(ev, n);
-        g.seconder = function (data, emitter, ev) {
+        g.seconder = function (data, emitter, args, ev) {
             n += 1;
             console.log(n, ev);
             if ( n < 10) {
@@ -248,7 +248,7 @@ This is a demonstration of how the action ideas work. An action is a string-invo
 
     emitter.makeLog();
 
-    emitter.action("firing test 2", function (data, emitter, ev, args) {
+    emitter.action("firing test 2", function (data, emitter, args) {
         var g = this;
         g.record = 2;
         emitter.emit("test 2 fired", [data.msg, args.recipient]);

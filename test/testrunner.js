@@ -181,7 +181,7 @@ var tests = {
                 actual = [];
             
         
-            emitter.on("first ready", function (data, emitter, ev, args) {
+            emitter.on("first ready", function (data, emitter, args, ev) {
                 var self = this;
                 actual.push(self.name + ":" + args);
             }, {name:"jt"}, "hi!");
@@ -201,7 +201,7 @@ var tests = {
                 actual = [];
             
         
-            emitter.on("first ready", [function (data, emitter, ev, args) {
+            emitter.on("first ready", [function (data, emitter, args) {
                 var self = this;
                 actual.push(self.name + ":" + args);
             }, "an action fired"], {name:"jt"}, "hi!");

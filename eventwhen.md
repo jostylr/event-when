@@ -178,7 +178,7 @@ All options are optional.
         tracker.reset = options.reset || false;
         tracker.original = events;
 
-        var handler = new Handler (function (data, emitter, fired) {
+        var handler = new Handler (function (data, emitter, args, fired) {
             tracker.addData(data, fired); 
             return tracker.remove(fired);
         });
@@ -460,6 +460,8 @@ We have a cont value that if false will terminate execution of further handlers.
 
 That and args are mainly for passing in when calling a handler from a handler. If a handler already has these bound, it will use the bound ones. 
 
+We pass in data, emitter, args, event string into the handler functions. This order was chosen in likelihood of use. The event string is needed for the .when handler to do its job. 
+
 
     function (data, emitter, ev, that, args) {
         var handler = this,
@@ -483,11 +485,11 @@ That and args are mainly for passing in when calling a handler from a handler. I
             if (vtype === "string") {
                 _":string verb"
             } else if (vtype === "function") {
-                cont = verb.call(that, data, emitter, ev, args);
+                cont = verb.call(that, data, emitter, args, ev);
             } else if (verb instanceof Handler) {
-                cont = verb.execute(data, emitter, ev, that, args);
+                cont = verb.execute(data, emitter, that, args, ev);
             } else if (Array.isArray(verb) ) {
-                cont = verb[1].call(verb[0] || that, data, emitter, ev, verb[2] || args);
+                cont = verb[1].call(verb[0] || that, data, emitter, verb[2] || args, ev);
             }
             if (cont === false) {
                 return cont;
@@ -505,7 +507,7 @@ An action is an instanceof Handler. So we call its execute method. Hope it is no
 
     if (  (act = emitter.action(verb)) ) {
         emitter.log(ev + " --> " + verb);
-        cont = act.execute(data, emitter, ev, that, args);
+        cont = act.execute(data, emitter, that, args, ev);
     } else if (emitter._handlers.hasOwnProperty(verb) ) {
         emitter.log(ev + " --emitting: " + verb );
         emitter.emit(verb, data, handler.timing, true);
@@ -992,20 +994,18 @@ Install using `npm install event-when`
 
 Then you can `EventWhen = require('event-when');` and use `evw = new EventWhen()` to create a new instance of this class. 
 
-It is a node module that allows you to create object with event methods. Fairly standard stuff with the exception of the emitWhen method which resolves the problem of how to keep track of when to fire an event that has to wait for other events.  That is, it allows several events to feed into one event being emitted. 
+It is a node module that allows you to create object with event methods. Fairly standard stuff with the exception of the `.when` method which resolves the problem of how to keep track of when to fire an event that has to wait for other events.  That is, it allows several events to feed into one event being emitted. 
 
 As an example, let's say you need to read/parse a file ("file parsed") and get some data from a database ("db parsed"). Both events can happen in either order. Once both are done, then the "data is ready".
 
-We can then implement this with  `evw.when(["file parsed", "db parsed"], "data is ready" );` 
+We can implement this with  `evw.when(["file parsed", "db parsed"], "data is ready" );` 
 
 Nifty!
 
 
  ### Methods
 
- All methods return the object itself for chaining.
-
- Each place where there is a handler, it could be a function or it could be array that mimics binding. Particularly, we could have `[that, fun, arg]`  where `that` is the `this` for the function `fun` and the `arg` is an argument object to be passed as the fourth argument of the function. The first three arguments of the function will be the data for the event, emitter, and event. The `fun` could also be a string that gets resolved (hopefully) as a method of `that`. 
+The simplest example of a handler is a function, but it could also be an action name, event string to be emitter, a Handler object, or an array of such things that could also contain arrays of the form `[that, fun, arg]` where `that` is the context, `fun` is the function to fire, and `arg` is some data to be passed into the third argument of `fun`. The first two arguments of `fun` are the data for the event and the emitter itself.
 
 * .emit(str event, [obj data], [str timing] ). Invokes all attached functions to Event, passing in the Data object, emitter object itself, and event string as the three arguments to the attached functions. The third argument in `.emit` can take arguments of
 	 * "immediate" Invokes the handlers for the emit immediately, before already queued events/handlers fire. 
@@ -1060,7 +1060,7 @@ You can pass in functions, strings, arrays of these things, arrays with an array
 
 ## TODO
 
-do an example of logs and get the log stuff strewn in. 
+Do server example, fix up the escape part of the paren parser. 
 
 ## NPM package
 
