@@ -153,7 +153,7 @@ EvW.prototype.stop = function (a) {
     
         if (a === true) {
             ev = queue.shift();
-            emitter.log("event cleared", ev[0] );
+            emitter.log("event cleared", ev );
             return emitter;
         }
     

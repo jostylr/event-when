@@ -181,7 +181,7 @@ var tests = {
                 actual = [];
             
         
-            emitter.on("first ready", function (data, emitter, args, ev) {
+            emitter.on("first ready", function (data, emitter, args) {
                 var self = this;
                 actual.push(self.name + ":" + args);
             }, {name:"jt"}, "hi!");
@@ -214,6 +214,37 @@ var tests = {
         
             return Test.same(actual, expected);
         
+        },
+    "canceling" : function () {
+        
+            var emitter = new EventWhen();
+        
+            var expected = [
+                "emit this",
+                "emit that"
+                ],
+                actual = [];
+            
+            emitter.on("emit this", [function () {
+                    actual.push("emit this");
+                    return false;
+                }, function () {
+                    actual.push("not actually ever seen");
+            }]);
+        
+            emitter.on("emit that", [function (data, emitter) {
+                    actual.push("emit that");
+                    emitter.stop(true);
+                }, function () {
+                    actual.push("not actually ever seen 2");
+            }]);
+        
+            emitter.emit("emit this");
+            emitter.emit("emit that");
+        
+            console.log(actual);
+        
+            return Test.same(actual, expected);
         }
 };
 

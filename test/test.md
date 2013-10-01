@@ -166,7 +166,7 @@ Testing actions.
             actual = [];
         
 
-        emitter.on("first ready", function (data, emitter, args, ev) {
+        emitter.on("first ready", function (data, emitter, args) {
             var self = this;
             actual.push(self.name + ":" + args);
         }, {name:"jt"}, "hi!");
@@ -259,6 +259,41 @@ Can we filter events appropriately?
         return Test.same(actual, expected);
     }
 
+## Canceling
+
+Can we remove handlers or stop events? 
+
+    function () {
+
+        var emitter = new EventWhen();
+
+        var expected = [
+            "emit this",
+            "emit that"
+            ],
+            actual = [];
+        
+        emitter.on("emit this", [function () {
+                actual.push("emit this");
+                return false;
+            }, function () {
+                actual.push("not actually ever seen");
+        }]);
+
+        emitter.on("emit that", [function (data, emitter) {
+                actual.push("emit that");
+                emitter.stop(true);
+            }, function () {
+                actual.push("not actually ever seen 2");
+        }]);
+
+        emitter.emit("emit this");
+        emitter.emit("emit that");
+
+        console.log(actual);
+
+        return Test.same(actual, expected);
+    }
 
     
 
@@ -299,7 +334,8 @@ This is a simple test runner.
         "checking action naming" : _"action",
         "checking handlers and events" : _"Listing handlers and events",
         "handler with context" : _"handler with context",
-        "Handler with two handles" : _"Handler with two handles"
+        "Handler with two handles" : _"Handler with two handles",
+        "canceling" : _"canceling"
     };
 
     var key, result, fail = 0;
