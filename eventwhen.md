@@ -1,4 +1,4 @@
-# [event-when](# "version: 0.4.0-pre | jostylr")
+# [event-when](# "version: 0.4.0 | jostylr")
 
 This is my own little event library. It has most the usual methods and conventions, more or less. 
 
