@@ -269,7 +269,9 @@ Can we remove handlers or stop events?
 
         var expected = [
             "emit this",
-            "emit that"
+            "emit that 1",
+            "emit that 2",
+            "seen because the handler array is not stopped"
             ],
             actual = [];
         
@@ -280,17 +282,25 @@ Can we remove handlers or stop events?
                 actual.push("not actually ever seen");
         }]);
 
+        emitter.on("emit that", [function () {
+                actual.push("emit that 1");
+        }]);
+
+
         emitter.on("emit that", [function (data, emitter) {
-                actual.push("emit that");
+                actual.push("emit that 2");
                 emitter.stop(true);
             }, function () {
-                actual.push("not actually ever seen 2");
+                actual.push("seen because the handler array is not stopped");
         }]);
+
+        emitter.on("emit that", [function () {
+                actual.push("never seen as it gets canceled beforehand");
+        }]);
+
 
         emitter.emit("emit this");
         emitter.emit("emit that");
-
-        console.log(actual);
 
         return Test.same(actual, expected);
     }
