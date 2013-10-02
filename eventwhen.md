@@ -25,6 +25,8 @@ The file structure is fairly simple.
 * [.gitignore](#gitignore "Save:") A .gitignore file
 * [.npmignore](#npmignore "Save:") A .npmignore file
 
+For development, you can use the bundled literate-programming easily by using `npm run-script compile`
+
 ## Main
 
 This is the main structure of the module file.
