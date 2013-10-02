@@ -257,6 +257,38 @@ var tests = {
             emitter.emit("emit that");
         
             return Test.same(actual, expected);
+        },
+    "error checking" : function () {
+        
+            var emitter = new EventWhen();
+        
+            var expected = [
+                "error event:awesome\nChecking!",
+                "Checking!\nerror event\nawesome"
+                ],
+                actual = [];
+        
+            // default error
+        
+            emitter.on("error event", function () {
+                throw Error("Checking!");
+            }).name = "awesome";
+        
+            try {
+                emitter.emit("error event");
+            } catch (e) {
+                actual.push(e.message);
+            }
+        
+            //error overide
+        
+            emitter.error = function (e, ev, h) {
+                actual.push([e.message, ev, h.name].join("\n"));
+            };
+        
+            emitter.emit("error event");
+        
+            return Test.same(actual, expected);
         }
 };
 
@@ -264,10 +296,11 @@ var key, result, fail = 0;
 
 for (key in tests ) {
     result = tests[key]();
-    if (result) {
+    if (result === true) {
         console.log("passed: " + key);
     } else {
         console.log("FAILED: " + key);
+        console.log(result);
         fail += 1;
     }
 }

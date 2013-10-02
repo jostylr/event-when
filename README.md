@@ -66,4 +66,8 @@ The Handler type is what encapsulates what is being called. The handles to be ex
 
 The prototype has the method `.execute` which is internal and is what is called to execute the handlers. 
 
-You can pass in functions, strings, arrays of these things, arrays with an array [context, function, args], and Handlers themselves.
+You can pass in functions, strings, arrays of these things, arrays with an array [context, function, args], and Handlers themselves.  
+
+### .Error
+
+Since we are controlling the flow, we can also control error throwing. So that is what the emitter.error method does. All calls to handlers have their errors caught and sent to the .error method. The default is to throw the error again with the event string and handler name added to the error.

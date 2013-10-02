@@ -310,7 +310,44 @@ Can we remove handlers or stop events?
         return Test.same(actual, expected);
     }
 
-    
+## Error checking
+
+Let's throw an error.
+
+    function () {
+
+        var emitter = new EventWhen();
+
+        var expected = [
+            "error event:awesome\nChecking!",
+            "Checking!\nerror event\nawesome"
+            ],
+            actual = [];
+
+        // default error
+
+        emitter.on("error event", function () {
+            throw Error("Checking!");
+        }).name = "awesome";
+
+
+        try {
+            emitter.emit("error event");
+        } catch (e) {
+            actual.push(e.message);
+        }
+
+        //error overide
+
+        emitter.error = function (e, ev, h) {
+            actual.push([e.message, ev, h.name].join("\n"));
+        };
+
+        emitter.emit("error event");
+
+        return Test.same(actual, expected);
+    }
+
 
 ## [test.js](#test.js "save: |jshint")
 
@@ -321,12 +358,12 @@ This is the set of test functions one can use. Basic.
         var i, n = inp.length;
 
         if (inp.length !== out.length) {
-            return false; 
+            return inp.join("\n---\n"); 
         }
 
         for (i =0; i <n; i+=1 ) {
             if (inp[i] !== out[i]) {
-                return false;
+                return "expected: "+out[i] + "\nactual: " +inp[i];
             }
         }
         return true;
@@ -350,17 +387,19 @@ This is a simple test runner.
         "checking handlers and events" : _"Listing handlers and events",
         "handler with context" : _"handler with context",
         "Handler with two handles" : _"Handler with two handles",
-        "canceling" : _"canceling"
+        "canceling" : _"canceling",
+        "error checking" : _"error checking"
     };
 
     var key, result, fail = 0;
 
     for (key in tests ) {
         result = tests[key]();
-        if (result) {
+        if (result === true) {
             console.log("passed: " + key);
         } else {
             console.log("FAILED: " + key);
+            console.log(result);
             fail += 1;
         }
     }

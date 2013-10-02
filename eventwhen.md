@@ -86,6 +86,7 @@ The various prototype methods on the event emitter.
     EvW.prototype.handlers = _"handlers for events";
     EvW.prototype.action = _"name an action";
     EvW.prototype.makeHandler = _"handler:make";
+    EvW.prototype.error = _"error handling";
 
 ### Emit
 
@@ -462,6 +463,8 @@ That and args are mainly for passing in when calling a handler from a handler. I
 
 We pass in data, emitter, args, event string into the handler functions. This order was chosen in likelihood of use. The event string is needed for the .when handler to do its job. 
 
+All of the handlers are encapsulated in a try...catch that then calls the emitter's .error method (which can be overwritten). The default will rethrow the error with more information. 
+
 
     function (data, emitter, ev, that, args) {
         var handler = this,
@@ -482,14 +485,18 @@ We pass in data, emitter, args, event string into the handler functions. This or
         for (i = 0; i <n; i += 1) {
             verb = value[i];
             vtype = typeof verb;
-            if (vtype === "string") {
-                _":string verb"
-            } else if (vtype === "function") {
-                cont = verb.call(that, data, emitter, args, ev);
-            } else if (verb instanceof Handler) {
-                cont = verb.execute(data, emitter, that, args, ev);
-            } else if (Array.isArray(verb) ) {
-                cont = verb[1].call(verb[0] || that, data, emitter, verb[2] || args, ev);
+            try {
+                if (vtype === "string") {
+                    _":string verb"
+                } else if (vtype === "function") {
+                    cont = verb.call(that, data, emitter, args, ev);
+                } else if (verb instanceof Handler) {
+                    cont = verb.execute(data, emitter, that, args, ev);
+                } else if (Array.isArray(verb) ) {
+                    cont = verb[1].call(verb[0] || that, data, emitter, verb[2] || args, ev);
+                }
+            } catch (e) {
+                emitter.error(e, ev, handler, i); 
             }
             if (cont === false) {
                 return cont;
@@ -813,6 +820,20 @@ The cede control function -- node vs browser.
         : (function (f) {setTimeout(f, 0);})
     
 
+### Error Handling
+
+All handlers are encapsulated in a try..catch. This allows for easy error handling from controlling the emitter.error method. It is passed in the error object, event string, handler, and the place in the handler's array which caused the problem. 
+
+What is done here is a default and suitable for development. In production, one might want to think whether throwing an error is a good thing or not. 
+
+
+    function (e, ev, h, i) {
+        var name = h.name || "";
+
+        throw Error(ev + ":" + name + (i ? "["+i+"]" : "") + "\n" + e.message);
+
+    }
+
 ### Name an action
 
 This is for storing Handler type objects under a name string, generally some active description of what is supposed to take place. The Handler type can be anything that converts to Handler. 
@@ -1035,6 +1056,10 @@ The Handler type is what encapsulates what is being called. The handles to be ex
 The prototype has the method `.execute` which is internal and is what is called to execute the handlers. 
 
 You can pass in functions, strings, arrays of these things, arrays with an array [context, function, args], and Handlers themselves.  
+
+ ### .Error
+
+Since we are controlling the flow, we can also control error throwing. So that is what the emitter.error method does. All calls to handlers have their errors caught and sent to the .error method. The default is to throw the error again with the event string and handler name added to the error. 
 
 ## TODO
 

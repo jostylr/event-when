@@ -414,6 +414,12 @@ EvW.prototype.action = function (name, handler, that, args) {
 EvW.prototype.makeHandler = function (value, options) {
         return new Handler(value, options);
     };
+EvW.prototype.error = function (e, ev, h, i) {
+        var name = h.name || "";
+    
+        throw Error(ev + ":" + name + (i ? "["+i+"]" : "") + "\n" + e.message);
+    
+    };
 
 var Tracker = function () {
         this.events = {};
@@ -580,20 +586,24 @@ Handler.prototype.execute = function (data, emitter, ev, that, args) {
     for (i = 0; i <n; i += 1) {
         verb = value[i];
         vtype = typeof verb;
-        if (vtype === "string") {
-            if (  (act = emitter.action(verb)) ) {
-                emitter.log(ev + " --> " + verb);
-                cont = act.execute(data, emitter, that, args, ev);
-            } else if (emitter._handlers.hasOwnProperty(verb) ) {
-                emitter.log(ev + " --emitting: " + verb );
-                emitter.emit(verb, data, handler.timing, true);
+        try {
+            if (vtype === "string") {
+                if (  (act = emitter.action(verb)) ) {
+                    emitter.log(ev + " --> " + verb);
+                    cont = act.execute(data, emitter, that, args, ev);
+                } else if (emitter._handlers.hasOwnProperty(verb) ) {
+                    emitter.log(ev + " --emitting: " + verb );
+                    emitter.emit(verb, data, handler.timing, true);
+                }
+            } else if (vtype === "function") {
+                cont = verb.call(that, data, emitter, args, ev);
+            } else if (verb instanceof Handler) {
+                cont = verb.execute(data, emitter, that, args, ev);
+            } else if (Array.isArray(verb) ) {
+                cont = verb[1].call(verb[0] || that, data, emitter, verb[2] || args, ev);
             }
-        } else if (vtype === "function") {
-            cont = verb.call(that, data, emitter, args, ev);
-        } else if (verb instanceof Handler) {
-            cont = verb.execute(data, emitter, that, args, ev);
-        } else if (Array.isArray(verb) ) {
-            cont = verb[1].call(verb[0] || that, data, emitter, verb[2] || args, ev);
+        } catch (e) {
+            emitter.error(e, ev, handler, i); 
         }
         if (cont === false) {
             return cont;
