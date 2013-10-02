@@ -24,9 +24,16 @@
   "engines": {
     "node": ">0.6"
   },
+  "devDependencies" : {
+    "literate-programming" : "~0.7.2"
+  },
   "dependencies":{
   },
-  "scripts" : { "test" : "node ./test/testrunner.js"},
+  "scripts" : { 
+    "prepublish" : "node ./node_modules/literate-programming/bin/literate-programming.js eventwhen.md",
+    "compile" : "node ./node_modules/literate-programming/bin/literate-programming.js eventwhen.md",
+    "test" : "node ./test/testrunner.js"
+  },
   "keywords": ["event"],
   "preferGlobal": "false"
 }

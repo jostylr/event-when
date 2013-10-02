@@ -22,6 +22,8 @@ The file structure is fairly simple.
 * [TODO.md](#todo "save: | clean raw") A list of growing and shrinking items todo.
 * [LICENSE](#license-mit "save: | clean raw") The MIT license.
 * [.travis.yml](#travis "save:") A .travis.yml file for [Travis CI](https://travis-ci.org/)
+* [.gitignore](#gitignore "Save:") A .gitignore file
+* [.npmignore](#npmignore "Save:") A .npmignore file
 
 ## Main
 
@@ -1097,13 +1099,33 @@ The requisite npm package file.
       "engines": {
         "node": ">0.6"
       },
+      "devDependencies" : {
+        "literate-programming" : "~0.7.2"
+      },
       "dependencies":{
       },
-      "scripts" : { "test" : "node ./test/testrunner.js"},
+      "scripts" : { 
+        "prepublish" : "node ./node_modules/literate-programming/bin/literate-programming.js eventwhen.md",
+        "compile" : "node ./node_modules/literate-programming/bin/literate-programming.js eventwhen.md",
+        "test" : "node ./test/testrunner.js"
+      },
       "keywords": ["event"],
       "preferGlobal": "false"
     }
 
+## gitignore
+
+We should ignore node_modules (particularly the dev ones)
+
+    node_modules
+
+## npmignore
+
+We should ignore test, examples, and .md files
+
+    test
+    examples
+    *.md
 
 ## Travis
 
