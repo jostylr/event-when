@@ -173,7 +173,7 @@ EvW.prototype.stop = function (a) {
     
         return emitter;
     };
-EvW.prototype.resume =  function () {
+EvW.prototype.resume = function () {
     
         var q, f, ev, data, cont, cur,  
             emitter = this,
@@ -198,6 +198,9 @@ EvW.prototype.resume =  function () {
             }
             if (f) {
                 cont = f.execute(data, emitter, ev);
+                if ( (cont === false) && (cur === queue[0]) ) {
+                    queue.shift(); 
+                }
             }
             this.next(this.resume);
         } else if (waiting.length > 0) {

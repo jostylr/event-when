@@ -234,6 +234,10 @@ var tests = {
                     actual.push("not actually ever seen");
             }]);
         
+            emitter.on("emit this", [function () {
+                    actual.push("not seen either");
+            }]);
+        
             emitter.on("emit that", [function () {
                     actual.push("emit that 1");
             }]);

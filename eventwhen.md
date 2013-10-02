@@ -748,7 +748,7 @@ To handle "soon", we check to see if the current queue item has anything in the 
             }
             if (f) {
                 cont = f.execute(data, emitter, ev);
-_":deal with handler calling"
+                _":do we halt event emission"
             }
             this.next(this.resume);
         } else if (waiting.length > 0) {
@@ -760,28 +760,6 @@ _":deal with handler calling"
         }
 
     }
-
-[deal with handler calling](js "#")
-
-We need to implement plain function calling or callbacks with global, function, initial arguments. 
-
-    if (typeof f === "function") {
-        emitter.log("handler firing", (f.name || "") + " for "+ ev, data);
-        cont = f(data, emitter, ev);
-    } else if (Array.isArray(f)) {
-        emitter.log("handler firing", (f.name || "") + " for " + ev, data);
-        if (typeof f[1] === "function") {
-            cont = f[1].call(f[0], data, emitter, ev, f[2]);
-        } else if (f[0].hasOwnProperty(f[1]) && (typeof f[0][f[1]] === "function") ) {
-            cont = f[0][f[1]](data, emitter, ev, f[2]);
-        } else {
-            _":warning failed handler"
-        }            
-    } else {
-            _":warning failed handler"
-    }
-        
-    _":do we halt event emission"
 
 
 [do we halt event emission](# "js")
