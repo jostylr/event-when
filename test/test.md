@@ -348,6 +348,46 @@ Let's throw an error.
         return Test.same(actual, expected);
     }
 
+## Flow testing
+
+Do all the timing functions work? How do we handle asynchronous calls? 
+
+    function () {
+
+        var emitter = new EventWhen();
+
+        var expected = [
+            "error event:awesome\nChecking!",
+            "Checking!\nerror event\nawesome"
+            ],
+            actual = [], 
+            flag = false;
+
+        // default error
+
+        emitter.on("error event", function () {
+            throw Error("Checking!");
+        }).name = "awesome";
+
+
+        try {
+            emitter.emit("error event");
+        } catch (e) {
+            actual.push(e.message);
+        }
+
+        //error overide
+
+        emitter.error = function (e, ev, h) {
+            actual.push([e.message, ev, h.name].join("\n"));
+        };
+
+        emitter.emit("error event");
+
+        return Test.same(actual, expected);
+    }
+
+
 
 ## [test.js](#test.js "save: |jshint")
 
@@ -374,11 +414,12 @@ This is the set of test functions one can use. Basic.
 This is a simple test runner. 
 
 
-    /*global require, console*/
+    /*global require, console, process*/
     var EventWhen = require('../index.js'),
-        Test = require('./test.js');
-
-    var tests = {
+        Test = require('./test.js'),
+        tester = new EventWhen();
+        
+    var records = {
         "basic on/emit test" : _"basic",
         "simple once test" : _"once",
         "turning off a handler" : _"off",
@@ -391,19 +432,47 @@ This is a simple test runner.
         "error checking" : _"error checking"
     };
 
-    var key, result, fail = 0;
+    tester.on("passed", _":passing");
 
-    for (key in tests ) {
-        result = tests[key]();
-        if (result === true) {
-            console.log("passed: " + key);
-        } else {
-            console.log("FAILED: " + key);
-            console.log(result);
-            fail += 1;
+    tester.on("failed", _":failing");
+
+    ( (_":run sync tests" ) ( records) );
+
+    process.on('exit', function () {
+        var n = Object.keys(records).length;
+        if ( n > 0 ) {
+            throw(n + " number of failures!");
         }
+    });
+
+
+
+[passing](# "js")
+
+    function (data) {
+        delete records[data];
+        console.log("passed: " + data);
     }
 
-    if (fail) {
-        throw(fail + " number of tests failed!");
+[failing](# "js")
+
+    function (data) {
+        console.log("FAILED: " + data.key);
+        console.log(data.result);
+    }    
+
+[run sync tests](# "js")
+
+    function (tests) {
+        var key, result; 
+
+
+        for (key in tests ) {
+            result = tests[key]();
+            if (result === true) {
+                tester.emit("passed", key);
+            } else {
+                tester.emit("failed", {key:key, result:result});
+            }
+        }
     }

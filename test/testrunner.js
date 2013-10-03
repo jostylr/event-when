@@ -1,8 +1,9 @@
-/*global require, console*/
+/*global require, console, process*/
 var EventWhen = require('../index.js'),
-    Test = require('./test.js');
-
-var tests = {
+    Test = require('./test.js'),
+    tester = new EventWhen();
+    
+var records = {
     "basic on/emit test" : function () {
         
             var emitter = new EventWhen();
@@ -292,19 +293,32 @@ var tests = {
         }
 };
 
-var key, result, fail = 0;
+tester.on("passed", function (data) {
+        delete records[data];
+        console.log("passed: " + data);
+    });
 
-for (key in tests ) {
-    result = tests[key]();
-    if (result === true) {
-        console.log("passed: " + key);
-    } else {
-        console.log("FAILED: " + key);
-        console.log(result);
-        fail += 1;
+tester.on("failed", function (data) {
+        console.log("FAILED: " + data.key);
+        console.log(data.result);
+    }    );
+
+( (function (tests) {
+        var key, result; 
+    
+        for (key in tests ) {
+            result = tests[key]();
+            if (result === true) {
+                tester.emit("passed", key);
+            } else {
+                tester.emit("failed", {key:key, result:result});
+            }
+        }
+    } ) ( records) );
+
+process.on('exit', function () {
+    var n = Object.keys(records).length;
+    if ( n > 0 ) {
+        throw(n + " number of failures!");
     }
-}
-
-if (fail) {
-    throw(fail + " number of tests failed!");
-}
+});
