@@ -3,7 +3,7 @@ module.exports.same = function (inp, out) {
     var i, n = inp.length;
 
     if (inp.length !== out.length) {
-        return inp.join("\n---\n"); 
+        return inp;
     }
 
     for (i =0; i <n; i+=1 ) {

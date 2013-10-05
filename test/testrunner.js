@@ -7,27 +7,38 @@ var records = {
     "basic on/emit test" : function () {
         
             var emitter = new EventWhen();
+            var key = "basic on/emit test";
         
-            var output = [
+            var expected = [
                 "first fires",
                 "second fires"
                 ],
-                input = [];
+                actual = [];
             
+            emitter.on("done", function () {
+                var result;
+            
+                result = Test.same(actual, expected);
+                if (result === true ) {
+                   tester.emit("passed", key);
+                } else {
+                    tester.emit("failed", {key:key, result:result});
+                }    
+            });
         
             emitter.on("first ready", function () {
-                input.push("first fires");
+                actual.push("first fires");
                 emitter.emit("second ready");
             });
         
             emitter.on("second ready", function () {
-                input.push("second fires");
+                actual.push("second fires");
+                emitter.emit("done");
             });
         
             emitter.emit("first ready");
         
-            return Test.same(input, output);
-        },
+        }}/*,
     "simple once test" : function () {
         
             var emitter = new EventWhen();
@@ -290,8 +301,70 @@ var records = {
             emitter.emit("error event");
         
             return Test.same(actual, expected);
+        },
+    "flow testing" : function () {
+        
+            var emitter = new EventWhen();
+            var key = "flow testing";
+        
+            var expected = [
+                ],
+                actual = [];
+        
+            emitter.on("done", function () {
+                var result;
+            
+                result = Test.same(actual, expected);
+                if (result === true ) {
+                   tester.emit("passed", key);
+                } else {
+                    tester.emit("failed", {key:key, result:result});
+                }    
+            });
+        
+            emitter.on("done", function () {
+                console.log(actual);
+            });
+        
+            emitter.on("go", function () {
+        
+                emitter.emit("whenever");
+                emitter.on("whenever", function () {
+                    actual.push("whenever: added after emit");
+                });
+                emitter.emit("nowish", {}, "now");
+                emitter.on("nowish", function () {
+                    actual.push("nowish: added later");
+                });
+                emitter.emit("waiting", {}, "later");
+                emitter.on("waiting", function () {
+                    actual.push("waiting: added later");
+                });
+                emitter.emit("whenever");
+                emitter.emit("rushing", {}, "immediate");
+                emitter.on("rushing", function () {
+                    actual.push("rushing: too late");
+                });
+                emitter.emit("done", {}, "later");
+        
+            });
+        
+            emitter.log = function (description) {
+                if (description.indexOf("emitting:") !== -1) {
+                    actual.push(description.substr(10)); 
+                }
+            };
+        
+            ["whenever", "nowish", "waiting", "rushing"].forEach(function (el) {
+                emitter.on(el, function () {
+                    actual.push(el +" handled");
+                });
+            });
+        
+            emitter.emit("go");
+        
         }
-};
+};*/
 
 tester.on("passed", function (data) {
         delete records[data];
@@ -303,22 +376,14 @@ tester.on("failed", function (data) {
         console.log(data.result);
     }    );
 
-( (function (tests) {
-        var key, result; 
-    
-        for (key in tests ) {
-            result = tests[key]();
-            if (result === true) {
-                tester.emit("passed", key);
-            } else {
-                tester.emit("failed", {key:key, result:result});
-            }
-        }
-    } ) ( records) );
+for (key in records) {
+    records[key]();
+}
 
 process.on('exit', function () {
     var n = Object.keys(records).length;
     if ( n > 0 ) {
+        console.log("Remaining keys:", Object.keys(records));
         throw(n + " number of failures!");
     }
 });

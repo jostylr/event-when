@@ -62,6 +62,7 @@ We bind resume to the instance since it will be passed in without context to the
         this._queue = [];
         this._waiting = [];
         this._actions = {};
+        this.inactive = true;
 
         evw.resume = evw.resume.bind(evw);
         evw.next.max = 1000;
@@ -134,7 +135,10 @@ The nolog is added to be able to turn off the logging. Mainly it is so that emit
                     emitter.log("emit error: unknown timing", ev, timing);
                 }
         }
-        this.resume();
+        if (emitter.inactive) {
+            emitter.inactive = false;
+            this.resume();
+        }
     }
 
 
@@ -767,6 +771,7 @@ To handle "soon", we check to see if the current queue item has anything in the 
                 emitter.emit(ev, data, "now");
             });
         } else {
+            emitter.inactive = true;
             emitter.log("emitted events cleared");
         }
 
@@ -799,10 +804,10 @@ This checks for whether there is stuff left on the queue and whether it is time 
             next = emitter.next,  // this is itself
             queue = emitter._queue;
 
-
         next.count += 1;
 
         if (queue.length > 0) {
+
             if (next.count <= next.max) {
                 f(); 
             } else {

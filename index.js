@@ -6,6 +6,7 @@ var EvW = function () {
         this._queue = [];
         this._waiting = [];
         this._actions = {};
+        this.inactive = true;
     
         evw.resume = evw.resume.bind(evw);
         evw.next.max = 1000;
@@ -61,7 +62,10 @@ EvW.prototype.emit = function (ev, data,  timing, nolog) {
                     emitter.log("emit error: unknown timing", ev, timing);
                 }
         }
-        this.resume();
+        if (emitter.inactive) {
+            emitter.inactive = false;
+            this.resume();
+        }
     };
 EvW.prototype.off = function (ev, fun, nowhen) {
     
@@ -208,6 +212,7 @@ EvW.prototype.resume = function () {
                 emitter.emit(ev, data, "now");
             });
         } else {
+            emitter.inactive = true;
             emitter.log("emitted events cleared");
         }
     
@@ -281,6 +286,7 @@ EvW.prototype.next =  function (f) {
         next.count += 1;
     
         if (queue.length > 0) {
+    
             if (next.count <= next.max) {
                 f(); 
             } else {

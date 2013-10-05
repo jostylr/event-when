@@ -4,7 +4,7 @@ This is a set of tests for this library to pass.
 
 
 
-## basic
+## basic on/emit test
 
 This tests the basic emit--on functions
 
@@ -12,26 +12,29 @@ This tests the basic emit--on functions
     function () {
 
         var emitter = new EventWhen();
+        var key = "basic on/emit test";
 
-        var output = [
+        var expected = [
             "first fires",
             "second fires"
             ],
-            input = [];
+            actual = [];
         
+        _"async emitting";
+
 
         emitter.on("first ready", function () {
-            input.push("first fires");
+            actual.push("first fires");
             emitter.emit("second ready");
         });
 
         emitter.on("second ready", function () {
-            input.push("second fires");
+            actual.push("second fires");
+            emitter.emit("done");
         });
 
         emitter.emit("first ready");
 
-        return Test.same(input, output);
     }
 
 
@@ -355,37 +358,74 @@ Do all the timing functions work? How do we handle asynchronous calls?
     function () {
 
         var emitter = new EventWhen();
+        var key = "flow testing";
 
         var expected = [
-            "error event:awesome\nChecking!",
-            "Checking!\nerror event\nawesome"
             ],
-            actual = [], 
-            flag = false;
+            actual = [];
 
-        // default error
+        _"async emitting";
 
-        emitter.on("error event", function () {
-            throw Error("Checking!");
-        }).name = "awesome";
+        emitter.on("done", function () {
+            console.log(actual);
+        });
 
 
-        try {
-            emitter.emit("error event");
-        } catch (e) {
-            actual.push(e.message);
-        }
+        emitter.on("go", function () {
 
-        //error overide
+            emitter.emit("whenever");
+            emitter.on("whenever", function () {
+                actual.push("whenever: added after emit");
+            });
+            emitter.emit("nowish", {}, "now");
+            emitter.on("nowish", function () {
+                actual.push("nowish: added later");
+            });
+            emitter.emit("waiting", {}, "later");
+            emitter.on("waiting", function () {
+                actual.push("waiting: added later");
+            });
+            emitter.emit("whenever");
+            emitter.emit("rushing", {}, "immediate");
+            emitter.on("rushing", function () {
+                actual.push("rushing: too late");
+            });
+            emitter.emit("done", {}, "later");
 
-        emitter.error = function (e, ev, h) {
-            actual.push([e.message, ev, h.name].join("\n"));
+        });
+
+
+        emitter.log = function (description) {
+            if (description.indexOf("emitting:") !== -1) {
+                actual.push(description.substr(10)); 
+            }
         };
 
-        emitter.emit("error event");
+        ["whenever", "nowish", "waiting", "rushing"].forEach(function (el) {
+            emitter.on(el, function () {
+                actual.push(el +" handled");
+            });
+        });
 
-        return Test.same(actual, expected);
+        emitter.emit("go");
+
     }
+
+
+## Async emitting
+
+This is a snippet that should be placed at the end of each async function. 
+
+    emitter.on("done", function () {
+        var result;
+
+        result = Test.same(actual, expected);
+        if (result === true ) {
+           tester.emit("passed", key);
+        } else {
+            tester.emit("failed", {key:key, result:result});
+        }    
+    })
 
 
 
@@ -398,7 +438,7 @@ This is the set of test functions one can use. Basic.
         var i, n = inp.length;
 
         if (inp.length !== out.length) {
-            return inp.join("\n---\n"); 
+            return inp;
         }
 
         for (i =0; i <n; i+=1 ) {
@@ -420,7 +460,7 @@ This is a simple test runner.
         tester = new EventWhen();
         
     var records = {
-        "basic on/emit test" : _"basic",
+        "basic on/emit test" : _"basic on/emit test"}/*,
         "simple once test" : _"once",
         "turning off a handler" : _"off",
         ".when waiting for 2 events" : _"when",
@@ -429,18 +469,22 @@ This is a simple test runner.
         "handler with context" : _"handler with context",
         "Handler with two handles" : _"Handler with two handles",
         "canceling" : _"canceling",
-        "error checking" : _"error checking"
-    };
+        "error checking" : _"error checking",
+        "flow testing" : _"flow testing"
+    };*/
 
     tester.on("passed", _":passing");
 
     tester.on("failed", _":failing");
 
-    ( (_":run sync tests" ) ( records) );
+    for (key in records) {
+        records[key]();
+    }
 
     process.on('exit', function () {
         var n = Object.keys(records).length;
         if ( n > 0 ) {
+            console.log("Remaining keys:", Object.keys(records));
             throw(n + " number of failures!");
         }
     });
