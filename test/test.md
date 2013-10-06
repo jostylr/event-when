@@ -37,6 +37,34 @@ This tests the basic emit--on functions
 
     }
 
+## basic on/emit test
+
+This tests the basic emit--on functions
+
+[key]()
+
+    basic on/emit test
+
+
+[expected]()
+
+    first fires
+    second fires
+
+[code]()  
+    
+    emitter.on("first ready", function () {
+        actual.push("first fires");
+        emitter.emit("second ready");
+    });
+
+    emitter.on("second ready", function () {
+        actual.push("second fires");
+        emitter.emit("done");
+    });
+
+    emitter.emit("first ready");
+
 
 ## once
 
@@ -428,6 +456,38 @@ This is a snippet that should be placed at the end of each async function.
     })
 
 
+## Test Template
+
+This is the test template
+
+    function () {
+
+        var emitter = new EventWhen();
+        var key = '_"*:key"';
+
+        var expected = [
+            '_"*:expected| substitute("\n", '",\n')
+            "first fires",
+            "second fires"
+            ],
+            actual = [];
+        
+        _"async emitting";
+
+
+        emitter.on("first ready", function () {
+            actual.push("first fires");
+            emitter.emit("second ready");
+        });
+
+        emitter.on("second ready", function () {
+            actual.push("second fires");
+            emitter.emit("done");
+        });
+
+        emitter.emit("first ready");
+
+    }
 
 ## [test.js](#test.js "save: |jshint")
 
