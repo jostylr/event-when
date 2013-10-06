@@ -37,13 +37,15 @@ This tests the basic emit--on functions
 
     }
 
-## basic on/emit test
+## basic again
+
+[sample.js](#basic-again "save: *test template")
 
 This tests the basic emit--on functions
 
 [key]()
 
-    basic on/emit test
+    basic again
 
 
 [expected]()
@@ -465,29 +467,34 @@ This is the test template
         var emitter = new EventWhen();
         var key = '_"*:key"';
 
-        var expected = [
-            '_"*:expected| substitute("\n", '",\n')
-            "first fires",
-            "second fires"
-            ],
+        var expected = _"*:expected| arrayify",
             actual = [];
         
         _"async emitting";
 
-
-        emitter.on("first ready", function () {
-            actual.push("first fires");
-            emitter.emit("second ready");
-        });
-
-        emitter.on("second ready", function () {
-            actual.push("second fires");
-            emitter.emit("done");
-        });
-
-        emitter.emit("first ready");
+        _"*:code"
 
     }
+
+## Arrayify
+
+We define a command that takes a list of items separated by returns and makes an array out of them. The strings are trimmed and empty lines are ignored. This should allow for some whitespace formatting. 
+
+    function (code) {
+        var lines = code.split("\n");
+        return '[\n"' + lines.filter(function (el) {
+            if (el.length > 0) {
+                return true;
+            } else {
+                return false;
+            }
+        }).map(function (el) {
+            return el.trim();
+        }).join('",\n"') + '"\n]';
+    }
+
+[arrayify](#arrayify "define: command | | now")
+
 
 ## [test.js](#test.js "save: |jshint")
 
@@ -517,21 +524,23 @@ This is a simple test runner.
     /*global require, console, process*/
     var EventWhen = require('../index.js'),
         Test = require('./test.js'),
-        tester = new EventWhen();
+        tester = new EventWhen(),
+        key;
         
     var records = {
-        "basic on/emit test" : _"basic on/emit test"}/*,
-        "simple once test" : _"once",
-        "turning off a handler" : _"off",
-        ".when waiting for 2 events" : _"when",
-        "checking action naming" : _"action",
-        "checking handlers and events" : _"Listing handlers and events",
-        "handler with context" : _"handler with context",
-        "Handler with two handles" : _"Handler with two handles",
-        "canceling" : _"canceling",
-        "error checking" : _"error checking",
-        "flow testing" : _"flow testing"
-    };*/
+"basic on/emit test" : _"basic on/emit test",
+        "basic again" : _"basic again*test template"
+"simple once test" : _"once",
+"turning off a handler" : _"off",
+".when waiting for 2 events" : _"when",
+"checking action naming" : _"action",
+"checking handlers and events" : _"Listing handlers and events",
+"handler with context" : _"handler with context",
+"Handler with two handles" : _"Handler with two handles",
+"canceling" : _"canceling",
+"error checking" : _"error checking",
+"flow testing" : _"flow testing"*/
+    };
 
     tester.on("passed", _":passing");
 
