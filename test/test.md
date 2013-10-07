@@ -72,33 +72,31 @@ This tests the basic emit--on functions
 
 This tests that the once removes itself. We do a case with no number and one with 2 attached. 
 
-    function () {
+[key]()
 
-        var emitter = new EventWhen();
+    simple once test
 
-        var output = [
-            "first fires",
-            "second fires",
-            "second fires"
-            ],
-            input = [];
-        
 
+[expected]() 
+
+    first fires
+    second fires
+    second fires
+
+
+[code]()
         emitter.once("first ready", function () {
-            input.push("first fires");
+            actual.push("first fires");
             emitter.emit("second ready");
         });
 
         emitter.once("second ready", function () {
-            input.push("second fires");
+            actual.push("second fires");
         }, 2);
 
         emitter.emit("first ready");
         emitter.emit("first ready");    
         emitter.emit("second ready");
-
-        return Test.same(input, output);
-    }
 
 ## off
 
@@ -529,8 +527,8 @@ This is a simple test runner.
         
     var records = {
 "basic on/emit test" : _"basic on/emit test",
-        "basic again" : _"basic again*test template"
-"simple once test" : _"once",
+            "basic again" : _"basic again*test template",
+"simple once test" : _"once*test template"
 "turning off a handler" : _"off",
 ".when waiting for 2 events" : _"when",
 "checking action naming" : _"action",
