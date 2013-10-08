@@ -3,6 +3,8 @@ function () {
     var emitter = new EventWhen();
     var key = 'basic again';
 
+    emitter.name = key;
+
     var expected = [
         "first fires",
         "second fires"
@@ -31,5 +33,7 @@ function () {
     });
     
     emitter.emit("first ready");
+
+    console.log("done with", key);
 
 }

@@ -5,13 +5,16 @@ var EventWhen = require('../index.js'),
     key;
     
 var records = {
-        "basic again" : function () {
+        "simple once test" : function () {
             
                 var emitter = new EventWhen();
-                var key = 'basic again';
+                var key = 'simple once test';
+            
+                emitter.name = key;
             
                 var expected = [
                     "first fires",
+                    "second fires",
                     "second fires"
                     ],
                     actual = [];
@@ -27,19 +30,25 @@ var records = {
                     }    
                 });
             
-                emitter.on("first ready", function () {
+                console.log("once setting up");
+                
+                emitter.once("first ready", function () {
                     actual.push("first fires");
                     emitter.emit("second ready");
                 });
                 
-                emitter.on("second ready", function () {
+                emitter.once("second ready", function () {
                     actual.push("second fires");
-                    emitter.emit("done");
-                });
+                }, 2);
                 
                 emitter.emit("first ready");
+                emitter.emit("first ready");    
+                emitter.emit("second ready");
+                emitter.emit("done");
             
-            },
+                console.log("done with", key);
+            
+            }
 };
 
 tester.on("passed", function (data) {

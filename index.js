@@ -44,6 +44,8 @@ EvW.prototype.emit = function (ev, data,  timing, nolog) {
             emitter.log("emitting: " + ev, arguments);
         }
     
+        console.log(ev, emitter.name);
+    
         switch (timing) {
             case "later" : 
                 emitter._waiting.push( [ev, data, "now"] ); 
@@ -62,6 +64,9 @@ EvW.prototype.emit = function (ev, data,  timing, nolog) {
                     emitter.log("emit error: unknown timing", ev, timing);
                 }
         }
+    
+        console.log(emitter._queue);
+    
         if (emitter.inactive) {
             emitter.inactive = false;
             this.resume();

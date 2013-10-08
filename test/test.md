@@ -85,18 +85,22 @@ This tests that the once removes itself. We do a case with no number and one wit
 
 
 [code]()
-        emitter.once("first ready", function () {
-            actual.push("first fires");
-            emitter.emit("second ready");
-        });
 
-        emitter.once("second ready", function () {
-            actual.push("second fires");
-        }, 2);
+    console.log("once setting up");
 
-        emitter.emit("first ready");
-        emitter.emit("first ready");    
+    emitter.once("first ready", function () {
+        actual.push("first fires");
         emitter.emit("second ready");
+    });
+
+    emitter.once("second ready", function () {
+        actual.push("second fires");
+    }, 2);
+
+    emitter.emit("first ready");
+    emitter.emit("first ready");    
+    emitter.emit("second ready");
+    emitter.emit("done");
 
 ## off
 
@@ -465,12 +469,16 @@ This is the test template
         var emitter = new EventWhen();
         var key = '_"*:key"';
 
+        emitter.name = key;
+
         var expected = _"*:expected| arrayify",
             actual = [];
         
         _"async emitting";
 
         _"*:code"
+
+        console.log("done with", key);
 
     }
 
@@ -527,8 +535,8 @@ This is a simple test runner.
         
     var records = {
 "basic on/emit test" : _"basic on/emit test",
-            "basic again" : _"basic again*test template",
-"simple once test" : _"once*test template"
+"basic again" : _"basic again*test template",
+            "simple once test" : _"once*test template"
 "turning off a handler" : _"off",
 ".when waiting for 2 events" : _"when",
 "checking action naming" : _"action",

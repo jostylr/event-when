@@ -117,6 +117,8 @@ The nolog is added to be able to turn off the logging. Mainly it is so that emit
             emitter.log("emitting: " + ev, arguments);
         }
 
+        console.log(ev, emitter.name);
+
         switch (timing) {
             case "later" : 
                 emitter._waiting.push( [ev, data, "now"] ); 
@@ -135,6 +137,9 @@ The nolog is added to be able to turn off the logging. Mainly it is so that emit
                     emitter.log("emit error: unknown timing", ev, timing);
                 }
         }
+
+        console.log(emitter._queue);
+
         if (emitter.inactive) {
             emitter.inactive = false;
             this.resume();
