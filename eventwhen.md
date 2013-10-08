@@ -1,4 +1,4 @@
-# [event-when](# "version: 0.4.1 | jostylr")
+# [event-when](# "version: 0.5.0-pre | jostylr")
 
 This is my own little event library. It has most the usual methods and conventions, more or less. 
 
@@ -11,6 +11,14 @@ Some of the methods will return the emitter, but the ones involving handlers wil
 ### Version 0.4.0 Thoughts
 
 The idea is to create an action sentence that invokes the handler. So we attach the sentence to the event and then stuff happens to that. The handler can be a function or it could be an array of functions, etc. The point of invocation is when the sentence is used as a key to get the handler. So this allows dynamism which could be good, could be bad. The hard work, I think, is to rewrite the handler calling to be abstracted out to another level. I probably need to introduce an object of type handler. 
+
+### Version 0.5.0 Thoughts
+
+I have made a mess of the emit events. So here is the new paradigm. `.emit` is equivalent to a function call. It gets called immediately and its sequence of emits is followed as if they are function calls. The hope is that all the handlers of an event emitted from within an emitted event sequence wil be done completely before the rest of the original emit's handlers fire. 
+
+`.later` is asynchronous mode. It will emit the events, in the order queued, at the next tick. Each one happens after a next tick. So the entire sequence from one emit event will happen before the next `.later` is called. I think I will have an optional parameter to specify push vs unshift behavior with default being push. 
+
+Also, adding use of emitter.name in logs as well as numbering the emits called for a given event. The string form for a handler will also lead to a log event if no action/event fits. 
 
 ## Files
 
@@ -76,6 +84,7 @@ The various prototype methods on the event emitter.
 
     EvW.prototype.on = _"on";
     EvW.prototype.emit = _"emit";
+    EvW.prototype.later = _"emit later";
     EvW.prototype.off = _"off";
     EvW.prototype.stop = _"stop";
     EvW.prototype.resume = _"resume";
@@ -95,57 +104,52 @@ The various prototype methods on the event emitter.
 
 ### Emit
 
-We have four possible timings: 
-
-* later  This has the event emitted after at least one process.nextTick or setTimeout. When it is emitted, it uses "now".
-* soon  This is the default. It pushes the event onto the queue, but it does not assign the handelrs. Thus, the event is not emitted in some sense as what responds is still indeterminate.
-* now  This takes the current handlers for the event and pushes it all on the queue. 
-* immediate This jump the response to the front of the queue. 
+This will emit an event and fire its handlers immediately. If Event A emits Event B, then B's handlers should all fire before the rest of Event A does. To make sure of this, we unshift the queue of handlers waiting. 
 
 Given an event string, we run through the handlers, passing in the data to construct the array to be added to the queue. 
-    
-The nolog is added to be able to turn off the logging. Mainly it is so that emitting an event from an event is logged only once.
 
-    function (ev, data,  timing, nolog) {
+    function (ev, data) {
         var emitter = this;
 
-        timing = timing || "soon";
         data = data || {};
         var h = this._handlers[ev] || [];
 
-        if (!nolog) {
-            emitter.log("emitting: " + ev, arguments);
-        }
+        emitter.count += 1;
 
-        console.log(ev, emitter.name);
+        emitter._queue.unshift([ev, data, [].concat(h), emitter.count]);
 
-        switch (timing) {
-            case "later" : 
-                emitter._waiting.push( [ev, data, "now"] ); 
-            break;
-            case "soon" : 
-                emitter._queue.push([ev, data]);
-            break;
-            case "now" : 
-                emitter._queue.push([ev, data, [].concat(h)]);
-            break;
-            case "immediate" : 
-                emitter._queue.unshift([ev, data, [].concat(h)]);
-            break;
-            default : 
-                if (emitter.log) {
-                    emitter.log("emit error: unknown timing", ev, timing);
-                }
-        }
-
-        console.log(emitter._queue);
-
-        if (emitter.inactive) {
-            emitter.inactive = false;
-            this.resume();
-        }
+        this.resume();
     }
 
+### Emit Later
+
+This pushes the event, data, and handlers on the waiting queue. The boolean first allows for placing the emit at the head of the line. 
+
+We also attach the handlers here. 
+
+
+    function (ev, data, first) {
+        var emitter = this,
+            evqu,
+            h;
+
+        data = data || {};
+        h = this._handlers[ev] || [];
+
+        emitter.log(emitter.name + " queuing: " + ev, arguments);
+
+        emitter.count += 1;
+
+        evqu = [ev, data, [].concat(h), emitter.count];
+
+        if (first) {
+            emitter._waiting.unshift(evqu ); 
+        } else {
+            emitter._waiting.push( evqu ); 
+        }
+
+        this.resume();
+    }
 
 ### Emit When
 
