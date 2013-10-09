@@ -6,7 +6,6 @@ var EvW = function () {
         this._queue = [];
         this._waiting = [];
         this._actions = {};
-        this.inactive = true;
     
         evw.resume = evw.resume.bind(evw);
         evw.next.max = 1000;
@@ -33,44 +32,39 @@ EvW.prototype.on = function (ev, f, that, args, first) {
     return f;
 
 };
-EvW.prototype.emit = function (ev, data,  timing, nolog) {
+EvW.prototype.emit = function (ev, data) {
         var emitter = this;
     
-        timing = timing || "soon";
         data = data || {};
         var h = this._handlers[ev] || [];
     
-        if (!nolog) {
-            emitter.log("emitting: " + ev, arguments);
+        emitter.count += 1;
+    
+        emitter._queue.unshift([ev, data, [].concat(h), emitter.count]);
+    
+        this.next(this.resume());
+    };
+EvW.prototype.later = function (ev, data, first) {
+        var emitter = this,
+            evqu,
+            h;
+    
+        data = data || {};
+        h = this._handlers[ev] || [];
+    
+        emitter.log(emitter.name + " queuing: " + ev, arguments);
+    
+        emitter.count += 1;
+    
+        evqu = [ev, data, [].concat(h), emitter.count];
+    
+        if (first) {
+            emitter._waiting.unshift(evqu ); 
+        } else {
+            emitter._waiting.push( evqu ); 
         }
     
-        console.log(ev, emitter.name);
-    
-        switch (timing) {
-            case "later" : 
-                emitter._waiting.push( [ev, data, "now"] ); 
-            break;
-            case "soon" : 
-                emitter._queue.push([ev, data]);
-            break;
-            case "now" : 
-                emitter._queue.push([ev, data, [].concat(h)]);
-            break;
-            case "immediate" : 
-                emitter._queue.unshift([ev, data, [].concat(h)]);
-            break;
-            default : 
-                if (emitter.log) {
-                    emitter.log("emit error: unknown timing", ev, timing);
-                }
-        }
-    
-        console.log(emitter._queue);
-    
-        if (emitter.inactive) {
-            emitter.inactive = false;
-            this.resume();
-        }
+        this.next(this.resume());
     };
 EvW.prototype.off = function (ev, fun, nowhen) {
     
@@ -184,41 +178,45 @@ EvW.prototype.stop = function (a) {
     };
 EvW.prototype.resume = function () {
     
-        var q, f, ev, data, cont, cur,  
+        var q, f, ev, data, cont, cur, which,  
             emitter = this,
             queue = emitter._queue,
-            handlers = emitter._handlers,
             waiting = emitter._waiting; 
     
         // emitter.log("events on queue", queue.length+waiting.length, queue, waiting);
         emitter.countExecute = 0;
     
         if (queue.length >0) {
+            console.log(queue);
             cur = queue[0];
             ev = cur[0];
             data = cur[1];
-            if (typeof cur[2] === "undefined") {
-               cur[2] = Array.prototype.slice.call(handlers[ev] || [], 0);
-            }
             q = cur[2];
+            which = cur[3];
             f = q.shift();
             if (q.length === 0) {
                 queue.shift();
             }
             if (f) {
+                emitter.log(emitter.name + " firing "+ f.name + " for " + ev + "::" + which);
                 cont = f.execute(data, emitter, ev);
                 if ( (cont === false) && (cur === queue[0]) ) {
                     queue.shift(); 
                 }
+                emitter.log(emitter.name + " firED " + f.name+ " for " + ev + "::" + which);
             }
-            this.next(this.resume);
+            this.next(this.resume());
         } else if (waiting.length > 0) {
             emitter.nextTick(function () {
-                emitter.emit(ev, data, "now");
+                console.log("tick", queue, waiting);
+                if (queue.length === 0 ) {
+                    queue.push(waiting.shift());
+                    console.log("tock", queue, waiting);
+                }
+                emitter.next(emitter.resume());
             });
         } else {
-            emitter.inactive = true;
-            emitter.log("emitted events cleared");
+            emitter.log("all emit requests done");
         }
     
     };

@@ -70,7 +70,6 @@ We bind resume to the instance since it will be passed in without context to the
         this._queue = [];
         this._waiting = [];
         this._actions = {};
-        this.inactive = true;
 
         evw.resume = evw.resume.bind(evw);
         evw.next.max = 1000;
@@ -118,7 +117,7 @@ Given an event string, we run through the handlers, passing in the data to const
 
         emitter._queue.unshift([ev, data, [].concat(h), emitter.count]);
 
-        this.resume();
+        this.next(this.resume());
     }
 
 ### Emit Later
@@ -148,7 +147,7 @@ We also attach the handlers here.
             emitter._waiting.push( evqu ); 
         }
 
-        this.resume();
+        this.next(this.resume());
     }
 
 ### Emit When
@@ -749,10 +748,9 @@ To handle "soon", we check to see if the current queue item has anything in the 
 
      function () {
 
-        var q, f, ev, data, cont, cur,  
+        var q, f, ev, data, cont, cur, which,  
             emitter = this,
             queue = emitter._queue,
-            handlers = emitter._handlers,
             waiting = emitter._waiting; 
 
         // emitter.log("events on queue", queue.length+waiting.length, queue, waiting);
@@ -762,26 +760,28 @@ To handle "soon", we check to see if the current queue item has anything in the 
             cur = queue[0];
             ev = cur[0];
             data = cur[1];
-            if (typeof cur[2] === "undefined") {
-               cur[2] = Array.prototype.slice.call(handlers[ev] || [], 0);
-            }
             q = cur[2];
+            which = cur[3];
             f = q.shift();
             if (q.length === 0) {
                 queue.shift();
             }
             if (f) {
+                emitter.log(emitter.name + " firing "+ f.name + " for " + ev + "::" + which);
                 cont = f.execute(data, emitter, ev);
                 _":do we halt event emission"
+                emitter.log(emitter.name + " firED " + f.name+ " for " + ev + "::" + which);
             }
-            this.next(this.resume);
+            this.next(this.resume());
         } else if (waiting.length > 0) {
             emitter.nextTick(function () {
-                emitter.emit(ev, data, "now");
+                if (queue.length === 0 ) {
+                    queue.push(waiting.shift());
+                }
+                emitter.next(emitter.resume());
             });
         } else {
-            emitter.inactive = true;
-            emitter.log("emitted events cleared");
+            emitter.log("all emit requests done");
         }
 
     }

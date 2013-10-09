@@ -86,8 +86,6 @@ This tests that the once removes itself. We do a case with no number and one wit
 
 [code]()
 
-    console.log("once setting up");
-
     emitter.once("first ready", function () {
         actual.push("first fires");
         emitter.emit("second ready");
@@ -106,342 +104,340 @@ This tests that the once removes itself. We do a case with no number and one wit
 
 This tests that we can remove handlers.
 
-    function () {
+[key]()
 
-        var emitter = new EventWhen();
+    turning off a handler
 
-        var output = [
-            "first fires",
-            "second fires",
-            "second fires"
-            ],
-            input = [];
-        
+[expected]()
 
-        var h = emitter.on("first ready", function () {
-            input.push("first fires");
-            emitter.emit("second ready");
-        });
+    first fires
+    second fires
+    second fires
+    
 
-        emitter.on("first ready", function () {
-            input.push("second fires");
-        });
+[code]()    
 
-        emitter.emit("first ready");
-        emitter.off("first ready", h);
-        emitter.emit("first ready");    
+    var h = emitter.on("first ready", function () {
+        actual.push("first fires");
         emitter.emit("second ready");
+    });
 
-        return Test.same(input, output);
-    }
+    emitter.on("first ready", function () {
+        actual.push("second fires");
+    });
+
+    emitter.emit("first ready");
+    emitter.off("first ready", h);
+    emitter.emit("first ready");    
+    emitter.emit("second ready");
+
+    emitter.emit("done");
 
 ## when
 
 Testing the when capabilities.
 
 
-    function () {
+[key]()
+    
+    .when waiting for 2 events
 
-        var emitter = new EventWhen();
+[expected]()
+    
+    when fired
 
-        var output = [
-            "when fired"
-            ],
-            input = [];
-        
 
-        emitter.when(["first ready", "second ready"], function () {
-            input.push("when fired");
-        });
+[code]()
 
-        emitter.emit("first ready");
-        emitter.emit("first ready");    
-        emitter.emit("second ready");
-        emitter.emit("first ready");    
-        emitter.emit("second ready");
+    emitter.when(["first ready", "second ready"], function () {
+        actual.push("when fired");
+    });
 
-        return Test.same(input, output);
-    }
+    emitter.emit("first ready");
+    emitter.emit("first ready");    
+    emitter.emit("second ready");
+    emitter.emit("first ready");    
+    emitter.emit("second ready");
+
+    emitter.emit("done");
 
 ## action
 
 Testing actions.
 
-    function () {
+[key]()
 
-        var emitter = new EventWhen();
+    checking action naming
 
-        var output = [
-            "first fired"
-            ],
-            input = [];
-        
 
-        emitter.action("fire the first one", function () {
-            input.push("first fired");
-        });
+[expected]()
 
-        emitter.on("first ready", "fire the first one");
+    first fired
 
-        emitter.emit("first ready");
+[code]()
 
-        return Test.same(input, output);
-    }
+    emitter.action("fire the first one", function () {
+        actual.push("first fired");
+    });
+
+    emitter.on("first ready", "fire the first one");
+
+    emitter.emit("first ready");
+
+    emitter.emit("done");
 
 
 ## Handler with context
 
-    function () {
 
-        var emitter = new EventWhen();
+[key]()
 
-        var expected = [
-            "jt:hi!"
-            ],
-            actual = [];
-        
+    Handler with context
 
-        emitter.on("first ready", function (data, emitter, args) {
-            var self = this;
-            actual.push(self.name + ":" + args);
-        }, {name:"jt"}, "hi!");
+[expected]()
 
-        emitter.emit("first ready");
+    jt:hi!
 
-        return Test.same(actual, expected);
-    }
+[code]()
+
+
+    emitter.on("first ready", function (data, emitter, args) {
+        var self = this;
+        actual.push(self.name + ":" + args);
+    }, {name:"jt"}, "hi!");
+
+    emitter.emit("first ready");
+
+    emitter.emit("done");
 
 ## Handler with two handles
 
 Let's have a function that acts and then an event that emits saying it acted. 
 
 
-    function () {
+[key]()
 
-        var emitter = new EventWhen();
+    Handler with two handles
 
-        var expected = [
-            "jt:hi!",
-            "action fired received"
-            ],
-            actual = [];
-        
+[expected]()
 
-        emitter.on("first ready", [function (data, emitter, args) {
-            var self = this;
-            actual.push(self.name + ":" + args);
-        }, "an action fired"], {name:"jt"}, "hi!");
+    jt:hi!
+    action fired received
 
-        emitter.on("an action fired", function () {
-            actual.push("action fired received");
-        });
+[code]()
 
-        emitter.emit("first ready");
+    emitter.on("first ready", [function (data, emitter, args) {
+        var self = this;
+        actual.push(self.name + ":" + args);
+    }, "an action fired"], {name:"jt"}, "hi!");
 
-        return Test.same(actual, expected);
+    emitter.on("an action fired", function () {
+        actual.push("action fired received");
+    });
 
-    }
+    emitter.emit("first ready");
+
+    emitter.emit("done");
 
 ## Listing handlers and events
 
 Can we filter events appropriately? 
 
-    function () {
+[key]()
 
-        var emitter = new EventWhen();
+    checking handlers and events
 
-        var expected = [
-            "first : great",
-            "second",
-            "first : great",
-            "first : greatsecond",
-            "works",
-            "worksyadda"
-            ],
-            actual = [];
-        
+[expected]()
 
-        emitter.on("first : great",  "works");
+    first : great
+    second
+    first : great
+    first : greatsecond
+    works
+    worksyadda
 
-        emitter.on("second", "yadda");
+[code]()
 
-        actual.push(emitter.events(":").join(''));
+    emitter.on("first : great",  "works");
 
-        actual.push(emitter.events(":", true).join(''));
-     
-        actual.push(emitter.events(function (ev) {
-            if (ev === "first : great") {
-                return true;
-            } else {
-                return false;
-            }
-        }).join(''));
+    emitter.on("second", "yadda");
 
-        actual.push(emitter.events().join(''));
+    actual.push(emitter.events(":").join(''));
 
-        actual.push(emitter.handlers(["first : great"])["first : great"][0].value[0]);
+    actual.push(emitter.events(":", true).join(''));
+ 
+    actual.push(emitter.events(function (ev) {
+        if (ev === "first : great") {
+            return true;
+        } else {
+            return false;
+        }
+    }).join(''));
 
-        // handlers
-        (function () {
-            var key, str='', hs; 
-            hs = emitter.handlers();
-            for (key in hs) {
-                str += hs[key][0].value[0];
-            }
-            actual.push(str);
-        } () );
+    actual.push(emitter.events().join(''));
 
-        return Test.same(actual, expected);
-    }
+    actual.push(emitter.handlers(["first : great"])["first : great"][0].value[0]);
+
+    // handlers
+    (function () {
+        var key, str='', hs; 
+        hs = emitter.handlers();
+        for (key in hs) {
+            str += hs[key][0].value[0];
+        }
+        actual.push(str);
+    } () );
+
+    emitter.emit("done");
+
 
 ## Canceling
 
 Can we remove handlers or stop events? 
 
-    function () {
+[key]()
 
-        var emitter = new EventWhen();
+    canceling
 
-        var expected = [
-            "emit this",
-            "emit that 1",
-            "emit that 2",
-            "seen because the handler array is not stopped"
-            ],
-            actual = [];
-        
-        emitter.on("emit this", [function () {
-                actual.push("emit this");
-                return false;
-            }, function () {
-                actual.push("not actually ever seen");
-        }]);
+[expected]()
 
-        emitter.on("emit this", [function () {
-                actual.push("not seen either");
-        }]);
+    emit this
+    emit that 1
+    emit that 2
+    seen because the handler array is not stopped
 
 
-        emitter.on("emit that", [function () {
-                actual.push("emit that 1");
-        }]);
+[code]()
+
+    emitter.on("emit this", [function () {
+            actual.push("emit this");
+            return false;
+        }, function () {
+            actual.push("not actually ever seen");
+    }]);
+
+    emitter.on("emit this", [function () {
+            actual.push("not seen either");
+    }]);
 
 
-        emitter.on("emit that", [function (data, emitter) {
-                actual.push("emit that 2");
-                emitter.stop(true);
-            }, function () {
-                actual.push("seen because the handler array is not stopped");
-        }]);
-
-        emitter.on("emit that", [function () {
-                actual.push("never seen as it gets canceled beforehand");
-        }]);
+    emitter.on("emit that", [function () {
+            actual.push("emit that 1");
+    }]);
 
 
-        emitter.emit("emit this");
-        emitter.emit("emit that");
+    emitter.on("emit that", [function (data, emitter) {
+            actual.push("emit that 2");
+            emitter.stop(true);
+        }, function () {
+            actual.push("seen because the handler array is not stopped");
+    }]);
 
-        return Test.same(actual, expected);
-    }
+    emitter.on("emit that", [function () {
+            actual.push("never seen as it gets canceled beforehand");
+    }]);
+
+
+    emitter.emit("emit this");
+    emitter.emit("emit that");
+
+    emitter.emit("done");
 
 ## Error checking
 
 Let's throw an error.
 
-    function () {
+[key]()
 
-        var emitter = new EventWhen();
+    error checking
 
-        var expected = [
-            "error event:awesome\nChecking!",
-            "Checking!\nerror event\nawesome"
-            ],
-            actual = [];
+[expected]()
 
-        // default error
+    error event:awesome\nChecking!
+    Checking!\nerror event\nawesome
 
-        emitter.on("error event", function () {
-            throw Error("Checking!");
-        }).name = "awesome";
+[code]()        
 
 
-        try {
-            emitter.emit("error event");
-        } catch (e) {
-            actual.push(e.message);
-        }
+    // default error
 
-        //error overide
+    emitter.on("error event", function () {
+        throw Error("Checking!");
+    }).name = "awesome";
 
-        emitter.error = function (e, ev, h) {
-            actual.push([e.message, ev, h.name].join("\n"));
-        };
 
+    try {
         emitter.emit("error event");
-
-        return Test.same(actual, expected);
+    } catch (e) {
+        actual.push(e.message);
     }
+
+    //error overide
+
+    emitter.error = function (e, ev, h) {
+        actual.push([e.message, ev, h.name].join("\n"));
+    };
+
+    emitter.emit("error event");
+
+    emitter.emit("done");
 
 ## Flow testing
 
 Do all the timing functions work? How do we handle asynchronous calls? 
 
-    function () {
 
-        var emitter = new EventWhen();
-        var key = "flow testing";
+[key]()
 
-        var expected = [
-            ],
-            actual = [];
+    flow testing
 
-        _"async emitting";
+[expected]()
 
-        emitter.on("done", function () {
-            console.log(actual);
+    whenever: added after emit
+
+[code]()
+
+
+    _"async emitting";
+
+    emitter.on("done", function () {
+        console.log(actual);
+    });
+
+
+    emitter.on("go", function () {
+
+        emitter.emit("whenever");
+        emitter.on("whenever", function () {
+            actual.push("whenever: added after emit");
         });
 
 
-        emitter.on("go", function () {
-
-            emitter.emit("whenever");
-            emitter.on("whenever", function () {
-                actual.push("whenever: added after emit");
-            });
-            emitter.emit("nowish", {}, "now");
-            emitter.on("nowish", function () {
-                actual.push("nowish: added later");
-            });
-            emitter.emit("waiting", {}, "later");
-            emitter.on("waiting", function () {
-                actual.push("waiting: added later");
-            });
-            emitter.emit("whenever");
-            emitter.emit("rushing", {}, "immediate");
-            emitter.on("rushing", function () {
-                actual.push("rushing: too late");
-            });
-            emitter.emit("done", {}, "later");
-
+        emitter.on("waiting", function () {
+            actual.push("waiting: added later");
         });
+        emitter.later("waiting");
+
+        emitter.emit("whenever");
+        emitter.later("done");
+
+    });
 
 
-        emitter.log = function (description) {
-            if (description.indexOf("emitting:") !== -1) {
-                actual.push(description.substr(10)); 
-            }
-        };
+    emitter.log = function (description) {
+        if (description.indexOf("emitting:") !== -1) {
+            actual.push(description.substr(10)); 
+        }
+    };
 
-        ["whenever", "nowish", "waiting", "rushing"].forEach(function (el) {
-            emitter.on(el, function () {
-                actual.push(el +" handled");
-            });
+    ["whenever", "nowish", "waiting", "rushing"].forEach(function (el) {
+        emitter.on(el, function () {
+            actual.push(el +" handled");
         });
+    });
 
-        emitter.emit("go");
+    emitter.emit("go");
 
-    }
 
 
 ## Async emitting
@@ -478,7 +474,7 @@ This is the test template
 
         _"*:code"
 
-        console.log("done with", key);
+//        console.log("done with", key);
 
     }
 
@@ -534,18 +530,17 @@ This is a simple test runner.
         key;
         
     var records = {
-"basic on/emit test" : _"basic on/emit test",
-"basic again" : _"basic again*test template",
-            "simple once test" : _"once*test template"
-"turning off a handler" : _"off",
-".when waiting for 2 events" : _"when",
-"checking action naming" : _"action",
-"checking handlers and events" : _"Listing handlers and events",
-"handler with context" : _"handler with context",
-"Handler with two handles" : _"Handler with two handles",
-"canceling" : _"canceling",
-"error checking" : _"error checking",
-"flow testing" : _"flow testing"*/
+            "basic again" : _"basic again*test template",
+            "simple once test" : _"once*test template",
+            "turning off a handler" : _"off*test template",
+            ".when waiting for 2 events" : _"when*test template",
+            "checking action naming" : _"action*test template",
+"checking handlers and events" : _"Listing handlers and events*test template",
+            "handler with context" : _"handler with context*test template",
+            "handler with two handles" : _"Handler with two handles*test template",
+            "canceling" : _"canceling*test template",
+            "error checking" : _"error checking*test template",
+"flow testing" : _"flow testing*test template"
     };
 
     tester.on("passed", _":passing");
@@ -568,9 +563,10 @@ This is a simple test runner.
 
 [passing](# "js")
 
-    function (data) {
-        delete records[data];
-        console.log("passed: " + data);
+    function (key) {
+        key = key.toLowerCase();
+        delete records[key];
+        console.log("passed: " + key);
     }
 
 [failing](# "js")

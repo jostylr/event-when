@@ -34,6 +34,4 @@ function () {
     
     emitter.emit("first ready");
 
-    console.log("done with", key);
-
 }
