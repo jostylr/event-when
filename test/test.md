@@ -258,6 +258,8 @@ Can we filter events appropriately?
 
 [code]()
 
+    emitter.off("done");
+
     emitter.on("first : great",  "works");
 
     emitter.on("second", "yadda");
@@ -287,6 +289,8 @@ Can we filter events appropriately?
         }
         actual.push(str);
     } () );
+
+    _"async emitting";
 
     emitter.emit("done");
 
@@ -384,7 +388,7 @@ Let's throw an error.
 
 ## Flow testing
 
-Do all the timing functions work? How do we handle asynchronous calls? 
+Does `.later` work? 
 
 
 [key]()
@@ -393,51 +397,43 @@ Do all the timing functions work? How do we handle asynchronous calls?
 
 [expected]()
 
-    whenever: added after emit
+    A
+    B
+    C
+    E
+    D
 
 [code]()
 
 
     _"async emitting";
 
-    emitter.on("done", function () {
-        console.log(actual);
+
+    emitter.on("A", function () {
+        actual.push("A");
+        emitter.later("C");
+    });
+    emitter.on("C", function () {
+        actual.push("C");
+        emitter.later("D");
+    });
+    emitter.on("B", function () {
+        actual.push("B");
+        emitter.later("E");
     });
 
-
-    emitter.on("go", function () {
-
-        emitter.emit("whenever");
-        emitter.on("whenever", function () {
-            actual.push("whenever: added after emit");
-        });
-
-
-        emitter.on("waiting", function () {
-            actual.push("waiting: added later");
-        });
-        emitter.later("waiting");
-
-        emitter.emit("whenever");
-        emitter.later("done");
-
+    emitter.on("D", function () {
+        actual.push("D");
     });
 
-
-    emitter.log = function (description) {
-        if (description.indexOf("emitting:") !== -1) {
-            actual.push(description.substr(10)); 
-        }
-    };
-
-    ["whenever", "nowish", "waiting", "rushing"].forEach(function (el) {
-        emitter.on(el, function () {
-            actual.push(el +" handled");
-        });
+    emitter.on("E", function () {
+        actual.push("E");
     });
 
-    emitter.emit("go");
+    emitter.when(["A", "B", "C", "D", "E"], "done");
 
+    emitter.emit("A");
+    emitter.emit("B");
 
 
 ## Async emitting
@@ -535,7 +531,7 @@ This is a simple test runner.
             "turning off a handler" : _"off*test template",
             ".when waiting for 2 events" : _"when*test template",
             "checking action naming" : _"action*test template",
-"checking handlers and events" : _"Listing handlers and events*test template",
+            "checking handlers and events" : _"Listing handlers and events*test template",
             "handler with context" : _"handler with context*test template",
             "handler with two handles" : _"Handler with two handles*test template",
             "canceling" : _"canceling*test template",

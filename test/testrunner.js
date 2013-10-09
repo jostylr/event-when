@@ -194,6 +194,80 @@ var records = {
                 emitter.emit("done");
             
             },
+        "checking handlers and events" : function () {
+            
+                var emitter = new EventWhen();
+                var key = 'checking handlers and events';
+            
+                emitter.name = key;
+            
+                var expected = [
+                    "first : great",
+                    "second",
+                    "first : great",
+                    "first : greatsecond",
+                    "works",
+                    "worksyadda"
+                    ],
+                    actual = [];
+                
+                emitter.on("done", function () {
+                    var result;
+                
+                    result = Test.same(actual, expected);
+                    if (result === true ) {
+                       tester.emit("passed", key);
+                    } else {
+                        tester.emit("failed", {key:key, result:result});
+                    }    
+                });
+            
+                emitter.off("done");
+                
+                emitter.on("first : great",  "works");
+                
+                emitter.on("second", "yadda");
+                
+                actual.push(emitter.events(":").join(''));
+                
+                actual.push(emitter.events(":", true).join(''));
+                 
+                actual.push(emitter.events(function (ev) {
+                    if (ev === "first : great") {
+                        return true;
+                    } else {
+                        return false;
+                    }
+                }).join(''));
+                
+                actual.push(emitter.events().join(''));
+                
+                actual.push(emitter.handlers(["first : great"])["first : great"][0].value[0]);
+                
+                // handlers
+                (function () {
+                    var key, str='', hs; 
+                    hs = emitter.handlers();
+                    for (key in hs) {
+                        str += hs[key][0].value[0];
+                    }
+                    actual.push(str);
+                } () );
+                
+                emitter.on("done", function () {
+                    var result;
+                
+                    result = Test.same(actual, expected);
+                    if (result === true ) {
+                       tester.emit("passed", key);
+                    } else {
+                        tester.emit("failed", {key:key, result:result});
+                    }    
+                });
+                
+                emitter.emit("done");
+            
+            },
         "handler with context" : function () {
             
                 var emitter = new EventWhen();

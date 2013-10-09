@@ -70,6 +70,7 @@ We bind resume to the instance since it will be passed in without context to the
         this._queue = [];
         this._waiting = [];
         this._actions = {};
+        this.count = 0;
 
         evw.resume = evw.resume.bind(evw);
         evw.next.max = 1000;
@@ -757,6 +758,7 @@ To handle "soon", we check to see if the current queue item has anything in the 
         emitter.countExecute = 0;
 
         if (queue.length >0) {
+            console.log(queue);
             cur = queue[0];
             ev = cur[0];
             data = cur[1];

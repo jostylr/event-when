@@ -6,6 +6,7 @@ var EvW = function () {
         this._queue = [];
         this._waiting = [];
         this._actions = {};
+        this.count = 0;
     
         evw.resume = evw.resume.bind(evw);
         evw.next.max = 1000;
@@ -208,10 +209,8 @@ EvW.prototype.resume = function () {
             this.next(this.resume());
         } else if (waiting.length > 0) {
             emitter.nextTick(function () {
-                console.log("tick", queue, waiting);
                 if (queue.length === 0 ) {
                     queue.push(waiting.shift());
-                    console.log("tock", queue, waiting);
                 }
                 emitter.next(emitter.resume());
             });
