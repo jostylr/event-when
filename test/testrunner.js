@@ -444,6 +444,60 @@ var records = {
                 emitter.emit("done");
             
             },
+        "flow testing" : function () {
+            
+                var emitter = new EventWhen();
+                var key = 'flow testing';
+            
+                emitter.name = key;
+            
+                var expected = [
+                    "A",
+                    "B",
+                    "C",
+                    "E",
+                    "D"
+                    ],
+                    actual = [];
+                
+                emitter.on("done", function () {
+                    var result;
+                
+                    result = Test.same(actual, expected);
+                    if (result === true ) {
+                       tester.emit("passed", key);
+                    } else {
+                        tester.emit("failed", {key:key, result:result});
+                    }    
+                });
+            
+                emitter.on("A", function () {
+                    actual.push("A");
+                    emitter.later("C");
+                });
+                emitter.on("C", function () {
+                    actual.push("C");
+                    emitter.later("D");
+                });
+                emitter.on("B", function () {
+                    actual.push("B");
+                    emitter.later("E");
+                });
+                
+                emitter.on("D", function () {
+                    actual.push("D");
+                });
+                
+                emitter.on("E", function () {
+                    actual.push("E");
+                });
+                
+                emitter.when(["A", "B", "C", "D", "E"], "done");
+                
+                emitter.emit("A");
+                emitter.emit("B");
+            
+            }
 };
 
 tester.on("passed", function (key) {

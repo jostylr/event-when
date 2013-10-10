@@ -71,6 +71,7 @@ We bind resume to the instance since it will be passed in without context to the
         this._waiting = [];
         this._actions = {};
         this.count = 0;
+        this.resumeCount = 0;
 
         evw.resume = evw.resume.bind(evw);
         evw.next.max = 1000;
@@ -756,9 +757,9 @@ To handle "soon", we check to see if the current queue item has anything in the 
 
         // emitter.log("events on queue", queue.length+waiting.length, queue, waiting);
         emitter.countExecute = 0;
+        emitter.resumeCount += 1;
 
         if (queue.length >0) {
-            console.log(queue);
             cur = queue[0];
             ev = cur[0];
             data = cur[1];
@@ -777,7 +778,7 @@ To handle "soon", we check to see if the current queue item has anything in the 
             this.next(this.resume());
         } else if (waiting.length > 0) {
             emitter.nextTick(function () {
-                if (queue.length === 0 ) {
+                if (  (queue.length === 0) && (waiting.length > 0) ) {
                     queue.push(waiting.shift());
                 }
                 emitter.next(emitter.resume());

@@ -406,9 +406,6 @@ Does `.later` work?
 [code]()
 
 
-    _"async emitting";
-
-
     emitter.on("A", function () {
         actual.push("A");
         emitter.later("C");
@@ -536,7 +533,7 @@ This is a simple test runner.
             "handler with two handles" : _"Handler with two handles*test template",
             "canceling" : _"canceling*test template",
             "error checking" : _"error checking*test template",
-"flow testing" : _"flow testing*test template"
+            "flow testing" : _"flow testing*test template"
     };
 
     tester.on("passed", _":passing");

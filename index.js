@@ -7,6 +7,7 @@ var EvW = function () {
         this._waiting = [];
         this._actions = {};
         this.count = 0;
+        this.resumeCount = 0;
     
         evw.resume = evw.resume.bind(evw);
         evw.next.max = 1000;
@@ -186,9 +187,9 @@ EvW.prototype.resume = function () {
     
         // emitter.log("events on queue", queue.length+waiting.length, queue, waiting);
         emitter.countExecute = 0;
+        emitter.resumeCount += 1;
     
         if (queue.length >0) {
-            console.log(queue);
             cur = queue[0];
             ev = cur[0];
             data = cur[1];
@@ -209,7 +210,7 @@ EvW.prototype.resume = function () {
             this.next(this.resume());
         } else if (waiting.length > 0) {
             emitter.nextTick(function () {
-                if (queue.length === 0 ) {
+                if (  (queue.length === 0) && (waiting.length > 0) ) {
                     queue.push(waiting.shift());
                 }
                 emitter.next(emitter.resume());
