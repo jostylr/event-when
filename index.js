@@ -1,6 +1,5 @@
 /*global setTimeout, process, module, console */
 var EvW = function () {
-        var evw = this;
     
         this._handlers = {};
         this._queue = [];
@@ -8,9 +7,10 @@ var EvW = function () {
         this._actions = {};
         this.count = 0;
         this.resumeCount = 0;
+        this.name = "";
     
-        evw.resume = evw.resume.bind(evw);
-        evw.next.max = 1000;
+        this.resume = this.resume.bind(this);
+        this.next.max = 1000;
     
         return this; 
     };
@@ -98,7 +98,7 @@ EvW.prototype.off = function (ev, fun, nowhen) {
             if ( (nowhen !== true) && fun.hasOwnProperty("tracker") )  {
                 fun.tracker.removeStr(ev);
             }
-            emitter.log("handler for event removed" +  ev + " :: " + (fun.name || "") );
+            emitter.log("handler for event removed " +  ev + " :: " + (fun.name || "") );
             return emitter;
         }
     
@@ -113,7 +113,7 @@ EvW.prototype.off = function (ev, fun, nowhen) {
                     return true;
                 }
             }); 
-            emitter.log("handler for event removed" +  ev);            
+            emitter.log("handler for event removed " +  ev);            
             return emitter;
         }
     
@@ -568,6 +568,7 @@ var Handler = function (value, options) {
     
         var handler = this,
             key;
+        handler.name = "";
         options  = options || {};
     
         if (Array.isArray(value) ) {

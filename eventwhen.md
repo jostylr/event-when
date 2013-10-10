@@ -1,4 +1,4 @@
-# [event-when](# "version: 0.5.0-pre | jostylr")
+# [event-when](# "version: 0.5.0| jostylr")
 
 This is my own little event library. It has most the usual methods and conventions, more or less. 
 
@@ -64,7 +64,6 @@ We bind resume to the instance since it will be passed in without context to the
 
 
     function () {
-        var evw = this;
 
         this._handlers = {};
         this._queue = [];
@@ -72,9 +71,10 @@ We bind resume to the instance since it will be passed in without context to the
         this._actions = {};
         this.count = 0;
         this.resumeCount = 0;
+        this.name = "";
 
-        evw.resume = evw.resume.bind(evw);
-        evw.next.max = 1000;
+        this.resume = this.resume.bind(this);
+        this.next.max = 1000;
 
         return this; 
     }
@@ -452,6 +452,7 @@ This is a constructor and it should return `this` if it is creating or the value
 
         var handler = this,
             key;
+        handler.name = "";
         options  = options || {};
 
 
@@ -591,7 +592,7 @@ This removes handlers. The nowhen boolean, when true, will leave the when handle
         // easy case -- check for equality of reference
         if (fun instanceof Handler) {
             _":remove Handler"
-            emitter.log("handler for event removed" +  ev + " :: " + (fun.name || "") );
+            emitter.log("handler for event removed " +  ev + " :: " + (fun.name || "") );
             return emitter;
         }
 
@@ -599,7 +600,7 @@ This removes handlers. The nowhen boolean, when true, will leave the when handle
         // harder -- check for handler whose value is one of these
         if (typeof fun === "function" || Array.isArray(fun) || typeof fun === "string") {
             _":find and remove handler with matching value"
-            emitter.log("handler for event removed" +  ev);            
+            emitter.log("handler for event removed " +  ev);            
             return emitter;
         }
 
