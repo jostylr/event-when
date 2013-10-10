@@ -497,6 +497,64 @@ var records = {
                 emitter.emit("A");
                 emitter.emit("B");
             
+            },
+        ".when with later" : function () {
+            
+                var emitter = new EventWhen();
+                var key = '.when with later';
+            
+                emitter.name = key;
+            
+                var expected = [
+                    "A",
+                    "B",
+                    "E",
+                    "D",
+                    "C"
+                    ],
+                    actual = [];
+                
+                emitter.on("done", function () {
+                    var result;
+                
+                    result = Test.same(actual, expected);
+                    if (result === true ) {
+                       tester.emit("passed", key);
+                    } else {
+                        tester.emit("failed", {key:key, result:result});
+                    }    
+                });
+            
+                emitter.on("A", function () {
+                    actual.push("A");
+                });
+                emitter.on("B", function () {
+                    actual.push("B");
+                });
+                
+                emitter.on("C", function () {
+                    actual.push("C");
+                });
+                
+                emitter.on("D", function () {
+                    actual.push("D");
+                });
+                
+                emitter.on("E", function () {
+                    actual.push("E");
+                });
+                
+                emitter.when(["A", "B"], "C", {timing: "later"});
+                
+                emitter.when(["A", "B"], "D", {timing: "firstLater"});
+                
+                emitter.when(["A", "B"], "E");
+                
+                var temp = emitter.when(["A", "B", "C", "D", "E"], "done");
+                
+                emitter.emit("A");
+                emitter.emit("B");
+            
             }
 };
 

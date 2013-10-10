@@ -433,6 +433,58 @@ Does `.later` work?
     emitter.emit("B");
 
 
+## when async
+
+Does `.later` work for `.when`? 
+
+
+[key]()
+
+    .when with later
+
+[expected]()
+
+    A
+    B
+    E
+    D
+    C
+
+[code]()
+
+
+    emitter.on("A", function () {
+        actual.push("A");
+    });
+    emitter.on("B", function () {
+        actual.push("B");
+    });
+
+    emitter.on("C", function () {
+        actual.push("C");
+    });
+
+    emitter.on("D", function () {
+        actual.push("D");
+    });
+
+    emitter.on("E", function () {
+        actual.push("E");
+    });
+
+    emitter.when(["A", "B"], "C", {timing: "later"});
+
+    emitter.when(["A", "B"], "D", {timing: "firstLater"});
+
+    emitter.when(["A", "B"], "E");
+
+    var temp = emitter.when(["A", "B", "C", "D", "E"], "done");
+
+    emitter.emit("A");
+    emitter.emit("B");
+
+
+
 ## Async emitting
 
 This is a snippet that should be placed at the end of each async function. 
@@ -533,8 +585,10 @@ This is a simple test runner.
             "handler with two handles" : _"Handler with two handles*test template",
             "canceling" : _"canceling*test template",
             "error checking" : _"error checking*test template",
-            "flow testing" : _"flow testing*test template"
+            "flow testing" : _"flow testing*test template",
+            ".when with later" : _"when async*test template"
     };
+
 
     tester.on("passed", _":passing");
 

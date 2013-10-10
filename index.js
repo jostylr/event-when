@@ -210,7 +210,7 @@ EvW.prototype.resume = function () {
             this.next(this.resume());
         } else if (waiting.length > 0) {
             emitter.nextTick(function () {
-                if (  (queue.length === 0) && (waiting.length > 0) ) {
+                if (waiting.length > 0)  {
                     queue.push(waiting.shift());
                 }
                 emitter.next(emitter.resume());
@@ -469,7 +469,7 @@ Tracker.prototype.add = function (args) {
             } else {
                 tracker.emitter.on(str, handle, order);
                 if (! (archive.hasOwnProperty(str) ) ) {
-                    tracker.data._archive[str] = [];
+                    archive[str] = [];
                 }
                 events[str] = num;
             }
@@ -534,10 +534,17 @@ Tracker.prototype.addData = function (eventData, event) {
             key;
     
         for (key in eventData) {
-            data[key] = eventData[key];
+            if (key !== "_archive") {
+                data[key] = eventData[key];
+            }
         }
     
-        data._archive[event].push(eventData);
+        if (data._archive.hasOwnProperty(event) ) {
+            data._archive[event].push(eventData);
+        } else {
+            console.log(event + " not in archive");
+            //console.log(tracker);
+        }
     
     };
 Tracker.prototype.cancel = function () {
@@ -602,7 +609,15 @@ Handler.prototype.execute = function (data, emitter, ev, that, args) {
                     cont = act.execute(data, emitter, that, args, ev);
                 } else if (emitter._handlers.hasOwnProperty(verb) ) {
                     emitter.log(ev + " --emitting: " + verb );
-                    emitter.emit(verb, data, handler.timing, true);
+                    if (handler.timing === "later") {
+                        emitter.later(verb, data);
+                    } else if (handler.timing === "firstLater") {
+                        emitter.later(verb, data, true);
+                    } else {        
+                        emitter.emit(verb, data, handler.timing, true);
+                    }
+                } else {
+                    emitter.log("Unknown string:" + verb);
                 }
             } else if (vtype === "function") {
                 cont = verb.call(that, data, emitter, args, ev);

@@ -277,7 +277,7 @@ We can add events on to the tracker. We allow it to be an array of events passed
                 } else {
                     tracker.emitter.on(str, handle, order);
                     if (! (archive.hasOwnProperty(str) ) ) {
-                        tracker.data._archive[str] = [];
+                        archive[str] = [];
                     }
                     events[str] = num;
                 }
@@ -347,10 +347,19 @@ When an event fires, that data gets merged in with all previous data for the emi
             key;
 
         for (key in eventData) {
-            data[key] = eventData[key];
+            if (key !== "_archive") {
+                data[key] = eventData[key];
+            }
         }
 
-        data._archive[event].push(eventData);
+        if (data._archive.hasOwnProperty(event) ) {
+            data._archive[event].push(eventData);
+        } else {
+            console.log(event + " not in archive");
+            //console.log(tracker);
+        }
+
+
 
     }
 
@@ -526,7 +535,7 @@ All of the handlers are encapsulated in a try...catch that then calls the emitte
 
 [string verb](# "js")
 
-The verb could be either an action, if it matches, or it is treated as an event to emit which allows one to pass in a timing event. It 
+The verb could be either an action, if it matches, or it is treated as an event. Handler.timing is a string that if equal to later, emits the event as a later and if firstLater, then emits later but first in queue. Anything else, including undefined, leads to .emit.
 
 An action is an instanceof Handler. So we call its execute method. Hope it is not self-referential...but if it is is the countExecute variable should stop infinity in its tracks.
 
@@ -535,7 +544,15 @@ An action is an instanceof Handler. So we call its execute method. Hope it is no
         cont = act.execute(data, emitter, that, args, ev);
     } else if (emitter._handlers.hasOwnProperty(verb) ) {
         emitter.log(ev + " --emitting: " + verb );
-        emitter.emit(verb, data, handler.timing, true);
+        if (handler.timing === "later") {
+            emitter.later(verb, data);
+        } else if (handler.timing === "firstLater") {
+            emitter.later(verb, data, true);
+        } else {        
+            emitter.emit(verb, data, handler.timing, true);
+        }
+    } else {
+        emitter.log("Unknown string:" + verb);
     }
 
 [make](# "js")
@@ -744,9 +761,9 @@ Clear queued up events. Each element of the queue is an array of the [event name
 
 This continues progress through the queue. We use either setTimeout (browser) or nextTick (node) to allow for other stuff to happen in between each 1000 calls.
 
-As this is called without context, we return the resume function with an explicit binding to the instance instead of this. 
+As this is called without context, we have bound the resume function to the emitter instance. 
 
-To handle "soon", we check to see if the current queue item has anything in the handler queue. If not, it loads it. 
+For the .later command, we use a waiting queue. As soon as next tick is called, it unloads the first one onto the queue, regardless of whether there is something else there. This ensures that we make progress through the queue. Well, assuming there is a next tick. 
 
      function () {
 
@@ -778,7 +795,7 @@ To handle "soon", we check to see if the current queue item has anything in the 
             this.next(this.resume());
         } else if (waiting.length > 0) {
             emitter.nextTick(function () {
-                if (  (queue.length === 0) && (waiting.length > 0) ) {
+                if (waiting.length > 0)  {
                     queue.push(waiting.shift());
                 }
                 emitter.next(emitter.resume());
@@ -1027,11 +1044,8 @@ Nifty!
 
 The simplest example of a handler is a function, but it could also be an action name, event string to be emitted, a Handler object, or an array of such things that could also contain arrays of the form `[that, fun, arg]` where `that` is the context, `fun` is the function to fire, and `arg` is some data to be passed into the third argument of `fun`. The first two arguments of `fun` are the data for the event and the emitter itself; there is a fourth argument that is the event string itself (which is surprisingly useful at times).
 
-* .emit(str event, [obj data], [str timing] ). Invokes all attached functions to Event, passing in the Data object, emitter object itself, and event string as the three arguments to the attached functions. The third argument in `.emit` can take arguments of
-	 * "immediate" Invokes the handlers for the emit immediately, before already queued events/handlers fire. 
-	 * "now" Queues the event and its current list of handlers for firing. Removing handlers to the event after the emit but before they fire will not affect the handlers that are fired. 
-	 * "soon"  Queues the event and loads the handlers for firing when it is the event's turn. This is the default behavior and is reasonable. Note that if in firing this event's handlers, the handlers get removed, they will still fire. 
-	 * "later" The event gets processed after nextTick/setTimeout (nodejs/browser)
+* .emit(str event, [obj data] ). Invokes all attached functions to Event, passing in the Data object, emitter object itself, and event string as the three arguments to the attached functions. 
+* .later(str event, [obj data], [bool first] ).  Queues the event for emitting on next tick (or so). If first is true, then it puts the event ahead of others in line for emitting. Other than timing, same as .emit.
 * .when([fired events], Handler,  options ) This has similar semantics as emit except the [fired events] array has a series of events that must occur (any order) before this event is emitted. The object data of each fired event is merged in with the others for the final data object -- the original is archived in the data object under `_archive`. This method returns a [tracker object](#tracker-object).
 
 	 Each fired event could be an array consisting of [event, number of times, bool first]. This allows for waiting for multiple times (such as waiting until a user clicks a button 10 times to intervene with anger management).  
@@ -1042,7 +1056,7 @@ The simplest example of a handler is a function, but it could also be an action 
 
     * that Will be the context for functions fired from ev
     * args Will be the arguments passed to such functions
-    * timing Is the timing passed to emitting events
+    * timing Is the timing passed to emitting events. later and firstLater togger .later and .later(...true),  respectively. No timing or anything else triggers .emit
     * reset Should the .when parameters be reset to the initial state once fired?
 
 * .on(str event, Handler--convertible, obj that, ? args, boolean first)  Attaches a Handler object to the string  Event. The Handler is returned. Anything convertible to a Handler can be in the second slot. The Handler will be called in the context of `that` with `args` passed in as one of the arguments if those are present. The boolean first if present and TRUE will lead to the handle being pushed in front of the current handlers on the event. 
