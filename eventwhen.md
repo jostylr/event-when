@@ -1,4 +1,4 @@
-# [event-when](# "version: 0.5.0| jostylr")
+# [event-when](# "version: 0.5.1| jostylr")
 
 This is my own little event library. It has most the usual methods and conventions, more or less. 
 
@@ -1143,8 +1143,7 @@ The requisite npm package file.
         "compile" : "node ./node_modules/literate-programming/bin/literate-programming.js eventwhen.md",
         "test" : "node ./test/testrunner.js"
       },
-      "keywords": ["event"],
-      "preferGlobal": "false"
+      "keywords": ["event"]
     }
 
 ## gitignore

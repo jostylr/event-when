@@ -1,7 +1,7 @@
 {
   "name": "event-when",
   "description": "An event library that allows for the blocking of event firing thus dealing with many-to-one event firing",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "homepage": "https://github.com/jostylr/event-when",
   "author": {
     "name": "James Taylor",
@@ -34,6 +34,5 @@
     "compile" : "node ./node_modules/literate-programming/bin/literate-programming.js eventwhen.md",
     "test" : "node ./test/testrunner.js"
   },
-  "keywords": ["event"],
-  "preferGlobal": "false"
+  "keywords": ["event"]
 }
