@@ -1,31 +1,25 @@
-# [event-when](# "version: 0.5.1| jostylr")
+# [event-when](# "version: 0.6.0-pre| jostylr")
 
 This is my own little event library. It has most the usual methods and conventions, more or less. 
 
 But the one feature that it has that I am not aware of in other libraries is the ability to fire an event after other events have fired. 
 
-As an example, let's say you need to read/parse a file and get some data from a database. Both events can happen in either order. Once both are done, then the message gets formed and sent. This is not handled well in most event libraries, as far as I know. But what if we had a method called `.emitWhen("all data retrieved", ["file parsed", "database returned"])` which is to mean to block the event "all data retrieved" until both events "file parsed" and "database returned" have fired. 
+As an example, let's say you need to read/parse a file and get some data from a database. Both events can happen in either order. Once both are done, then the message gets formed and sent. This is not handled well in most event libraries, as far as I know. But what if we had a method called `emitter.when("all data retrieved", ["file parsed", "database returned"])` which is to mean to block the event "all data retrieved" until both events "file parsed" and "database returned" have fired. 
 
-Some of the methods will return the emitter, but the ones involving handlers will return them instead. It ocurred to me that chaining of events does not seem that useful for event emitters. 
+Other notable differences include simple scoping of events and actions. 
 
-### Version 0.4.0 Thoughts
+Scoping of an event will fire only the handlers associated with that scope and the global event. So we can have monitors or general actions for the overarching level and then we can have particular actions at the scoped level. 
 
-The idea is to create an action sentence that invokes the handler. So we attach the sentence to the event and then stuff happens to that. The handler can be a function or it could be an array of functions, etc. The point of invocation is when the sentence is used as a key to get the handler. So this allows dynamism which could be good, could be bad. The hard work, I think, is to rewrite the handler calling to be abstracted out to another level. I probably need to introduce an object of type handler. 
+Actions are a string with associated functions or handler to fire. This is a great way to have a running log of event --> action. 
 
-### Version 0.5.0 Thoughts
-
-I have made a mess of the emit events. So here is the new paradigm. `.emit` is equivalent to a function call. It gets called immediately and its sequence of emits is followed as if they are function calls. The hope is that all the handlers of an event emitted from within an emitted event sequence wil be done completely before the rest of the original emit's handlers fire. 
-
-`.later` is asynchronous mode. It will emit the events, in the order queued, at the next tick. Each one happens after a next tick. So the entire sequence from one emit event will happen before the next `.later` is called. I think I will have an optional parameter to specify push vs unshift behavior with default being push. 
-
-Also, adding use of emitter.name in logs as well as numbering the emits called for a given event. The string form for a handler will also lead to a log event if no action/event fits. 
+Please note that no effort at efficiency has been made. This is about making it easier to develop the flow of an application. If you need something that handles large number of events quickly, this may not be the right library. 
 
 ## Files
 
 The file structure is fairly simple. 
 
 * [index.js](#main "save:|jshint") This is the node module entry point and only relevant file. It is a small file.
-* [README.md](#readme "save:| clean raw") The standard README.
+* [README.md](#readme "save: | clean raw ") The standard README.
 * [package.json](#npm-package "save: json  | jshint") The requisite package file for a npm project. 
 * [TODO.md](#todo "save: | clean raw") A list of growing and shrinking items todo.
 * [LICENSE](#license-mit "save: | clean raw") The MIT license.
@@ -58,17 +52,25 @@ This is the main structure of the module file.
 
 This manages an event emitter.
 
-We use (not)private variables `_handlers` and `_queue` for the, well, handlers and queue of currently firing events. 
+We use (not)private variables:
+
+* `_handlers` has key:value of `event:[handler1, handler2,..]` and will fire them in that order. 
+* `_queue` consists of events to be fired in this tick.
+* `_waiting` is the queue for events to be fired after next tick.
+* `_actions` has k:v of `action name: handler` The handler can be of type Handler or anything convertible to it. 
+*`_scopes` has k:v of `scope name: object` When an event is emitted with the given scope, the object will be passed in and only events scoped to that scope will fire. 
+* `scopeSep` is the scope separator in the event parsing. The default is `:`. We can have multiple levels; the top level is the global event. 
+* `count` tracks the number of events emitted. 
 
 We bind resume to the instance since it will be passed in without context to the next function. 
-
-
     function () {
 
         this._handlers = {};
         this._queue = [];
         this._waiting = [];
         this._actions = {};
+        this._scopes = {};
+        this.scopeSep = ":";
         this.count = 0;
         this.resumeCount = 0;
         this.name = "";
@@ -85,11 +87,11 @@ The various prototype methods on the event emitter.
 
     EvW.prototype.on = _"on";
     EvW.prototype.emit = _"emit";
-    EvW.prototype.later = _"emit later";
+    EvW.prototype.later = _"later";
     EvW.prototype.off = _"off";
     EvW.prototype.stop = _"stop";
     EvW.prototype.resume = _"resume";
-    EvW.prototype.when = _"emit when";
+    EvW.prototype.when = _"when";
     EvW.prototype.once = _"once";
 
     EvW.prototype.next =  _"next";
@@ -100,6 +102,7 @@ The various prototype methods on the event emitter.
     EvW.prototype.events = _"event listing";
     EvW.prototype.handlers = _"handlers for events";
     EvW.prototype.action = _"name an action";
+    EvW.prototype.scope = _"name a scope"
     EvW.prototype.makeHandler = _"handler:make";
     EvW.prototype.error = _"error handling";
 
@@ -110,51 +113,124 @@ This will emit an event and fire its handlers immediately. If Event A emits Even
 Given an event string, we run through the handlers, passing in the data to construct the array to be added to the queue. 
 
     function (ev, data) {
-        var emitter = this;
+        var emitter = this, 
+            sep = emitter.scopeSep;
+
+        emitter.log(emitter.name + " emitting: " + ev, arguments); 
+
+        var scopes = ev.split(sep);
 
         data = data || {};
-        var h = this._handlers[ev] || [];
-
         emitter.count += 1;
 
-        emitter._queue.unshift([ev, data, [].concat(h), emitter.count]);
+        var contexts = {}; 
+
+        var lev = "";
+        scopes = scopes.map(function (el) {
+            lev += (lev ? sep + el : el);
+            contexts[lev] = emitter.scope(lev);
+            return lev;
+        });
+
+        var record = {
+            ev : ev,
+            scopes : scopes, 
+            count : emitter.count,
+            contexts : contexts
+        };
+
+        scopes.forEach(function (el) {
+            var h = emitter._handlers[el] || [];
+            emitter._queue.unshift([el, data, [].concat(h), record]);
+        });
 
         this.next(this.resume());
+
+        return emitter;
     }
 
-### Emit Later
+[doc]() 
+
+    * `emitter.emit(str ev, obj data) --> emitter`. This will invoke the handlers associated with the event ev string immediately. The data object gets passed into the handler as does ev.  
+
+        Note that ev could be a scoped event. See [scopes](#scopes).
+
+        It returns the emitter for chaining. Note that the events will be (mostly) handled before the emitter is returned. 
+
+        ```
+        // plain event using data to say what happened
+        emitter.emit("button clicked", {id : "submit"});
+        // scoped event to have it passed around. Note that 
+        emitter.emit("button clicked:submit");
+        ```
+
+### Later
 
 This pushes the event, data, and handlers on the waiting queue. The boolean first allows for placing the emit at the head of the line. 
 
 We also attach the handlers here. 
-
-
+ 
     function (ev, data, first) {
-        var emitter = this,
-            evqu,
-            h;
-
-        data = data || {};
-        h = this._handlers[ev] || [];
+        var emitter = this, 
+            sep = emitter.scopeSep;
 
         emitter.log(emitter.name + " queuing: " + ev, arguments);
 
+        var scopes = ev.split(sep);
+
+        data = data || {};
         emitter.count += 1;
 
-        evqu = [ev, data, [].concat(h), emitter.count];
+        var contexts = {}; 
 
-        if (first) {
-            emitter._waiting.unshift(evqu ); 
-        } else {
-            emitter._waiting.push( evqu ); 
-        }
+        var lev = "";
+        scopes = scopes.map(function (el) {
+            lev += (lev ? sep + el : el);
+            contexts[lev] = emitter.scope(lev);
+            return lev;
+        });
+
+        var record = {
+            ev : ev,
+            scopes : scopes, 
+            count : emitter.count,
+            contexts : contexts
+        };
+
+        var type = (first ? "unshift" : "push");
+
+
+        scopes.forEach(function (el) {
+            var h = emitter._handlers[el] || [];
+            emitter._waiting[type]([el, data, [].concat(h), record]);
+        });
 
         this.next(this.resume());
+
+        return emitter;
     }
 
-### Emit When
 
-This is the key innovation. The idea is that once this is called, a handler is created that attaches to all the listed events and takes care of figuring when they have all called. 
+[doc]()
+
+    * `emitter.later(str ev, obj data, bool first) --> emitter`. This will queue the handlers associated with the event ev string. The data object gets passed into the handler as does ev.  
+
+        Note that ev could be a scoped event. See [scopes](#scopes).
+
+        It returns the emitter for chaining. Note that the events will not be handled before the emitter is returned. 
+
+        ```
+        // the events give the order. Note all are queued before any event is handled
+        var data = {enters: "dog"}
+        emitter.later("third", data);
+        emitter.later("second", data, true);
+        emitter.later("fourth", data);
+        emitter.later("first", data, true);
+        ```
+
+### When
+
+This is a key innovation. The idea is that once this is called, a handler is created that attaches to all the listed events and takes care of figuring when they have all called. 
 
 When all the events have fired, then `ev` fires. This should be of a handler type object. Strings are actions or events, depending on if they exist in either object. 
 
@@ -169,8 +245,9 @@ The third argument is an object of options:
 * timing Is the timing passed to emitting events
 * reset Should the .when parameters be reset to the initial state once fired?
 
-
 All options are optional.
+
+Emitting scoped events will count as a firing of the parent event, e.g., `.when([["button", 3], "disable")` will have `.emit("button:submit")` remove one of the button counts. But `.emit("button"` will not count for any `.when("button:submit")`. 
 
 
     function (events, ev, options) {    
@@ -214,6 +291,31 @@ We return the tracker since one should use that to remove it. If you want the ha
         return tracker;
     }
 
+[doc]()
+
+    * `.when([fired events], Handler,  options ) --> tracker` This will track the firing of events. When all the events have fired, then the Handler gets fired. 
+
+        The first argument can be a string for firing after a single event. But most of the time it should be an array of events and/or numbered events ( an array consisting of [event, number of times, bool first] ). Numbered events allows for counting down a certain number of times before acting. Ordering of the fired events is ignored.
+
+        The second argument can be any [Handler-type](#handler-object). In particular, it can be an action string, an event string, a function, or a Handler consisting of those things.
+
+        The data object that is given to the Handler is constructed out of the data of the fired events. In particular, each data object is merged with the later ones overwriting any common keys. All of the data objects are stored in the special key `_archive`.
+            
+        The options argument has the following useful keys: 
+
+        * `that` Will be the context for functions fired from the Handler. It has no effect for emitted events. 
+        * `args` Will be the arguments passed to any functions firing. It has no effect for emitted events. 
+        * `timing` Is the timing passed to emitting events. later and firstLater trigger .later and .later(...true),  respectively. No timing or anything else triggers .emit
+        * reset Should the .when parameters be reset to the initial state once fired? 
+
+        This method returns a [tracker object](#tracker-object).
+
+        ```
+        //have two events trigger the calling of action compile page
+        emitter.when(["file read:dog.txt", "db returned:Kat"], "compile page");
+        //have two events trigger the emitting of all data retrieved
+        emitter.when(["file read:dog.txt", "db returned:Kat"], "all data retrieved:dog.txt+Kat");
+        ```
 
 
 #### Tracker 
@@ -519,7 +621,7 @@ All of the handlers are encapsulated in a try...catch that then calls the emitte
                 } else if (vtype === "function") {
                     cont = verb.call(that, data, emitter, args, ev);
                 } else if (verb instanceof Handler) {
-                    cont = verb.execute(data, emitter, that, args, ev);
+                    cont = verb.execute(data, emitter, ev, that, args);
                 } else if (Array.isArray(verb) ) {
                     cont = verb[1].call(verb[0] || that, data, emitter, verb[2] || args, ev);
                 }
@@ -542,7 +644,7 @@ An action is an instanceof Handler. So we call its execute method. Hope it is no
 
     if (  (act = emitter.action(verb)) ) {
         emitter.log(ev + " --> " + verb);
-        cont = act.execute(data, emitter, that, args, ev);
+        cont = act.execute(data, emitter, ev, args, that);
     } else if (emitter._handlers.hasOwnProperty(verb) ) {
         emitter.log(ev + " --emitting: " + verb );
         if (handler.timing === "later") {
@@ -788,10 +890,10 @@ For the .later command, we use a waiting queue. As soon as next tick is called, 
                 queue.shift();
             }
             if (f) {
-                emitter.log(emitter.name + " firing "+ f.name + " for " + ev + "::" + which);
-                cont = f.execute(data, emitter, ev);
+                emitter.log(emitter.name + " firing "+ f.name + " for " + ev + "::" + which.count);
+                cont = f.execute(data, emitter, ev, which);
                 _":do we halt event emission"
-                emitter.log(emitter.name + " firED " + f.name+ " for " + ev + "::" + which);
+                emitter.log(emitter.name + " firED " + f.name+ " for " + ev + "::" + which.count);
             }
             this.next(this.resume());
         } else if (waiting.length > 0) {
@@ -892,7 +994,7 @@ If two arguments are provided, but the second is null, then this is a signal to 
         if ( (arguments.length === 2) && (handler === null) ) {
             delete emitter._actions[name];
             emitter.log("Removed action " + name);
-            return false;
+            return name;
         }
         
         var action = new Handler(handler, {that:that, args:args, name: name}); 
@@ -907,6 +1009,57 @@ If two arguments are provided, but the second is null, then this is a signal to 
     }
 
 We return the name so that one can define an action and then use it. 
+
+### Name a scope
+
+The usefulness of scopes is twofold. One, it allows for a hierarchial calling of events, such as bubbling in the browser (well, bubbling down, I suppose). But the other use is in having scope-related objects that one can access. That is, context is given from an event perspective. So instead of each button listening for an event, we can have each event retaining a reference to the button. 
+
+This is where we define the function for adding/removing that context. Given an event string and a non-null value, that value will be stored under that string. A null value removes the string from the event. If there is no second argument, then the scope object is returned. 
+
+We return the event name so that it can then be used for something else. 
+
+    function (ev, context) {
+        var emitter = this;
+
+        if (arguments.length === 1) {
+            return emitter._scopes[ev];
+        }
+
+        if ( (arguments.length === 2) && (handler === null) ) {
+            delete emitter._scopes[ev];
+            emitter.log("Removed scope of event " + ev);
+            return ev;
+        }
+        
+        var scope = context;
+
+        if (emitter._scopes.hasOwnProperty(ev) ) {
+            emitter.log("Overwriting scope " + ev);
+        }
+
+        emitter._scopes[ev] = scope;
+
+        return ev;
+    }
+
+[doc]()
+
+    * `.scope(str ev, context) --> ev` This manages context for the scoped event ev. 
+
+        * Given event ev and anything context, the context will be associated with the event ev. 
+        * `.scope(str ev) --> context` Given just event ev, its associated context is returned. 
+        * `.scope(str ev, null) --> ev` Given event ev and null as second argument, the context for ev is removed. 
+
+        ```
+        // stores reference to button element
+        emitter.scope("button:submit", submitButton);
+        // returns submitButton
+        emitter.scope("button:submit");
+        //overwrites submitButton
+        emitter.scope("button:submit", popupWarning);
+        //removes scope button:submit
+        emitter.scope("button:submit", null);
+        ```
 
 ### Event listing
 
@@ -1025,7 +1178,6 @@ Logs everything, storing the result in the function itself under the name log. T
 
 ## README
 
-
  ##event-when  [![Build Status](https://travis-ci.org/jostylr/event-when.png)](https://travis-ci.org/jostylr/event-when)
 
 Install using `npm install event-when`
@@ -1049,9 +1201,9 @@ The simplest example of a handler is a function, but it could also be an action 
 * .later(str event, [obj data], [bool first] ).  Queues the event for emitting on next tick (or so). If first is true, then it puts the event ahead of others in line for emitting. Other than timing, same as .emit.
 * .when([fired events], Handler,  options ) This has similar semantics as emit except the [fired events] array has a series of events that must occur (any order) before this event is emitted. The object data of each fired event is merged in with the others for the final data object -- the original is archived in the data object under `_archive`. This method returns a [tracker object](#tracker-object).
 
-	 Each fired event could be an array consisting of [event, number of times, bool first]. This allows for waiting for multiple times (such as waiting until a user clicks a button 10 times to intervene with anger management).  
+	Each fired event could be an array consisting of [event, number of times, bool first]. This allows for waiting for multiple times (such as waiting until a user clicks a button 10 times to intervene with anger management).  
 
-	 The second argument can be any [Handler-type](#handler-object). 
+	The second argument can be any [Handler-type](#handler-object). 
 	 	
     The options argument has the following useful keys: 
 
@@ -1145,6 +1297,26 @@ The requisite npm package file.
       },
       "keywords": ["event"]
     }
+
+## Change Log
+
+### Version 0.6.0 Thoughts
+
+At the very least, better documentation. I wrote this thing and find it hard to figure out how to use it the way I want to. But I also think there might be some inaccuracies. So I hope to fix this up. 
+
+What I want is a very clear ability to use actions. I am also wondering about scoping it. One could have separate event emitters or perhaps we can use one which scopes an event to something, which could be a key string with an object value that becomes available somehow. 
+
+### Version 0.5.0 Thoughts
+
+I have made a mess of the emit events. So here is the new paradigm. `.emit` is equivalent to a function call. It gets called immediately and its sequence of emits is followed as if they are function calls. The hope is that all the handlers of an event emitted from within an emitted event sequence wil be done completely before the rest of the original emit's handlers fire. 
+
+`.later` is asynchronous mode. It will emit the events, in the order queued, at the next tick. Each one happens after a next tick. So the entire sequence from one emit event will happen before the next `.later` is called. I think I will have an optional parameter to specify push vs unshift behavior with default being push. 
+
+Also, adding use of emitter.name in logs as well as numbering the emits called for a given event. The string form for a handler will also lead to a log event if no action/event fits. 
+
+### Version 0.4.0 Thoughts
+
+The idea is to create an action sentence that invokes the handler. So we attach the sentence to the event and then stuff happens to that. The handler can be a function or it could be an array of functions, etc. The point of invocation is when the sentence is used as a key to get the handler. So this allows dynamism which could be good, could be bad. The hard work, I think, is to rewrite the handler calling to be abstracted out to another level. I probably need to introduce an object of type handler. 
 
 ## gitignore
 

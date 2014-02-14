@@ -1,13 +1,14 @@
 /*global require, console*/
 var EventWhen = require('../index.js'),
     emitter = new EventWhen(), 
-    glob = {};
+    glob = {glob:"hi"};
 
 emitter.makeLog();
 
-emitter.action("firing test 2", function (data, emitter, args) {
+emitter.action("firing test 2", function (data, emitter, ev, args) {
     var g = this;
     g.record = 2;
+    console.log("g", g, "data", data, "ev", ev, "args", args);
     emitter.emit("test 2 fired", [data.msg, args.recipient]);
 });
 

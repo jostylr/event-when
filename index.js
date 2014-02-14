@@ -5,6 +5,8 @@ var EvW = function () {
         this._queue = [];
         this._waiting = [];
         this._actions = {};
+        this._scopes = {};
+        this.scopeSep = ":";
         this.count = 0;
         this.resumeCount = 0;
         this.name = "";
@@ -35,38 +37,78 @@ EvW.prototype.on = function (ev, f, that, args, first) {
 
 };
 EvW.prototype.emit = function (ev, data) {
-        var emitter = this;
+        var emitter = this, 
+            sep = emitter.scopeSep;
+    
+        emitter.log(emitter.name + " emitting: " + ev, arguments); 
+    
+        var scopes = ev.split(sep);
     
         data = data || {};
-        var h = this._handlers[ev] || [];
-    
         emitter.count += 1;
     
-        emitter._queue.unshift([ev, data, [].concat(h), emitter.count]);
+        var contexts = {}; 
+    
+        var lev = "";
+        scopes = scopes.map(function (el) {
+            lev += (lev ? sep + el : el);
+            contexts[lev] = emitter.scope(lev);
+            return lev;
+        });
+    
+        var record = {
+            ev : ev,
+            scopes : scopes, 
+            count : emitter.count,
+            contexts : contexts
+        };
+    
+        scopes.forEach(function (el) {
+            var h = emitter._handlers[el] || [];
+            emitter._queue.unshift([el, data, [].concat(h), record]);
+        });
     
         this.next(this.resume());
+    
+        return emitter;
     };
 EvW.prototype.later = function (ev, data, first) {
-        var emitter = this,
-            evqu,
-            h;
-    
-        data = data || {};
-        h = this._handlers[ev] || [];
+        var emitter = this, 
+            sep = emitter.scopeSep;
     
         emitter.log(emitter.name + " queuing: " + ev, arguments);
     
+        var scopes = ev.split(sep);
+    
+        data = data || {};
         emitter.count += 1;
     
-        evqu = [ev, data, [].concat(h), emitter.count];
+        var contexts = {}; 
     
-        if (first) {
-            emitter._waiting.unshift(evqu ); 
-        } else {
-            emitter._waiting.push( evqu ); 
-        }
+        var lev = "";
+        scopes = scopes.map(function (el) {
+            lev += (lev ? sep + el : el);
+            contexts[lev] = emitter.scope(lev);
+            return lev;
+        });
+    
+        var record = {
+            ev : ev,
+            scopes : scopes, 
+            count : emitter.count,
+            contexts : contexts
+        };
+    
+        var type = (first ? "unshift" : "push");
+    
+        scopes.forEach(function (el) {
+            var h = emitter._handlers[el] || [];
+            emitter._waiting[type]([el, data, [].concat(h), record]);
+        });
     
         this.next(this.resume());
+    
+        return emitter;
     };
 EvW.prototype.off = function (ev, fun, nowhen) {
     
@@ -200,12 +242,12 @@ EvW.prototype.resume = function () {
                 queue.shift();
             }
             if (f) {
-                emitter.log(emitter.name + " firing "+ f.name + " for " + ev + "::" + which);
-                cont = f.execute(data, emitter, ev);
+                emitter.log(emitter.name + " firing "+ f.name + " for " + ev + "::" + which.count);
+                cont = f.execute(data, emitter, ev, which);
                 if ( (cont === false) && (cur === queue[0]) ) {
                     queue.shift(); 
                 }
-                emitter.log(emitter.name + " firED " + f.name+ " for " + ev + "::" + which);
+                emitter.log(emitter.name + " firED " + f.name+ " for " + ev + "::" + which.count);
             }
             this.next(this.resume());
         } else if (waiting.length > 0) {
@@ -407,7 +449,7 @@ EvW.prototype.action = function (name, handler, that, args) {
         if ( (arguments.length === 2) && (handler === null) ) {
             delete emitter._actions[name];
             emitter.log("Removed action " + name);
-            return false;
+            return name;
         }
         
         var action = new Handler(handler, {that:that, args:args, name: name}); 
@@ -420,6 +462,29 @@ EvW.prototype.action = function (name, handler, that, args) {
     
         return name;
     };
+EvW.prototype.scope = function (ev, context) {
+        var emitter = this;
+    
+        if (arguments.length === 1) {
+            return emitter._scopes[ev];
+        }
+    
+        if ( (arguments.length === 2) && (handler === null) ) {
+            delete emitter._scopes[ev];
+            emitter.log("Removed scope of event " + ev);
+            return ev;
+        }
+        
+        var scope = context;
+    
+        if (emitter._scopes.hasOwnProperty(ev) ) {
+            emitter.log("Overwriting scope " + ev);
+        }
+    
+        emitter._scopes[ev] = scope;
+    
+        return ev;
+    }
 EvW.prototype.makeHandler = function (value, options) {
         return new Handler(value, options);
     };
@@ -607,7 +672,7 @@ Handler.prototype.execute = function (data, emitter, ev, that, args) {
             if (vtype === "string") {
                 if (  (act = emitter.action(verb)) ) {
                     emitter.log(ev + " --> " + verb);
-                    cont = act.execute(data, emitter, that, args, ev);
+                    cont = act.execute(data, emitter, ev, args, that);
                 } else if (emitter._handlers.hasOwnProperty(verb) ) {
                     emitter.log(ev + " --emitting: " + verb );
                     if (handler.timing === "later") {
@@ -623,7 +688,7 @@ Handler.prototype.execute = function (data, emitter, ev, that, args) {
             } else if (vtype === "function") {
                 cont = verb.call(that, data, emitter, args, ev);
             } else if (verb instanceof Handler) {
-                cont = verb.execute(data, emitter, that, args, ev);
+                cont = verb.execute(data, emitter, ev, that, args);
             } else if (Array.isArray(verb) ) {
                 cont = verb[1].call(verb[0] || that, data, emitter, verb[2] || args, ev);
             }
