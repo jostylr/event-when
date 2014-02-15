@@ -37,42 +37,24 @@ EvW.prototype.on = function (ev, f, that, args, first) {
 
 };
 EvW.prototype.emit = function (ev, data) {
-        var emitter = this, 
-            sep = emitter.scopeSep;
-    
-        emitter.log(emitter.name + " emitting: " + ev, arguments); 
-    
-        var scopes = ev.split(sep);
-    
-        data = data || {};
-        emitter.count += 1;
-    
-        var contexts = {}; 
-    
-        var lev = "";
-        scopes = scopes.map(function (el) {
-            lev += (lev ? sep + el : el);
-            contexts[lev] = emitter.scope(lev);
-            return lev;
-        });
-    
-        var record = {
-            ev : ev,
-            scopes : scopes, 
-            count : emitter.count,
-            contexts : contexts
-        };
-    
-        scopes.forEach(function (el) {
-            var h = emitter._handlers[el] || [];
-            emitter._queue.unshift([el, data, [].concat(h), record]);
-        });
-    
-        this.next(this.resume());
-    
+        var emitter = this;
+        emitter.log("emitting", ev, data);
+        emitter._emit(ev, data, "_queue", "unshift");
         return emitter;
     };
 EvW.prototype.later = function (ev, data, first) {
+        var emitter = this;
+        if (first) {
+            emitter.log("queuing first", ev, data);
+            emitter._emit(ev, data, "_waiting", "unshift");
+        } else {
+            emitter.log("queuing last", ev, data);
+            emitter._emit(ev, data, "_waiting", "push");
+        }
+        return emitter;
+    }
+    
+    function (ev, data, first) {
         var emitter = this, 
             sep = emitter.scopeSep;
     
@@ -222,7 +204,7 @@ EvW.prototype.stop = function (a) {
     };
 EvW.prototype.resume = function () {
     
-        var q, f, ev, data, cont, cur, which,  
+        var q, f, ev, data, cont, cur, scopes,  
             emitter = this,
             queue = emitter._queue,
             waiting = emitter._waiting; 
@@ -236,11 +218,14 @@ EvW.prototype.resume = function () {
             ev = cur[0];
             data = cur[1];
             q = cur[2];
-            which = cur[3];
-            f = q.shift();
+            scopes = cur[3];
+            
             if (q.length === 0) {
-                queue.shift();
+                // put in scope check
+                
+                queue.shift();            
             }
+            f = q.shift();
             if (f) {
                 emitter.log(emitter.name + " firing "+ f.name + " for " + ev + "::" + which.count);
                 cont = f.execute(data, emitter, ev, which);
