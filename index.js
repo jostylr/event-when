@@ -36,33 +36,16 @@ EvW.prototype.on = function (ev, f, that, args, first) {
     return f;
 
 };
-EvW.prototype.emit = function (ev, data) {
-        var emitter = this;
-        emitter.log("emitting", ev, data);
-        emitter._emit(ev, data, "_queue", "unshift");
-        return emitter;
-    };
-EvW.prototype.later = function (ev, data, first) {
-        var emitter = this;
-        if (first) {
-            emitter.log("queuing first", ev, data);
-            emitter._emit(ev, data, "_waiting", "unshift");
-        } else {
-            emitter.log("queuing last", ev, data);
-            emitter._emit(ev, data, "_waiting", "push");
-        }
-        return emitter;
-    }
-    
-    function (ev, data, first) {
+EvW.prototype.emit = function (ev, data, myth, type) {
         var emitter = this, 
             sep = emitter.scopeSep;
     
-        emitter.log(emitter.name + " queuing: " + ev, arguments);
+        type = type || "now";
+    
+        emitter.log("emit", ev, type, data, myth);
     
         var scopes = ev.split(sep);
     
-        data = data || {};
         emitter.count += 1;
     
         var contexts = {}; 
@@ -74,22 +57,69 @@ EvW.prototype.later = function (ev, data, first) {
             return lev;
         });
     
-        var record = {
+        var evObj = {
             ev : ev,
+            data : data,
             scopes : scopes, 
             count : emitter.count,
-            contexts : contexts
+            contexts : contexts,
+            type : type
         };
     
-        var type = (first ? "unshift" : "push");
+        var events = evObj.events = [];
     
         scopes.forEach(function (el) {
-            var h = emitter._handlers[el] || [];
-            emitter._waiting[type]([el, data, [].concat(h), record]);
-        });
+           var h = emitter._handlers[el];
+           if (h) {
+                //shifting does the bubbling up
+               events.shift([el, h.slice()]);
+           }
+        }); 
     
-        this.next(this.resume());
+        emitter.loadEvent(type, evObj);
     
+        this.resume();
+    
+        return emitter;
+    };
+EvW.prototype.eventLoader = function (type, evObj) {
+        var emitter = this;
+    
+        switch (type) {
+            case "now" :
+                emitter._queue.unshift(evObj);
+            break;
+            case "later" :
+                emitter._waiting.push(evObj);
+            break;
+            case "soon" : 
+                emitter._waiting.unshift(evObj);
+            break;
+            case "momentary" :
+                emitter._queue.push(evObj);
+            break;
+            default : 
+                emitter._queue.unshift(evObj);
+        }
+    };
+EvW.prototype.now = function (ev, data, myth) {
+        var emitter = this;
+        emitter.emit(ev, data, myth, "now");
+        return emitter;
+    };
+EvW.prototype.momentary = function (ev, data, myth) {
+        var emitter = this;
+        emitter.emit(ev, data, myth, "momentary");
+        return emitter;
+    };
+EvW.prototype.soon = function (ev, data, myth) {
+        var emitter = this;
+        emitter.emit(ev, data, myth, "soon");
+        return emitter;
+    };
+EvW.prototype.later = function (ev, data, myth) {
+        var emitter = this;
+        emitter.emit(ev, data, myth, "later");
         return emitter;
     };
 EvW.prototype.off = function (ev, fun, nowhen) {
@@ -204,37 +234,57 @@ EvW.prototype.stop = function (a) {
     };
 EvW.prototype.resume = function () {
     
-        var q, f, ev, data, cont, cur, scopes,  
+        counters.resume += 1;
+    
+        var q, f, ev, evhan, data, cont, cur, evObj, events, 
             emitter = this,
             queue = emitter._queue,
-            waiting = emitter._waiting; 
+            waiting = emitter._waiting, 
+            resume = emitter.resume,
+            counters = emitter.counters; 
     
         // emitter.log("events on queue", queue.length+waiting.length, queue, waiting);
-        emitter.countExecute = 0;
-        emitter.resumeCount += 1;
+        counters.execute = 0;
     
-        if (queue.length >0) {
+        while ( (queue.length > 0 ) ) {
             cur = queue[0];
+            events = cur.events;
+    
+            while ( (events.length > 0) && (counters.loop <= counters.loopMax) ) {
+                counters.loop += 1;
+                ev = events.[0];
+                f = events.
+                f.execute 
+            } 
+    
             ev = cur[0];
             data = cur[1];
             q = cur[2];
-            scopes = cur[3];
+            evObj = cur[3];
             
             if (q.length === 0) {
                 // put in scope check
-                
-                queue.shift();            
+                if (evObj.events.length > 0) {
+                    if (evObj.q === "_queue") {
+                        queue[0] = evObj.events.pop();
+                    } else {
+                        emitter[evObj.q][evObj.action](evObj.events.pop());
+                    }
+                } else {
+                    queue.shift();            
+                }
             }
+    
             f = q.shift();
             if (f) {
-                emitter.log(emitter.name + " firing "+ f.name + " for " + ev + "::" + which.count);
-                cont = f.execute(data, emitter, ev, which);
+                emitter.log("firing", f.name, ev, evObj);
+                cont = f.execute(data, emitter, ev, evObj);
                 if ( (cont === false) && (cur === queue[0]) ) {
                     queue.shift(); 
                 }
-                emitter.log(emitter.name + " firED " + f.name+ " for " + ev + "::" + which.count);
+                emitter.log("fired", f.name,  ev, evObj);
             }
-            this.next(this.resume());
+            emitter.next(emitter.resume());
         } else if (waiting.length > 0) {
             emitter.nextTick(function () {
                 if (waiting.length > 0)  {
@@ -469,7 +519,7 @@ EvW.prototype.scope = function (ev, context) {
         emitter._scopes[ev] = scope;
     
         return ev;
-    }
+    };
 EvW.prototype.makeHandler = function (value, options) {
         return new Handler(value, options);
     };
@@ -639,15 +689,16 @@ Handler.prototype.execute = function (data, emitter, ev, that, args) {
         value = handler.value,
         i, n = value.length, 
         verb, vtype, act, 
-        cont = true;
+        cont = true, 
+        counters = emitter.counters;
     that = handler.that || that || null, 
     args = handler.args || args || null;
 
-    if (emitter.countExecute > emitter.maxExecute) {
+    if (counters.execute > counters.executeMax) {
         emitter.log("Exceeded max execute limit in one call", ev);
         return false;
     } else {
-        emitter.countExecute += 1;
+        counters.execute += 1;
     }
 
     for (i = 0; i <n; i += 1) {

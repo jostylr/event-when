@@ -20,9 +20,9 @@ The file structure is fairly simple.
 
 * [index.js](#main "save:|jshint") This is the node module entry point and only relevant file. It is a small file.
 * [examples/full.js](#full-example "save: |jshint")
-* [README.md](#readme "save: | clean raw ") The standard README.
+* [README](#readme "save: | clean raw ") The standard README.
 * [package.json](#npm-package "save: json  | jshint") The requisite package file for a npm project. 
-* [TODO.md](#todo "save: | clean raw") A list of growing and shrinking items todo.
+* [TODO](#todo "save: | clean raw") A list of growing and shrinking items todo.
 * [LICENSE](#license-mit "save: | clean raw") The MIT license.
 * [.travis.yml](#travis "save:") A .travis.yml file for [Travis CI](https://travis-ci.org/)
 * [.gitignore](#gitignore "Save:") A .gitignore file
@@ -88,7 +88,11 @@ The various prototype methods on the event emitter.
 
     EvW.prototype.on = _"on";
     EvW.prototype.emit = _"emit";
-    EvW.prototype.later = _"later";
+    EvW.prototype.eventLoader = _"event loader";
+    EvW.prototype.now = _"emit:convenience method| substitute(TYPE, now)";
+    EvW.prototype.momentary = _"emit:convenience method| substitute(TYPE, momentary)";
+    EvW.prototype.soon = _"emit:convenience method| substitute(TYPE, soon)";
+    EvW.prototype.later = _"emit:convenience method| substitute(TYPE, later)";
     EvW.prototype.off = _"off";
     EvW.prototype.stop = _"stop";
     EvW.prototype.resume = _"resume";
@@ -103,19 +107,24 @@ The various prototype methods on the event emitter.
     EvW.prototype.events = _"event listing";
     EvW.prototype.handlers = _"handlers for events";
     EvW.prototype.action = _"name an action";
-    EvW.prototype.scope = _"name a scope"
+    EvW.prototype.scope = _"name a scope";
     EvW.prototype.makeHandler = _"handler:make";
     EvW.prototype.error = _"error handling";
 
-### Emission
+### Emit
 
 This function is the core of both emit and later. 
 
-First it gets an array of the various scope level events and loads their context objects. Then we create an array from that, with the most specific event first, that loads up the handlers for each event and gets ready to put the 
+First it gets an array of the various scope level events and loads their context objects. We create the event object which holds all relevant bits for this event call. 
 
-    function (ev, data, q, action) {
+
+    function (ev, data, myth, type) {
         var emitter = this, 
             sep = emitter.scopeSep;
+
+        type = type || "now";
+
+        emitter.log("emit", ev, type, data, myth);
 
         var scopes = ev.split(sep);
 
@@ -132,57 +141,56 @@ First it gets an array of the various scope level events and loads their context
 
         var evObj = {
             ev : ev,
+            data : data,
             scopes : scopes, 
             count : emitter.count,
             contexts : contexts,
-            q : q
-            action : action
+            type : type
         };
 
-        var evObj.events = scopes.
-            slice(). 
-            reverse(). 
-            map(function (el) {
-               var h = emitter._handlers[el] || [];
-               return [el, data, [].concat(h), evObj];
-            }); 
+        var events = evObj.events = [];
 
+        scopes.forEach(function (el) {
+           var h = emitter._handlers[el];
+           if (h) {
+                //shifting does the bubbling up
+               events.shift([el, h.slice()]);
+           }
+        }); 
 
-        emitter[q][action](events.pop());
+        emitter.loadEvent(type, evObj);
 
-        this.next(this.resume());
-    }
+        this.resume();
 
-
-### Emit
-
-This will emit an event and fire its handlers immediately. If Event A emits Event B, then B's handlers should all fire before the rest of Event A does. To make sure of this, we unshift the queue of handlers waiting. 
-
-Given an event string, we run through the handlers, passing in the data to construct the array to be added to the queue. 
-
-    function (ev, data) {
-        var emitter = this;
-        emitter.log("emitting", ev, data);
-        emitter._emit(ev, data, "_queue", "unshift");
         return emitter;
     }
+
 
 [doc]() 
 
     ---
     <a name="emit" />
-    ### emit(str ev, obj data) --> emitter
+    ### emit(str ev, obj data, obj myth, str type) --> emitter
 
-    Emit the event immediately.
+    Emit the event.  
 
     __arguments__
 
     * `ev`  A string that denotes the event. 
-    * `data` Any value. It will be passed into the handler. 
+    * `data` Any value. It will be passed into the handler. Expected to be JSONable; great for logging. Think properties.
+    * `myth` Also any value. Expected to be an object of functions, think methods or messy state objects. 
+    * `type` One of "now", "momentary", "soon", "later" implying emission first on queue, last on queue, first on next cycle, last on next cycle, respectively. Now is the default if not provided. 
 
     __return__
 
-    The emitter for chaining. Note that the event and its .emit descendants will all be dealt with before the return statement is executed. 
+    The emitter for chaining. The events may or may not be already emitted depending on the timing. 
+
+    __convenience forms__ 
+
+    * `.now`  Event A emits B, B fires before A finishes.
+    * `.momentary` Event A emits B, B fires after A finishes.
+    * `.soon` Event A emits B then C both with soon, then C fires after next tick. B fires after second tick.
+    * `.later` Event A emits B then C both with later, then B fires after next tick. C fires after second tick.
 
     __scope__ 
     Note that if ev contains the [event separator](#event-separator) then it will be broken up into multiple events, each one being emitted. The order of emission is from the most specific to the general (bubbling up). 
@@ -196,89 +204,62 @@ Given an event string, we run through the handlers, passing in the data to const
 [example]()
 
     // event with no data 
-    emitter.emit("no data passed in");
+    emitter.now("no data passed in");
     // plain event using data to say what happened
-    emitter.emit("got data", {dog : "fifi"});
-    // scoped event to have it passed around, `got data:dogs` called first, then `got data`
-    emitter.emit("got data:dogs", ["fifi", "barney"]);
+    emitter.now("got data", {dog : "fifi"});
+    // scoped event to have it passed around, 
+    // `got data:dogs` called first, then `got data`
+    // both data and a myth object passed in
+    emitter.now("got data:dogs",
+         ["fifi", "barney"], 
+         {dog: function (name) {return "great, "+name;} }
+    );
     // data need not be an object
-    emitter.emit("got a string", "hey there");
+    emitter.now("got a string", "hey there");
 
-### Later
+    // the events give the order. Note all are queued before any event is handled
+    var data = {enters: "dog"}
+    emitter.later("third", data);
+    emitter.later("second", data, true);
+    emitter.later("fourth", data);
+    emitter.later("first", data, true);
 
-This pushes the event, data, and handlers on the waiting queue. The boolean first allows for placing the emit at the head of the line. 
+[convenience method]()
 
-We also attach the handlers here. 
- 
-    function (ev, data, first) {
+This makes the now, later, ... methods. TYPE gets replaced with the type. That's it!
+
+    function (ev, data, myth) {
         var emitter = this;
-        if (first) {
-            emitter.log("queuing first", ev, data);
-            emitter._emit(ev, data, "_waiting", "unshift");
-        } else {
-            emitter.log("queuing last", ev, data);
-            emitter._emit(ev, data, "_waiting", "push");
+        emitter.emit(ev, data, myth, "TYPE");
+        return emitter;
+    }
+
+
+### Event Loader
+
+This loads the event object in the appropriate queue. 
+
+    function (type, evObj) {
+        var emitter = this;
+
+        switch (type) {
+            case "now" :
+                emitter._queue.unshift(evObj);
+            break;
+            case "later" :
+                emitter._waiting.push(evObj);
+            break;
+            case "soon" : 
+                emitter._waiting.unshift(evObj);
+            break;
+            case "momentary" :
+                emitter._queue.push(evObj);
+            break;
+            default : 
+                emitter._queue.unshift(evObj);
         }
-        return emitter;
     }
 
-    function (ev, data, first) {
-        var emitter = this, 
-            sep = emitter.scopeSep;
-
-        emitter.log(emitter.name + " queuing: " + ev, arguments);
-
-        var scopes = ev.split(sep);
-
-        data = data || {};
-        emitter.count += 1;
-
-        var contexts = {}; 
-
-        var lev = "";
-        scopes = scopes.map(function (el) {
-            lev += (lev ? sep + el : el);
-            contexts[lev] = emitter.scope(lev);
-            return lev;
-        });
-
-        var record = {
-            ev : ev,
-            scopes : scopes, 
-            count : emitter.count,
-            contexts : contexts
-        };
-
-        var type = (first ? "unshift" : "push");
-
-
-        scopes.forEach(function (el) {
-            var h = emitter._handlers[el] || [];
-            emitter._waiting[type]([el, data, [].concat(h), record]);
-        });
-
-        this.next(this.resume());
-
-        return emitter;
-    }
-
-
-[doc]()
-
-    * `emitter.later(str ev, obj data, bool first) --> emitter`. This will queue the handlers associated with the event ev string. The data object gets passed into the handler as does ev.  
-
-        Note that ev could be a scoped event. See [scopes](#scopes).
-
-        It returns the emitter for chaining. Note that the events will not be handled before the emitter is returned. 
-
-        ```
-        // the events give the order. Note all are queued before any event is handled
-        var data = {enters: "dog"}
-        emitter.later("third", data);
-        emitter.later("second", data, true);
-        emitter.later("fourth", data);
-        emitter.later("first", data, true);
-        ```
 
 ### When
 
@@ -653,15 +634,16 @@ All of the handlers are encapsulated in a try...catch that then calls the emitte
             value = handler.value,
             i, n = value.length, 
             verb, vtype, act, 
-            cont = true;
+            cont = true, 
+            counters = emitter.counters;
         that = handler.that || that || null, 
         args = handler.args || args || null;
 
-        if (emitter.countExecute > emitter.maxExecute) {
+        if (counters.execute > counters.executeMax) {
             emitter.log("Exceeded max execute limit in one call", ev);
             return false;
         } else {
-            emitter.countExecute += 1;
+            counters.execute += 1;
         }
 
         for (i = 0; i <n; i += 1) {
@@ -692,7 +674,7 @@ All of the handlers are encapsulated in a try...catch that then calls the emitte
 
 The verb could be either an action, if it matches, or it is treated as an event. Handler.timing is a string that if equal to later, emits the event as a later and if firstLater, then emits later but first in queue. Anything else, including undefined, leads to .emit.
 
-An action is an instanceof Handler. So we call its execute method. Hope it is not self-referential...but if it is is the countExecute variable should stop infinity in its tracks.
+An action is an instanceof Handler. So we call its execute method. Hope it is not self-referential...but if it is is the `counters.execute` variable should stop infinity in its tracks.
 
     if (  (act = emitter.action(verb)) ) {
         emitter.log(ev + " --> " + verb);
@@ -922,35 +904,47 @@ For the .later command, we use a waiting queue. As soon as next tick is called, 
 
      function () {
 
-        var q, f, ev, data, cont, cur, scopes,  
+        counters.resume += 1;
+
+        var q, f, ev, evhan, data, cont, cur, evObj, events, 
             emitter = this,
             queue = emitter._queue,
-            waiting = emitter._waiting; 
+            waiting = emitter._waiting, 
+            resume = emitter.resume,
+            counters = emitter.counters; 
 
         // emitter.log("events on queue", queue.length+waiting.length, queue, waiting);
-        emitter.countExecute = 0;
-        emitter.resumeCount += 1;
+        counters.execute = 0;
 
-        if (queue.length >0) {
+        while ( (queue.length > 0 ) ) {
             cur = queue[0];
+            events = cur.events;
+
+            while ( (events.length > 0) && (counters.loop <= counters.loopMax) ) {
+                counters.loop += 1;
+                ev = events.[0];
+                f = events.
+                f.execute 
+            } 
+
+
+
             ev = cur[0];
             data = cur[1];
             q = cur[2];
-            scopes = cur[3];
+            evObj = cur[3];
             
-            if (q.length === 0) {
-                // put in scope check
-                
-                queue.shift();            
-            }
+            _":current scope cleared"
+    
+
             f = q.shift();
             if (f) {
-                emitter.log(emitter.name + " firing "+ f.name + " for " + ev + "::" + which.count);
-                cont = f.execute(data, emitter, ev, which);
+                emitter.log("firing", f.name, ev, evObj);
+                cont = f.execute(data, emitter, ev, evObj);
                 _":do we halt event emission"
-                emitter.log(emitter.name + " firED " + f.name+ " for " + ev + "::" + which.count);
+                emitter.log("fired", f.name,  ev, evObj);
             }
-            this.next(this.resume());
+            emitter.next(emitter.resume());
         } else if (waiting.length > 0) {
             emitter.nextTick(function () {
                 if (waiting.length > 0)  {
@@ -964,6 +958,22 @@ For the .later command, we use a waiting queue. As soon as next tick is called, 
 
     }
 
+[current scope cleared]()
+
+If the little q is empty, then we have exhausted this scope's events. We need to check if there is another level with some handlers to be executed. If so, replace the now useless first element of queue with the next level's events (if it should be emitted now). If there are no more events, then we shift. 
+
+    if (q.length === 0) {
+        // put in scope check
+        if (evObj.events.length > 0) {
+            if (evObj.q === "_queue") {
+                queue[0] = evObj.events.pop();
+            } else {
+                emitter[evObj.q][evObj.action](evObj.events.pop());
+            }
+        } else {
+            queue.shift();            
+        }
+    }
 
 [do we halt event emission](# "js")
 
@@ -1374,6 +1384,12 @@ The requisite npm package file.
 At the very least, better documentation. I wrote this thing and find it hard to figure out how to use it the way I want to. But I also think there might be some inaccuracies. So I hope to fix this up. 
 
 What I want is a very clear ability to use actions. I am also wondering about scoping it. One could have separate event emitters or perhaps we can use one which scopes an event to something, which could be a key string with an object value that becomes available somehow. 
+
+... So the scope thing is cool. It bubbles up with the possibility of events being stopped. Each handler has access to the data at each of the scope levels. So the general scope level can get a scope object from the specific. 
+
+But the data for the handlers is getting complicated. So the callback signature will be f(data, obj) where data is anything being passed along by the event (for simple functions) while obj contains all the different contexts, etc.  There is no this being bound; one can bind the function f if you want a context, but this will not do anything. All needed stuff should be in obj. 
+
+So what will be in obj? The keys will be data (redundant, but...),  hanCon for handler context, hanArgs for an array of "data" to pass in,  evObj, ev, emitter, 
 
 ### Version 0.5.0 Thoughts
 
