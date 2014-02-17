@@ -130,19 +130,26 @@ First it gets an array of the various scope level events and loads their context
 
         emitter.count += 1;
 
-        var contexts = {}; 
+        var scopeData = {}, 
+            scopeMyth = {}; 
 
         var lev = "";
         scopes = scopes.map(function (el) {
+            var dm;
             lev += (lev ? sep + el : el);
-            contexts[lev] = emitter.scope(lev);
+            dm = emitter.scope(lev);
+            scopeData[lev] = dm.data;
+            scopeMyth[lev] = dm.myth;
             return lev;
         });
 
         var evObj = {
             ev : ev,
-            data : data,
+            emitData : data,
+            emitMyth : myth,
             scopes : scopes, 
+            scopeData : scopeData,
+            scopeMyth : scopeMyth,
             count : emitter.count,
             contexts : contexts,
             type : type
@@ -154,7 +161,7 @@ First it gets an array of the various scope level events and loads their context
            var h = emitter._handlers[el];
            if (h) {
                 //shifting does the bubbling up
-               events.shift([el, h.slice()]);
+               events.shift({scopeEvent: el, handlers: h.slice()});
            }
         }); 
 
@@ -549,21 +556,14 @@ We might have an event, a handle, or an array of such things. The array could al
 It takes an event (a string) and a Handler or something that converts to a Handler.  To have segments that are always in order, use a Handler with an array value of handler-types that will be executed in order.
 
 
-"first" should be rarely used hence last. Pass TRUE in that slot; if that and args are not needed, pass in null. 
-
-
-    function (ev, f, that, args, first) {
+    function (ev, f, data, myth) {
         var emitter = this,
             handlers = emitter._handlers;
 
-        f = new Handler(f, {that: that, args:args} ); 
+        f = new Handler(f, data, myth ); 
 
         if (handlers.hasOwnProperty(ev)) {
-            if (first === true) {
-                handlers[ev].unshift(f);
-            } else {
                 handlers[ev].push(f);
-            }
         } else {
             handlers[ev] = [f];
         }
@@ -571,6 +571,10 @@ It takes an event (a string) and a Handler or something that converts to a Handl
         return f;
 
     }
+
+[doc]() 
+
+
 
 ### Handler
 
@@ -580,8 +584,16 @@ The idea is that we will encapsulate all handlers into a handler object. When a 
 
 This is a constructor and it should return `this` if it is creating or the value if it is already an instance.
 
-    function (value, options) {
+A handler can have values for data and myth. 
+
+    function (value, data, myth) {
         if (value instanceof Handler) {
+            if (typeof data !== "undefined") {
+                value.data = data;
+            }
+            if (typeof myth !== "undefined") {
+                value.myth = myth;
+            }
             return value;
         }
 
@@ -903,58 +915,88 @@ As this is called without context, we have bound the resume function to the emit
 For the .later command, we use a waiting queue. As soon as next tick is called, it unloads the first one onto the queue, regardless of whether there is something else there. This ensures that we make progress through the queue. Well, assuming there is a next tick. 
 
      function () {
-
-        counters.resume += 1;
-
-        var q, f, ev, evhan, data, cont, cur, evObj, events, 
+        var q, f, ev, handlers, data, passin, evObj, events, 
             emitter = this,
             queue = emitter._queue,
             waiting = emitter._waiting, 
             resume = emitter.resume,
             counters = emitter.counters; 
-
-        // emitter.log("events on queue", queue.length+waiting.length, queue, waiting);
+        
+        counters.resume += 1;
         counters.execute = 0;
 
-        while ( (queue.length > 0 ) ) {
-            cur = queue[0];
-            events = cur.events;
+        while ( (queue.length > 0 ) && (counters.loop <= counters.loopMax) ) {
+            counters.loop += 1;
+            evObj = queue[0];
+            events = evObj.events;
+            passin = {};
 
+            events:
             while ( (events.length > 0) && (counters.loop <= counters.loopMax) ) {
                 counters.loop += 1;
-                ev = events.[0];
-                f = events.
-                f.execute 
+                ev = events[0].scopeEvent;
+                handlers = events[0].handlers;
+                while ( (ev.handlers.length > 0 ) && (counters.loop <= counters.loopMax) ) {
+                    counters.loop += 1;
+                    f = ev.handlers.shift();
+                    if (f) {
+                        passin = _":passin";
+                        emitter.log("firing", f, ev, evObj);
+                        f.execute(data, passin);
+                        emitter.log("fired", f.name,  ev, evObj);
+                        _":do we halt event emission"
+                    }
+                }
+                if (ev.handlers.length === 0) {
+                    ev.handlers.shift();
+                }
             } 
-
-
-
-            ev = cur[0];
-            data = cur[1];
-            q = cur[2];
-            evObj = cur[3];
             
-            _":current scope cleared"
-    
-
-            f = q.shift();
-            if (f) {
-                emitter.log("firing", f.name, ev, evObj);
-                cont = f.execute(data, emitter, ev, evObj);
-                _":do we halt event emission"
-                emitter.log("fired", f.name,  ev, evObj);
+            if (events.length === 0) {
+                queue.shift();
             }
-            emitter.next(emitter.resume());
+
+        } 
+
+        if (counters.loop >= counters.loopMax) {
+            emitter.log("loop count exceeded", counters.loop, queue[0].ev, queue);
+            counters.loop = 0;
+            emitter.nextTick(resume);
         } else if (waiting.length > 0) {
             emitter.nextTick(function () {
                 if (waiting.length > 0)  {
                     queue.push(waiting.shift());
                 }
-                emitter.next(emitter.resume());
+                resume();
             });
         } else {
             emitter.log("all emit requests done");
         }
+
+    }
+
+[passin]()
+
+This is the full object that is passed in to the handler functions as the second argument. The data.emit is the same as the first argument. 
+
+    {
+        emitter : emitter,
+        scope : ev,
+        data : {
+            emit : evObj.emitData,
+            event : evObj.scopeData[ev],
+            events : evObj.scopeData,
+            handler : f.data
+        }
+        myth : {
+            emit : evObj.emitMyth,
+            event : evObj.scopeMyth[ev],
+            events : evObj.scopeMyth,
+            handler : f.myth                                
+        },
+        event : evObj.ev,
+        evObj : evObj,
+        handler : f
 
     }
 
@@ -977,18 +1019,14 @@ If the little q is empty, then we have exhausted this scope's events. We need to
 
 [do we halt event emission](# "js")
 
-If f returns false, this is supposed to tell us to stop. So we shift the queue meaning on the next round it will be something different. But if f was the last one, then we already shifted and so we just do a quick check to make sure that we are removing the right emitted event. 
+If f modifies the passed in second argument to include stop:true, then the event emission stops. This includes the current remaining handlers for that scope's events as well as all remaining bubbling up levels. 
 
-    if ( (cont === false) && (cur === queue[0]) ) {
-        queue.shift(); 
+We shift the queue and break out a couple of times. 
+
+    if ( passin.stop === true ) {
+        events = [];
+        break events;
     }
-
-[warning failed handler](# "js")
-
-We return `cont = true` to continue the handling.
-
-    emitter.log("warning: handler not understood", ev + f, data);
-    cont = true;
 
 
 
@@ -1083,48 +1121,79 @@ This is where we define the function for adding/removing that context. Given an 
 
 We return the event name so that it can then be used for something else. 
 
-    function (ev, context) {
-        var emitter = this;
+    function (ev, data, myth) {
+        var emitter = this,
+            scope;
 
-        if (arguments.length === 1) {
-            return emitter._scopes[ev];
+        if (arguments.length === 0) {
+            return Object.keys(emitter._scopes);
         }
 
-        if ( (arguments.length === 2) && (handler === null) ) {
-            delete emitter._scopes[ev];
-            emitter.log("Removed scope of event " + ev);
-            return ev;
+        scope = emitter._scopes[ev];
+
+        if (arguments.length === 1) {           
+            if (scope) {
+                return scope;
+            } else {
+                return {
+                    data : null,
+                    myth : null
+                };
+            }
         }
         
-        var scope = context;
-
-        if (emitter._scopes.hasOwnProperty(ev) ) {
-            emitter.log("Overwriting scope " + ev);
+        if ( (data === null) && (myth === null) ) {
+            emitter.log("Deleting scope event", ev, scope);
+            delete scope;
+            return scope;
         }
 
-        emitter._scopes[ev] = scope;
+        if (emitter._scopes.hasOwnProperty(ev) ) {
+            emitter.log("Overwriting scope event", ev, data, myth, emitter._scopes[ev] );
+        } else {
+            emitter.log("Creating scope event", ev, data, myth);
+        }
+
+        emitter._scopes[ev] = {
+            data : (typeof data === "undefined" ? null : data),
+            myth : (typeof myth === "undefined" ? null : myth)
+        };
 
         return ev;
     }
 
 [doc]()
 
-    * `.scope(str ev, context) --> ev` This manages context for the scoped event ev. 
+    <a name="scope" />
+    ### scope(str ev, obj data, obj myth) --> scope keys/ {data, myth} / ev
 
-        * Given event ev and anything context, the context will be associated with the event ev. 
-        * `.scope(str ev) --> context` Given just event ev, its associated context is returned. 
-        * `.scope(str ev, null) --> ev` Given event ev and null as second argument, the context for ev is removed. 
+    This manages associated data and other stuff for the scoped event ev. 
 
-        ```
-        // stores reference to button element
-        emitter.scope("button:submit", submitButton);
-        // returns submitButton
-        emitter.scope("button:submit");
-        //overwrites submitButton
-        emitter.scope("button:submit", popupWarning);
-        //removes scope button:submit
-        emitter.scope("button:submit", null);
-        ```
+    __arguments__ 
+
+    * `ev` This is the full event to associate the information with. 
+    * `data` This is data to be available when the event is called. It should be JSONable.
+    * `myth` This is complicated stuff associated with the event, maybe DOM elements, global 
+    state, functions. 
+
+    __return__
+
+    * 0 arguments. Leads to the scope keys being returned. 
+    * 1 arguments. Leads to specified scope's data/myth being returned as {data:data, myth:myth}
+    * 2+ arguments. Leads to the event string being returned after storing the data/myth.
+
+
+[example]()
+
+    // stores reference to button element
+    emitter.scope("button:submit", {id:"great"}, {dom: submitButton});
+    // returns submitButton
+    emitter.scope("button:submit");
+    //overwrites submitButton
+    emitter.scope("button:submit", , popupWarning);
+    //clears scope button:submit
+    emitter.scope("button:submit", null, null);
+
 
 ### Event listing
 
