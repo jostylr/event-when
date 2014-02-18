@@ -9,5 +9,5 @@ node testrunner.js
 echo "done"
 cd ..
 
-# use with nodemon -e md --exec ./mon.sh
+# use with nodemon -e md --ignore README.md --ignore TODO.md --exec ./mon.sh
 # make sure mon.sh is executable: chmod +x mon.sh

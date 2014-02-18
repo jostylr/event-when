@@ -1,28 +1,38 @@
 # [event-when](# "version: 0.6.0-pre| jostylr")
 
-This is my own little event library. It has most the usual methods and conventions, more or less. 
+This is an event library that emphasizes flow-control from a single dispatch object. 
 
-But the one feature that it has that I am not aware of in other libraries is the ability to fire an event after other events have fired. 
+## Introduction
 
-As an example, let's say you need to read/parse a file and get some data from a database. Both events can happen in either order. Once both are done, then the message gets formed and sent. This is not handled well in most event libraries, as far as I know. But what if we had a method called `emitter.when("all data retrieved", ["file parsed", "database returned"])` which is to mean to block the event "all data retrieved" until both events "file parsed" and "database returned" have fired. 
+This provides a succinct introduction to the library for the readme and this file.
 
-Other notable differences include simple scoping of events and actions. 
+[doc]()
 
-Scoping of an event will fire only the handlers associated with that scope and the global event. So we can have monitors or general actions for the overarching level and then we can have particular actions at the scoped level. 
+    This is an event library, but one in which events and listeners are coordinated through a single object. The emphasis throughout is on coordinating the global flow of the program. 
 
-Actions are a string with associated functions or handler to fire. This is a great way to have a running log of event --> action. 
+    If you wish to attach event emitters to lots of objects, such as buttons, this is library is probably not that useful. 
 
-Please note that no effort at efficiency has been made. This is about making it easier to develop the flow of an application. If you need something that handles large number of events quickly, this may not be the right library. 
+    Instead, you attach the buttons to the events and/or handlers. 
+
+    There are several noteworthy features of this library:
+
+    * When. This is the titular notion. The `.when` method allows you to specify actions to take when various specified events have all fired. For example, if we call a database and read a file to assemble a webpage, then we can do something like `emitter.when(["file parsed:jack.txt", "database returned:jack"], "all data retrieved:jack");
+    * Scope. Events can be scoped. In the above example, each of the events are scoped based on the user jack. It bubbles up from the most specific to the least specific. Each level can access the associated data at all levels. For example, we can store data at the specific jack event level while having the handler at "all data retrieved" access it. Works the other way too.
+    * Actions. Events should be statements of fact. Actions can be used to call functions and are statements of doing. "Compile document" is an action and is a nice way to represent a function handler. "Document compiled" would be what might be emitted after the compilation is done. This is a great way to have a running log of event --> action. 
+    * Stuff can be attached to events, emissions, and handlers. The convention is that the first bit is `data` and should be JSONable. The second bit is `myth` and can be functions and complicated "global" state objects not really intended for inspection. I find separating the two helps debugging greatly. 
+
+    Please note that no effort at efficiency has been made. This is about making it easier to develop the flow of an application. If you need something that handles large number of events quickly, this may not be the right library. 
 
 ## Files
 
 The file structure is fairly simple. 
 
 * [index.js](#main "save:|jshint") This is the node module entry point and only relevant file. It is a small file.
+* [ghpages/index.js](#main "save:|jshint") This is for browser access. 
 * [examples/full.js](#full-example "save: |jshint")
-* [README](#readme "save: | clean raw ") The standard README.
+* [README.md](#readme "save: ") The standard README.
 * [package.json](#npm-package "save: json  | jshint") The requisite package file for a npm project. 
-* [TODO](#todo "save: | clean raw") A list of growing and shrinking items todo.
+* [TODO.md](#todo "save: | clean raw") A list of growing and shrinking items todo.
 * [LICENSE](#license-mit "save: | clean raw") The MIT license.
 * [.travis.yml](#travis "save:") A .travis.yml file for [Travis CI](https://travis-ci.org/)
 * [.gitignore](#gitignore "Save:") A .gitignore file
@@ -72,12 +82,18 @@ We bind resume to the instance since it will be passed in without context to the
         this._actions = {};
         this._scopes = {};
         this.scopeSep = ":";
-        this.count = 0;
-        this.resumeCount = 0;
+        this.counters = {
+            execute : 0,
+            executeMax: 1000,
+            resume : 0,
+            resumeMax :Infinity,
+            loop : 0,
+            loopMax: 100,
+            emit : 0
+        };
         this.name = "";
 
         this.resume = this.resume.bind(this);
-        this.next.max = 1000;
 
         return this; 
     }
@@ -89,17 +105,16 @@ The various prototype methods on the event emitter.
     EvW.prototype.on = _"on";
     EvW.prototype.emit = _"emit";
     EvW.prototype.eventLoader = _"event loader";
-    EvW.prototype.now = _"emit:convenience method| substitute(TYPE, now)";
-    EvW.prototype.momentary = _"emit:convenience method| substitute(TYPE, momentary)";
-    EvW.prototype.soon = _"emit:convenience method| substitute(TYPE, soon)";
-    EvW.prototype.later = _"emit:convenience method| substitute(TYPE, later)";
+    EvW.prototype.now = _"emit:convenience method| substitute(TIMING, now)";
+    EvW.prototype.momentary = _"emit:convenience method| substitute(TIMING, momentary)";
+    EvW.prototype.soon = _"emit:convenience method| substitute(TIMING, soon)";
+    EvW.prototype.later = _"emit:convenience method| substitute(TIMING, later)";
     EvW.prototype.off = _"off";
     EvW.prototype.stop = _"stop";
     EvW.prototype.resume = _"resume";
     EvW.prototype.when = _"when";
     EvW.prototype.once = _"once";
 
-    EvW.prototype.next =  _"next";
     EvW.prototype.nextTick =  _"next tick";
 
     EvW.prototype.log = function () {}; //noop stub
@@ -118,17 +133,18 @@ This function is the core of both emit and later.
 First it gets an array of the various scope level events and loads their context objects. We create the event object which holds all relevant bits for this event call. 
 
 
-    function (ev, data, myth, type) {
+    function (ev, data, myth, timing) {
         var emitter = this, 
-            sep = emitter.scopeSep;
+            sep = emitter.scopeSep,
+            counters = emitter.counters;
 
-        type = type || "now";
+        timing = timing || "now";
 
-        emitter.log("emit", ev, type, data, myth);
+        emitter.log("emit", ev, data, myth, timing);
 
         var scopes = ev.split(sep);
 
-        emitter.count += 1;
+        counters.emit += 1;
 
         var scopeData = {}, 
             scopeMyth = {}; 
@@ -150,8 +166,7 @@ First it gets an array of the various scope level events and loads their context
             scopes : scopes, 
             scopeData : scopeData,
             scopeMyth : scopeMyth,
-            count : emitter.count,
-            contexts : contexts,
+            count : counters.emit,
             type : type
         };
 
@@ -177,7 +192,7 @@ First it gets an array of the various scope level events and loads their context
 
     ---
     <a name="emit" />
-    ### emit(str ev, obj data, obj myth, str type) --> emitter
+    ### emit(str ev, obj data, obj myth, str timing) --> emitter
 
     Emit the event.  
 
@@ -186,7 +201,7 @@ First it gets an array of the various scope level events and loads their context
     * `ev`  A string that denotes the event. 
     * `data` Any value. It will be passed into the handler. Expected to be JSONable; great for logging. Think properties.
     * `myth` Also any value. Expected to be an object of functions, think methods or messy state objects. 
-    * `type` One of "now", "momentary", "soon", "later" implying emission first on queue, last on queue, first on next cycle, last on next cycle, respectively. Now is the default if not provided. 
+    * `timing` One of "now", "momentary", "soon", "later" implying emission first on queue, last on queue, first on next cycle, last on next cycle, respectively. Now is the default if not provided. 
 
     __return__
 
@@ -233,11 +248,11 @@ First it gets an array of the various scope level events and loads their context
 
 [convenience method]()
 
-This makes the now, later, ... methods. TYPE gets replaced with the type. That's it!
+This makes the now, later, ... methods. TIMING gets replaced with the timing. That's it!
 
     function (ev, data, myth) {
         var emitter = this;
-        emitter.emit(ev, data, myth, "TYPE");
+        emitter.emit(ev, data, myth, "TIMING");
         return emitter;
     }
 
@@ -272,51 +287,42 @@ This loads the event object in the appropriate queue.
 
 This is a key innovation. The idea is that once this is called, a handler is created that attaches to all the listed events and takes care of figuring when they have all called. 
 
-When all the events have fired, then `ev` fires. This should be of a handler type object. Strings are actions or events, depending on if they exist in either object. 
+When all the events have fired, then the given handler fires. This should be of a handler type object which can include actions, functions, and events. Strings are actions or events; actions are searched first and if none are found then the string is emitted as an event. 
 
 The return is the tracker which contains all things that might need to be accessed. It also contains the remove methods to cancel the `.when`.
 
-As each event fires, this handler merges in the data object to the existing data. It also stores the original data object in _archive[event name] = ... in the data object passed to the event for posterity, log recordings, and hacking. 
+As each event fires, this handler stores the various emit data and myth objects into the tracker handler's parent handler's data and myth properties. This is accessible to the given handler via `passin.handler.parent` data object to the existing data.
 
-The third argument is an object of options: 
+The other arguments are the same as in emit: data, myth, timing. But there is a new argument, `reset` whcih allows for reseting to the initial state once fired. 
 
-* that Will be the context for functions fired from ev
-* args Will be the arguments passed to such functions
-* timing Is the timing passed to emitting events
-* reset Should the .when parameters be reset to the initial state once fired?
-
-All options are optional.
-
-Emitting scoped events will count as a firing of the parent event, e.g., `.when([["button", 3], "disable")` will have `.emit("button:submit")` remove one of the button counts. But `.emit("button"` will not count for any `.when("button:submit")`. 
+Emitting scoped events will count as a firing of the parent event, e.g., `.when([["button", 3], "disable")` will have `.emit("button:submit")` remove one of the button counts (unless event bubbling is stopped). But `.emit("button"` will not count for any `.when("button:submit")`. 
 
 
-    function (events, ev, options) {    
+!!! Handlers can take in arrays of handlers. When they do, they execute the handlers, passing on their passin and adding themselves to the handlers array of the passin object. 
 
-        var emitter = this, 
-            str;    
-        options = options || {};
+    function (events, relay, data, myth, timing, reset) {    
 
-        if (typeof ev === "string") {
-            str = ev;
-        } else if (ev) {
-            str = ev.name || "";
-        } else {
-            str = "";
-        }
+        var emitter = this;
 
-        emitter.log(".when loaded to fire "+ str, events);
+        emitter.log(".when loaded", events, han, data, myth);
 
-        var tracker = new Tracker();
+        var tracker = new Tracker ();
 
-        tracker.event = new Handler(ev, options);
+        tracker.relay = new Handler(relay);
+        tracker.data = data;
+        tracker.myth = myth;
         tracker.emitter = emitter;
-        tracker.timing = options.timing;
-        tracker.reset = options.reset || false;
-        tracker.original = events;
+        tracker.timing = timing || "now";
+        tracker.reset = reset || false;
+        tracker.original = events.slice();
 
-        var handler = new Handler (function (data, emitter, args, fired) {
-            tracker.addData(data, fired); 
-            return tracker.remove(fired);
+        var parent = new Handler ([tracker.relay], [], []);
+
+        var handler = new Handler (function (data, passin) {
+            var par = passin.handler.parent;
+            par.data.push([passin.ev, data]);
+            par.myth.push([passin.ev, passin.myth.emit]);
+            tracker.remove(passin.ev);
         });
 
 
@@ -333,7 +339,16 @@ We return the tracker since one should use that to remove it. If you want the ha
 
 [doc]()
 
-    * `.when([fired events], Handler,  options ) --> tracker` This will track the firing of events. When all the events have fired, then the Handler gets fired. 
+    ---
+    <a name="when" />
+    ### when(arr/str [fired events], Handler relay, obj data, obj myth, str timing, bool reset ) --> tracker 
+
+    This fires the 
+
+
+    This will track the firing of events. When all the events have fired, then the Handler gets fired. 
+
+
 
         The first argument can be a string for firing after a single event. But most of the time it should be an array of events and/or numbered events ( an array consisting of [event, number of times, bool first] ). Numbered events allows for counting down a certain number of times before acting. Ordering of the fired events is ignored.
 
@@ -346,7 +361,7 @@ We return the tracker since one should use that to remove it. If you want the ha
         * `that` Will be the context for functions fired from the Handler. It has no effect for emitted events. 
         * `args` Will be the arguments passed to any functions firing. It has no effect for emitted events. 
         * `timing` Is the timing passed to emitting events. later and firstLater trigger .later and .later(...true),  respectively. No timing or anything else triggers .emit
-        * reset Should the .when parameters be reset to the initial state once fired? 
+        * reset Should the .when parameters be reset to the initial state once fired? Default is false. This can also be toggled after initializatin by setting tracker.reset. 
 
         This method returns a [tracker object](#tracker-object).
 
@@ -577,6 +592,8 @@ It takes an event (a string) and a Handler or something that converts to a Handl
 
 
 ### Handler
+
+!!! Handlers should be scoped? Turtles all the way down?!
 
 This is where we define handlers. It seems appropriate to sandwich them between on and off. 
 
@@ -912,10 +929,10 @@ This continues progress through the queue. We use either setTimeout (browser) or
 
 As this is called without context, we have bound the resume function to the emitter instance. 
 
-For the .later command, we use a waiting queue. As soon as next tick is called, it unloads the first one onto the queue, regardless of whether there is something else there. This ensures that we make progress through the queue. Well, assuming there is a next tick. 
+For the `.soon`, `.later` commands, we use a waiting queue. As soon as next tick is called, it unloads the first one onto the queue, regardless of whether there is something else there. This ensures that we make progress through the queue. Well, assuming there is a next tick. 
 
      function () {
-        var q, f, ev, handlers, data, passin, evObj, events, 
+        var f, ev, handlers, data, passin, evObj, events, 
             emitter = this,
             queue = emitter._queue,
             waiting = emitter._waiting, 
@@ -923,27 +940,31 @@ For the .later command, we use a waiting queue. As soon as next tick is called, 
             counters = emitter.counters; 
         
         counters.resume += 1;
+        if (counters.resume > counters.resumeMax) {
+            emitter.log("resume accessed too many times", counters.resume);
+            emitter.resumeMax();
+        }
         counters.execute = 0;
 
-        while ( (queue.length > 0 ) && (counters.loop <= counters.loopMax) ) {
+        while ( (queue.length > 0 ) && (counters.loop < counters.loopMax) ) {
             counters.loop += 1;
             evObj = queue[0];
             events = evObj.events;
             passin = {};
 
-            events:
-            while ( (events.length > 0) && (counters.loop <= counters.loopMax) ) {
+            eventsLoop:
+            while ( (events.length > 0) && (counters.loop < counters.loopMax) ) {
                 counters.loop += 1;
                 ev = events[0].scopeEvent;
                 handlers = events[0].handlers;
-                while ( (ev.handlers.length > 0 ) && (counters.loop <= counters.loopMax) ) {
+                while ( (ev.handlers.length > 0 ) && (counters.loop < counters.loopMax) ) {
                     counters.loop += 1;
-                    f = ev.handlers.shift();
+                    f = handlers.shift();
                     if (f) {
                         passin = _":passin";
                         emitter.log("firing", f, ev, evObj);
                         f.execute(data, passin);
-                        emitter.log("fired", f.name,  ev, evObj);
+                        emitter.log("fired", f,  ev, evObj);
                         _":do we halt event emission"
                     }
                 }
@@ -958,7 +979,7 @@ For the .later command, we use a waiting queue. As soon as next tick is called, 
 
         } 
 
-        if (counters.loop >= counters.loopMax) {
+        if (counters.loop > counters.loopMax) {
             emitter.log("loop count exceeded", counters.loop, queue[0].ev, queue);
             counters.loop = 0;
             emitter.nextTick(resume);
@@ -986,35 +1007,20 @@ This is the full object that is passed in to the handler functions as the second
             emit : evObj.emitData,
             event : evObj.scopeData[ev],
             events : evObj.scopeData,
-            handler : f.data
-        }
+            handler : f.data,
+            handlers : []
+        },
         myth : {
             emit : evObj.emitMyth,
             event : evObj.scopeMyth[ev],
             events : evObj.scopeMyth,
-            handler : f.myth                                
+            handler : f.myth,                                
+            handlers : []
         },
         event : evObj.ev,
         evObj : evObj,
         handler : f
 
-    }
-
-[current scope cleared]()
-
-If the little q is empty, then we have exhausted this scope's events. We need to check if there is another level with some handlers to be executed. If so, replace the now useless first element of queue with the next level's events (if it should be emitted now). If there are no more events, then we shift. 
-
-    if (q.length === 0) {
-        // put in scope check
-        if (evObj.events.length > 0) {
-            if (evObj.q === "_queue") {
-                queue[0] = evObj.events.pop();
-            } else {
-                emitter[evObj.q][evObj.action](evObj.events.pop());
-            }
-        } else {
-            queue.shift();            
-        }
     }
 
 [do we halt event emission](# "js")
@@ -1025,36 +1031,43 @@ We shift the queue and break out a couple of times.
 
     if ( passin.stop === true ) {
         events = [];
-        break events;
+        break eventsLoop;
     }
 
+[doc]() 
 
+This describes the passin object for the handler arguments
 
-### Next
+    Every handler that is called gets two arguments passed to it: `data` from the emit event and `passin` which contains
 
-This checks for whether there is stuff left on the queue and whether it is time to cede control (emitter.next.max )
+    * `emitter` is he object that manages the events. 
+    * `scope` is the current scope event level.
+    * `data` contains data from `emit`, current scope `event` level, all the `events` along the scope chain, and data from the `handler` itself. 
+    * `myth` is the messy object from each of the same sources as data. 
+    * `event` is the full original event string.
+    * `evObj` is the full object containing various pieces with `events` being the arrray of `{scopeEvent, handlers} If you want to manipulate the flow, this is a good place to put it.
+    * `handler` is the handler being used. It is a wrapped thingy, so don't expect it to be a function. 
 
-    function (f) {
-        var emitter = this,
-            next = emitter.next,  // this is itself
-            queue = emitter._queue;
+    In addition, `passin.stop` being set to true will cause the event handling and bubbling to stop.
 
-        next.count += 1;
+    __example__
 
-        if (queue.length > 0) {
+    Here we demonstrate using the various passin properties
 
-            if (next.count <= next.max) {
-                f(); 
-            } else {
-                next.count = 0;
-                emitter.nextTick(f);
-            }
-        } else {
-            next.count = 0;
-        }
+        _":example"
+
+[example]()
+
+    function (data, passin) {
+        var ret = [];
+        ret.push(passin.data.emit === data);
+        ret.push(passin.scope);
+        ret.push(JSON.stringify(passin.data.emit));
+        ret.push(JSON.stringify(passin.data.event));
+        ret.push(JSON.stringify(passin.data.events));
+        ret.push(JSON.stringify(passin.data.handler));
 
     }
-
 
 ### Next Tick
 
@@ -1144,7 +1157,7 @@ We return the event name so that it can then be used for something else.
         
         if ( (data === null) && (myth === null) ) {
             emitter.log("Deleting scope event", ev, scope);
-            delete scope;
+            delete emitter._scopes[ev];
             return scope;
         }
 
@@ -1312,6 +1325,24 @@ Logs everything, storing the result in the function itself under the name log. T
 
 ## README
 
+The readme for this. A lot of the pieces come from the doc sections.
+
+    ## event-when  [![Build Status](https://travis-ci.org/jostylr/event-when.png)](https://travis-ci.org/jostylr/event-when)
+
+    _"introduction:doc"
+
+    ### Install
+
+    Install using `npm install event-when` though I prefer doing it via package.json and `npm install`. 
+
+    ### Method specification
+
+    * [Emit](#emit)
+
+    _"emit:doc"
+
+## old README
+
  ##event-when  [![Build Status](https://travis-ci.org/jostylr/event-when.png)](https://travis-ci.org/jostylr/event-when)
 
 Install using `npm install event-when`
@@ -1477,6 +1508,7 @@ The idea is to create an action sentence that invokes the handler. So we attach 
 We should ignore node_modules (particularly the dev ones)
 
     node_modules
+    ghpages
 
 ## npmignore
 

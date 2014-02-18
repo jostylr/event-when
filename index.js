@@ -7,12 +7,18 @@ var EvW = function () {
         this._actions = {};
         this._scopes = {};
         this.scopeSep = ":";
-        this.count = 0;
-        this.resumeCount = 0;
+        this.counters = {
+            execute : 0,
+            executeMax: 1000,
+            resume : 0,
+            resumeMax :Infinity,
+            loop : 0,
+            loopMax: 100,
+            emit : 0
+        };
         this.name = "";
     
         this.resume = this.resume.bind(this);
-        this.next.max = 1000;
     
         return this; 
     };
@@ -32,17 +38,18 @@ EvW.prototype.on = function (ev, f, data, myth) {
     return f;
 
 };
-EvW.prototype.emit = function (ev, data, myth, type) {
+EvW.prototype.emit = function (ev, data, myth, timing) {
         var emitter = this, 
-            sep = emitter.scopeSep;
+            sep = emitter.scopeSep,
+            counters = emitter.counters;
     
-        type = type || "now";
+        timing = timing || "now";
     
-        emitter.log("emit", ev, type, data, myth);
+        emitter.log("emit", ev, data, myth, timing);
     
         var scopes = ev.split(sep);
     
-        emitter.count += 1;
+        counters.emit += 1;
     
         var scopeData = {}, 
             scopeMyth = {}; 
@@ -64,8 +71,7 @@ EvW.prototype.emit = function (ev, data, myth, type) {
             scopes : scopes, 
             scopeData : scopeData,
             scopeMyth : scopeMyth,
-            count : emitter.count,
-            contexts : contexts,
+            count : counters.emit,
             type : type
         };
     
@@ -236,7 +242,7 @@ EvW.prototype.stop = function (a) {
         return emitter;
     };
 EvW.prototype.resume = function () {
-        var q, f, ev, handlers, data, passin, evObj, events, 
+        var f, ev, handlers, data, passin, evObj, events, 
             emitter = this,
             queue = emitter._queue,
             waiting = emitter._waiting, 
@@ -244,22 +250,26 @@ EvW.prototype.resume = function () {
             counters = emitter.counters; 
         
         counters.resume += 1;
+        if (counters.resume > counters.resumeMax) {
+            emitter.log("resume accessed too many times", counters.resume);
+            emitter.resumeMax();
+        }
         counters.execute = 0;
     
-        while ( (queue.length > 0 ) && (counters.loop <= counters.loopMax) ) {
+        while ( (queue.length > 0 ) && (counters.loop < counters.loopMax) ) {
             counters.loop += 1;
             evObj = queue[0];
             events = evObj.events;
             passin = {};
     
-            events:
-            while ( (events.length > 0) && (counters.loop <= counters.loopMax) ) {
+            eventsLoop:
+            while ( (events.length > 0) && (counters.loop < counters.loopMax) ) {
                 counters.loop += 1;
                 ev = events[0].scopeEvent;
                 handlers = events[0].handlers;
-                while ( (ev.handlers.length > 0 ) && (counters.loop <= counters.loopMax) ) {
+                while ( (ev.handlers.length > 0 ) && (counters.loop < counters.loopMax) ) {
                     counters.loop += 1;
-                    f = ev.handlers.shift();
+                    f = handlers.shift();
                     if (f) {
                         passin = {
                                 emitter : emitter,
@@ -268,13 +278,15 @@ EvW.prototype.resume = function () {
                                     emit : evObj.emitData,
                                     event : evObj.scopeData[ev],
                                     events : evObj.scopeData,
-                                    handler : f.data
-                                }
+                                    handler : f.data,
+                                    handlers : []
+                                },
                                 myth : {
                                     emit : evObj.emitMyth,
                                     event : evObj.scopeMyth[ev],
                                     events : evObj.scopeMyth,
-                                    handler : f.myth                                
+                                    handler : f.myth,                                
+                                    handlers : []
                                 },
                                 event : evObj.ev,
                                 evObj : evObj,
@@ -283,10 +295,10 @@ EvW.prototype.resume = function () {
                             };
                         emitter.log("firing", f, ev, evObj);
                         f.execute(data, passin);
-                        emitter.log("fired", f.name,  ev, evObj);
+                        emitter.log("fired", f,  ev, evObj);
                         if ( passin.stop === true ) {
                             events = [];
-                            break events;
+                            break eventsLoop;
                         }
                     }
                 }
@@ -301,7 +313,7 @@ EvW.prototype.resume = function () {
     
         } 
     
-        if (counters.loop >= counters.loopMax) {
+        if (counters.loop > counters.loopMax) {
             emitter.log("loop count exceeded", counters.loop, queue[0].ev, queue);
             counters.loop = 0;
             emitter.nextTick(resume);
@@ -317,33 +329,29 @@ EvW.prototype.resume = function () {
         }
     
     };
-EvW.prototype.when = function (events, ev, options) {    
+EvW.prototype.when = function (events, relay, data, myth, timing, reset) {    
     
-        var emitter = this, 
-            str;    
-        options = options || {};
+        var emitter = this;
     
-        if (typeof ev === "string") {
-            str = ev;
-        } else if (ev) {
-            str = ev.name || "";
-        } else {
-            str = "";
-        }
+        emitter.log(".when loaded", events, han, data, myth);
     
-        emitter.log(".when loaded to fire "+ str, events);
+        var tracker = new Tracker ();
     
-        var tracker = new Tracker();
-    
-        tracker.event = new Handler(ev, options);
+        tracker.relay = new Handler(relay);
+        tracker.data = data;
+        tracker.myth = myth;
         tracker.emitter = emitter;
-        tracker.timing = options.timing;
-        tracker.reset = options.reset || false;
-        tracker.original = events;
+        tracker.timing = timing || "now";
+        tracker.reset = reset || false;
+        tracker.original = events.slice();
     
-        var handler = new Handler (function (data, emitter, args, fired) {
-            tracker.addData(data, fired); 
-            return tracker.remove(fired);
+        var parent = new Handler ([tracker.relay], [], []);
+    
+        var handler = new Handler (function (data, passin) {
+            var par = passin.handler.parent;
+            par.data.push([passin.ev, data]);
+            par.myth.push([passin.ev, passin.myth.emit]);
+            tracker.remove(passin.ev);
         });
     
         handler.tracker = tracker;
@@ -378,26 +386,6 @@ EvW.prototype.once = function (ev, f, n, that, args, first) {
         return f;
     };
 
-EvW.prototype.next =  function (f) {
-        var emitter = this,
-            next = emitter.next,  // this is itself
-            queue = emitter._queue;
-    
-        next.count += 1;
-    
-        if (queue.length > 0) {
-    
-            if (next.count <= next.max) {
-                f(); 
-            } else {
-                next.count = 0;
-                emitter.nextTick(f);
-            }
-        } else {
-            next.count = 0;
-        }
-    
-    };
 EvW.prototype.nextTick =  (typeof process !== "undefined" && process.nextTick) ? process.nextTick 
         : (function (f) {setTimeout(f, 0);});
 
@@ -540,7 +528,7 @@ EvW.prototype.scope = function (ev, data, myth) {
         
         if ( (data === null) && (myth === null) ) {
             emitter.log("Deleting scope event", ev, scope);
-            delete scope;
+            delete emitter._scopes[ev];
             return scope;
         }
     
