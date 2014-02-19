@@ -21,7 +21,10 @@ Install using `npm install event-when` though I prefer doing it via package.json
 
 ### Method specification
 
+These are methods on the emitter object. 
+
 * [Emit](#emit)
+* [When[(#when)
 
 ---
 <a name="emit" />
@@ -48,6 +51,7 @@ __convenience forms__
 * `.later` Event A emits B then C both with later, then B fires after next tick. C fires after second tick.
 
 __scope__ 
+
 Note that if ev contains the [event separator](#event-separator) then it will be broken up into multiple events, each one being emitted. The order of emission is from the most specific to the general (bubbling up). 
 
 To stop, the bubbling, clear the `evObj.events` array. 
@@ -74,3 +78,87 @@ To modify the later events to emit immediately or later, change `evObj.q` and `e
     emitter.later("second", data, true);
     emitter.later("fourth", data);
     emitter.later("first", data, true);
+
+---
+<a name="when" />
+### when(arr/str events, Handler action, obj data, obj myth, str timing, bool reset ) --> tracker 
+
+This is how to do som action after several different events have all fired. Firing order is irrelevant. 
+
+__arguments__
+
+* `events` A string or an array of strings. These represent the events that need to be fired before taking the specified action. The array could also contain a numbered event which is of the form `[event, # of times]`. This will countdown the number of times the event fires before considering it done. 
+* `action` This is what gets fired after all the events have taken place. It can be anything that converts to a handler: an action string, function, event string, handler, array of handler types.
+* `data` Any value. It will be passed into the handler. Expected to be JSONable; great for logging. Think properties.
+* `myth` Also any value. Expected to be an object of functions, think methods or messy state objects. 
+* `timing` One of "now", "momentary", "soon", "later" implying emission first on queue, last on queue, first on next cycle, last on next cycle, respectively. Now is the default if not provided. 
+This will track the firing of events. When all the events have fired, then the Handler gets fired. 
+* `reset` Setting this to true will cause this setup to be setup again once fired. The original events array is saved and restored. Default is false. This can also be changed after initialization by setting tracker.reset. 
+
+__return__
+
+Tracker object. This is what one can use to manipulate the sequence of events. See [Tracker type](#tracker)
+
+__example__
+
+    //have two events trigger the calling of action compile page
+    emitter.when(["file read:dog.txt", "db returned:Kat"], "compile page");
+    //have two events trigger the emitting of all data retrieved
+    emitter.when(["file read:dog.txt", "db returned:Kat"], "all data retrieved:dog.txt+Kat");
+
+_"on:doc"
+
+_"off:doc"
+
+_"once:doc"
+
+_"stop:doc"
+
+_"events:doc"
+
+_"handlers:doc"
+
+_"actions:doc"
+
+### Object Types
+
+* Emitter. This module exports a single function, the constructor for this type. It is what handles managing all the events. It really should be called Dispatcher. 
+* [Handler](#handler)
+* [Tracker](#tracker)
+
+_"handler:doc"
+
+Trackers are responsible for tracking the state of a `.when` call. It is fine to set one up and ignore it. But if you need it to be a bit more dynamic, this is what you can modify. 
+#### Properties
+
+These are the instance properties
+
+* `events` The list of currently active events/counts that are being tracked. To manipulate, use the tracker methods below.
+* `action` The action that will be taken when all events have fired. This will use the     passed in data and myth objects for the handler slot in the passin object.
+* `actionHandler` This wraps the action above into a handler that stores all the emitted data and myths from the emitted events that are being tracked. This should be accessible to the action by using `passin.handlers[0]`. 
+* `timing` This dictates how the action is queued. 
+* `reset` This dictates whether to reset the events after firing. 
+* `original` The original events for use by reset.
+
+    var par = tracker.actionHandler = new Handler ([tracker.action], [], []);
+
+    var handler = new Handler (function (data, passin) {
+        var ev = passin.ev;
+        par.data.push([ev, data]);
+        par.myth.push([ev, passin.myth.emit]);
+        tracker.remove(ev);
+    });
+
+    handler.tracker = tracker;
+
+    tracker.handler = handler; 
+
+#### add(arr/str ev) 
+
+#### remove
+
+#### removeStr
+
+#### go
+
+#### cancel

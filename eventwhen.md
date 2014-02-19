@@ -215,6 +215,7 @@ First it gets an array of the various scope level events and loads their context
     * `.later` Event A emits B then C both with later, then B fires after next tick. C fires after second tick.
 
     __scope__ 
+
     Note that if ev contains the [event separator](#event-separator) then it will be broken up into multiple events, each one being emitted. The order of emission is from the most specific to the general (bubbling up). 
 
     To stop, the bubbling, clear the `evObj.events` array. 
@@ -300,29 +301,26 @@ Emitting scoped events will count as a firing of the parent event, e.g., `.when(
 
 !!! Handlers can take in arrays of handlers. When they do, they execute the handlers, passing on their passin and adding themselves to the handlers array of the passin object. 
 
-    function (events, relay, data, myth, timing, reset) {    
+    function (events, action, data, myth, timing, reset) {    
 
         var emitter = this;
 
-        emitter.log(".when loaded", events, han, data, myth);
+        emitter.log(".when loaded", events, action, data, myth, timing, reset);
 
         var tracker = new Tracker ();
 
-        tracker.relay = new Handler(relay);
-        tracker.data = data;
-        tracker.myth = myth;
-        tracker.emitter = emitter;
+        tracker.action = new Handler(action, data, myth);
         tracker.timing = timing || "now";
         tracker.reset = reset || false;
         tracker.original = events.slice();
 
-        var parent = new Handler ([tracker.relay], [], []);
+        var par = tracker.actionHandler = new Handler ([tracker.action], [], []);
 
         var handler = new Handler (function (data, passin) {
-            var par = passin.handler.parent;
-            par.data.push([passin.ev, data]);
-            par.myth.push([passin.ev, passin.myth.emit]);
-            tracker.remove(passin.ev);
+            var ev = passin.ev;
+            par.data.push([ev, data]);
+            par.myth.push([ev, passin.myth.emit]);
+            tracker.remove(ev);
         });
 
 
@@ -341,36 +339,34 @@ We return the tracker since one should use that to remove it. If you want the ha
 
     ---
     <a name="when" />
-    ### when(arr/str [fired events], Handler relay, obj data, obj myth, str timing, bool reset ) --> tracker 
+    ### when(arr/str events, Handler action, obj data, obj myth, str timing, bool reset ) --> tracker 
 
-    This fires the 
+    This is how to do som action after several different events have all fired. Firing order is irrelevant. 
 
+    __arguments__
 
+    * `events` A string or an array of strings. These represent the events that need to be fired before taking the specified action. The array could also contain a numbered event which is of the form `[event, # of times]`. This will countdown the number of times the event fires before considering it done. 
+    * `action` This is what gets fired after all the events have taken place. It can be anything that converts to a handler: an action string, function, event string, handler, array of handler types.
+    * `data` Any value. It will be passed into the handler. Expected to be JSONable; great for logging. Think properties.
+    * `myth` Also any value. Expected to be an object of functions, think methods or messy state objects. 
+    * `timing` One of "now", "momentary", "soon", "later" implying emission first on queue, last on queue, first on next cycle, last on next cycle, respectively. Now is the default if not provided. 
     This will track the firing of events. When all the events have fired, then the Handler gets fired. 
+    * `reset` Setting this to true will cause this setup to be setup again once fired. The original events array is saved and restored. Default is false. This can also be changed after initialization by setting tracker.reset. 
 
+    __return__
 
+    Tracker object. This is what one can use to manipulate the sequence of events. See [Tracker type](#tracker)
 
-        The first argument can be a string for firing after a single event. But most of the time it should be an array of events and/or numbered events ( an array consisting of [event, number of times, bool first] ). Numbered events allows for counting down a certain number of times before acting. Ordering of the fired events is ignored.
+    __example__
 
-        The second argument can be any [Handler-type](#handler-object). In particular, it can be an action string, an event string, a function, or a Handler consisting of those things.
+        _":example"
 
-        The data object that is given to the Handler is constructed out of the data of the fired events. In particular, each data object is merged with the later ones overwriting any common keys. All of the data objects are stored in the special key `_archive`.
-            
-        The options argument has the following useful keys: 
+[example]()
 
-        * `that` Will be the context for functions fired from the Handler. It has no effect for emitted events. 
-        * `args` Will be the arguments passed to any functions firing. It has no effect for emitted events. 
-        * `timing` Is the timing passed to emitting events. later and firstLater trigger .later and .later(...true),  respectively. No timing or anything else triggers .emit
-        * reset Should the .when parameters be reset to the initial state once fired? Default is false. This can also be toggled after initializatin by setting tracker.reset. 
-
-        This method returns a [tracker object](#tracker-object).
-
-        ```
-        //have two events trigger the calling of action compile page
-        emitter.when(["file read:dog.txt", "db returned:Kat"], "compile page");
-        //have two events trigger the emitting of all data retrieved
-        emitter.when(["file read:dog.txt", "db returned:Kat"], "all data retrieved:dog.txt+Kat");
-        ```
+    //have two events trigger the calling of action compile page
+    emitter.when(["file read:dog.txt", "db returned:Kat"], "compile page");
+    //have two events trigger the emitting of all data retrieved
+    emitter.when(["file read:dog.txt", "db returned:Kat"], "all data retrieved:dog.txt+Kat");
 
 
 #### Tracker 
@@ -379,8 +375,6 @@ The tracker object is used to track all the data and what events are available. 
 
     function () {
         this.events = {};
-        this.data = {_archive : {} };
-
         return this;
     }
 
@@ -393,7 +387,6 @@ THe various prototype methods for the tracker object.
     Tracker.prototype.remove = _"tracker:remove";
     Tracker.prototype.removeStr = _"tracker:remove string";
     Tracker.prototype.go = _"tracker:go";
-    Tracker.prototype.addData = _"tracker:add data";
     Tracker.prototype.cancel = _"tracker:cancel";
 
 
@@ -403,12 +396,11 @@ We can add events on to the tracker. We allow it to be an array of events passed
 
     function (args) {
         var tracker = this,
-            archive = tracker.data._archive,
             events = tracker.events,
-            handle = tracker.handler;
+            handler = tracker.handler;
 
         if (arguments.length !== 1) {
-            args = [].concat(arguments);
+            args = Array.prototype.slice.call(arguments);
         } else if (typeof args === "string") {
             args = [args];
         }
@@ -419,23 +411,18 @@ We can add events on to the tracker. We allow it to be an array of events passed
             if (typeof el === "string") {
                 str = el;
                 num = 1;
-                order = false;
             }
             if (Array.isArray(el) ) {
                 if ((typeof el[1] === "number") && (el[1] >= 1) && (typeof el[0] === "string") ) {
-                    num = Math.round(el[1]);
+                    num = el[1];
                     str = el[0];
-                    order = el[2] || false;
                 } 
             }
             if (str && (typeof num === "number") ) {
                 if (events.hasOwnProperty(str) ) {
                     events[str] += num;
                 } else {
-                    tracker.emitter.on(str, handle, order);
-                    if (! (archive.hasOwnProperty(str) ) ) {
-                        archive[str] = [];
-                    }
+                    tracker.emitter.on(str, handler, order);
                     events[str] = num;
                 }
             }
@@ -464,7 +451,7 @@ Note the `true` for the .off command is to make sure the `.remove` is not called
             }
             if (Array.isArray(el) ) {
                 if ((typeof el[1] === "number") && (el[1] >= 1) && (typeof el[0] === "string") ) {
-                    num = Math.round(el[1]);
+                    num = el[1];
                     str = el[0];
                 } 
             }
@@ -491,33 +478,6 @@ This is mainly for use with the `.off` method where the handler has already been
         delete tracker.events[ev];
 
         return tracker.go();
-    }
-
-[add data](# "js")
-
-When an event fires, that data gets merged in with all previous data for the emitWhen. We also keep a record of it in the `_archive` of the  data object. 
-
-
-    function (eventData, event) {
-        var tracker = this,
-            data = tracker.data,
-            key;
-
-        for (key in eventData) {
-            if (key !== "_archive") {
-                data[key] = eventData[key];
-            }
-        }
-
-        if (data._archive.hasOwnProperty(event) ) {
-            data._archive[event].push(eventData);
-        } else {
-            console.log(event + " not in archive");
-            //console.log(tracker);
-        }
-
-
-
     }
 
 
@@ -565,6 +525,54 @@ We might have an event, a handle, or an array of such things. The array could al
         return cont;
     }
 
+[doc]()
+
+    Trackers are responsible for tracking the state of a `.when` call. It is fine to set one up and ignore it. But if you need it to be a bit more dynamic, this is what you can modify. 
+    #### Properties
+
+    These are the instance properties
+
+    * `events` The list of currently active events/counts that are being tracked. To manipulate, use the tracker methods below.
+    * `action` The action that will be taken when all events have fired. This will use the     passed in data and myth objects for the handler slot in the passin object.
+    * `actionHandler` This wraps the action above into a handler that stores all the emitted data and myths from the emitted events that are being tracked. This should be accessible to the action by using `passin.handlers[0]`. 
+    * `timing` This dictates how the action is queued. 
+    * `reset` This dictates whether to reset the events after firing. 
+    * `original` The original events for use by reset.
+
+        var par = tracker.actionHandler = new Handler ([tracker.action], [], []);
+
+        var handler = new Handler (function (data, passin) {
+            var ev = passin.ev;
+            par.data.push([ev, data]);
+            par.myth.push([ev, passin.myth.emit]);
+            tracker.remove(ev);
+        });
+
+
+        handler.tracker = tracker;
+
+        tracker.handler = handler; 
+
+
+    #### add(arr/str ev) 
+
+    #### remove
+
+    #### removeStr
+
+    #### go
+
+    #### cancel
+
+The .when method creates a handler that has a `handler.tracker` object and that tracker object has the following methods. This is what is returned from that method. The handler itself is found in `tracker.handler`.
+
+* .add(ev); .add(ev1, ev2, ...); .add([ev1, ev2, ...])  This method adds events to the array of events that should happen before firing. The event could be an array of event and number of times to fire as well as the boolean for placing it first. If an event already exists, this will increment its counter appropriately. 
+* .remove(ev1, ev2, ...)  removes the event(s). Each one could be either a string or an array of `[ev, num]` specifying how many times to remove the event. 
+* .cancel() This will remove the handler of the `.when` object and effectively removes this from ever being called. 
+
+[example]()
+
+    //todo
 
 ### On
 
@@ -1337,9 +1345,39 @@ The readme for this. A lot of the pieces come from the doc sections.
 
     ### Method specification
 
+    These are methods on the emitter object. 
+
     * [Emit](#emit)
+    * [When[(#when)
 
     _"emit:doc"
+
+    _"when:doc"
+
+    _"on:doc"
+
+    _"off:doc"
+
+    _"once:doc"
+
+    _"stop:doc"
+
+    _"events:doc"
+
+    _"handlers:doc"
+
+    _"actions:doc"
+
+    ### Object Types
+
+    * Emitter. This module exports a single function, the constructor for this type. It is what handles managing all the events. It really should be called Dispatcher. 
+    * [Handler](#handler)
+    * [Tracker](#tracker)
+
+    _"handler:doc"
+
+    _"tracker:doc"
+
 
 ## old README
 
@@ -1366,10 +1404,10 @@ The simplest example of a handler is a function, but it could also be an action 
 * .later(str event, [obj data], [bool first] ).  Queues the event for emitting on next tick (or so). If first is true, then it puts the event ahead of others in line for emitting. Other than timing, same as .emit.
 * .when([fired events], Handler,  options ) This has similar semantics as emit except the [fired events] array has a series of events that must occur (any order) before this event is emitted. The object data of each fired event is merged in with the others for the final data object -- the original is archived in the data object under `_archive`. This method returns a [tracker object](#tracker-object).
 
-	Each fired event could be an array consisting of [event, number of times, bool first]. This allows for waiting for multiple times (such as waiting until a user clicks a button 10 times to intervene with anger management).  
+    Each fired event could be an array consisting of [event, number of times, bool first]. This allows for waiting for multiple times (such as waiting until a user clicks a button 10 times to intervene with anger management).  
 
-	The second argument can be any [Handler-type](#handler-object). 
-	 	
+    The second argument can be any [Handler-type](#handler-object). 
+        
     The options argument has the following useful keys: 
 
     * that Will be the context for functions fired from ev

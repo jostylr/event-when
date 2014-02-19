@@ -329,29 +329,26 @@ EvW.prototype.resume = function () {
         }
     
     };
-EvW.prototype.when = function (events, relay, data, myth, timing, reset) {    
+EvW.prototype.when = function (events, action, data, myth, timing, reset) {    
     
         var emitter = this;
     
-        emitter.log(".when loaded", events, han, data, myth);
+        emitter.log(".when loaded", events, action, data, myth, timing, reset);
     
         var tracker = new Tracker ();
     
-        tracker.relay = new Handler(relay);
-        tracker.data = data;
-        tracker.myth = myth;
-        tracker.emitter = emitter;
+        tracker.action = new Handler(action, data, myth);
         tracker.timing = timing || "now";
         tracker.reset = reset || false;
         tracker.original = events.slice();
     
-        var parent = new Handler ([tracker.relay], [], []);
+        var par = tracker.actionHandler = new Handler ([tracker.action], [], []);
     
         var handler = new Handler (function (data, passin) {
-            var par = passin.handler.parent;
-            par.data.push([passin.ev, data]);
-            par.myth.push([passin.ev, passin.myth.emit]);
-            tracker.remove(passin.ev);
+            var ev = passin.ev;
+            par.data.push([ev, data]);
+            par.myth.push([ev, passin.myth.emit]);
+            tracker.remove(ev);
         });
     
         handler.tracker = tracker;
@@ -557,19 +554,16 @@ EvW.prototype.error = function (e, ev, h, i) {
 
 var Tracker = function () {
         this.events = {};
-        this.data = {_archive : {} };
-    
         return this;
     };
 
 Tracker.prototype.add = function (args) {
     var tracker = this,
-        archive = tracker.data._archive,
         events = tracker.events,
-        handle = tracker.handler;
+        handler = tracker.handler;
 
     if (arguments.length !== 1) {
-        args = [].concat(arguments);
+        args = Array.prototype.slice.call(arguments);
     } else if (typeof args === "string") {
         args = [args];
     }
@@ -579,23 +573,18 @@ Tracker.prototype.add = function (args) {
         if (typeof el === "string") {
             str = el;
             num = 1;
-            order = false;
         }
         if (Array.isArray(el) ) {
             if ((typeof el[1] === "number") && (el[1] >= 1) && (typeof el[0] === "string") ) {
-                num = Math.round(el[1]);
+                num = el[1];
                 str = el[0];
-                order = el[2] || false;
             } 
         }
         if (str && (typeof num === "number") ) {
             if (events.hasOwnProperty(str) ) {
                 events[str] += num;
             } else {
-                tracker.emitter.on(str, handle, order);
-                if (! (archive.hasOwnProperty(str) ) ) {
-                    archive[str] = [];
-                }
+                tracker.emitter.on(str, handler, order);
                 events[str] = num;
             }
         }
@@ -614,7 +603,7 @@ Tracker.prototype.remove = function () {
             }
             if (Array.isArray(el) ) {
                 if ((typeof el[1] === "number") && (el[1] >= 1) && (typeof el[0] === "string") ) {
-                    num = Math.round(el[1]);
+                    num = el[1];
                     str = el[0];
                 } 
             }
@@ -652,25 +641,6 @@ Tracker.prototype.go = function () {
         }
     
         return cont;
-    };
-Tracker.prototype.addData = function (eventData, event) {
-        var tracker = this,
-            data = tracker.data,
-            key;
-    
-        for (key in eventData) {
-            if (key !== "_archive") {
-                data[key] = eventData[key];
-            }
-        }
-    
-        if (data._archive.hasOwnProperty(event) ) {
-            data._archive[event].push(eventData);
-        } else {
-            console.log(event + " not in archive");
-            //console.log(tracker);
-        }
-    
     };
 Tracker.prototype.cancel = function () {
         var tracker = this, 
