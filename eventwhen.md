@@ -1403,7 +1403,7 @@ The readme for this. A lot of the pieces come from the doc sections.
 
  ##event-when  [![Build Status](https://travis-ci.org/jostylr/event-when.png)](https://travis-ci.org/jostylr/event-when)
 
-NOTE: Major rewrite in progress. The readme here refers to the current npm version, not to this repository. See newReadme for what's cooking. 
+ NOTE: Major rewrite in progress. The readme here refers to the current npm version, not to this repository. See newReadme for what's cooking. 
 
 Install using `npm install event-when`
 
