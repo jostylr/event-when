@@ -17,8 +17,11 @@ var EvW = function () {
             emit : 0
         };
         this.name = "";
+        this.timing = "now";
     
         this.resume = this.resume.bind(this);
+    
+        this.on("when handler events called", _"tracker:when handler");
     
         return this; 
     };
@@ -43,7 +46,7 @@ EvW.prototype.emit = function (ev, data, myth, timing) {
             sep = emitter.scopeSep,
             counters = emitter.counters;
     
-        timing = timing || "now";
+        timing = timing ||emitter.timing || "now";
     
         emitter.log("emit", ev, data, myth, timing);
     
@@ -337,8 +340,9 @@ EvW.prototype.when = function (events, action, data, myth, timing, reset) {
     
         var tracker = new Tracker ();
     
+        tracker.emitter = emitter;
         tracker.action = new Handler(action, data, myth);
-        tracker.timing = timing || "now";
+        tracker.timing = timing || emitter.timing || "now";
         tracker.reset = reset || false;
         tracker.original = events.slice();
     
@@ -631,16 +635,15 @@ Tracker.prototype.go = function () {
             ev = tracker.event, 
             data = tracker.data,
             events = tracker.events,
+            emitter = tracker.emitter,
             cont = true;
     
         if (Object.keys(events).length === 0) {
             if (tracker.reset === true) {
                 tracker.add(tracker.original);
             }
-            cont = ev.execute(data, tracker.emitter, "emitWhen handler called");
+            emitter.emit("when events expired", null, tracker, tracker.timing); 
         }
-    
-        return cont;
     };
 Tracker.prototype.cancel = function () {
         var tracker = this, 

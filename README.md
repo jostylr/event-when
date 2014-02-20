@@ -139,19 +139,7 @@ These are the instance properties
 * `timing` This dictates how the action is queued. 
 * `reset` This dictates whether to reset the events after firing. 
 * `original` The original events for use by reset.
-
-    var par = tracker.actionHandler = new Handler ([tracker.action], [], []);
-
-    var handler = new Handler (function (data, passin) {
-        var ev = passin.ev;
-        par.data.push([ev, data]);
-        par.myth.push([ev, passin.myth.emit]);
-        tracker.remove(ev);
-    });
-
-    handler.tracker = tracker;
-
-    tracker.handler = handler; 
+* `handler` This is the handler that fires when the monitored events fire.
 
 #### add(arr/str ev) 
 

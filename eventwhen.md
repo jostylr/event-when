@@ -92,8 +92,11 @@ We bind resume to the instance since it will be passed in without context to the
             emit : 0
         };
         this.name = "";
+        this.timing = "now";
 
         this.resume = this.resume.bind(this);
+
+        this.on("when handler events called", _"tracker:when handler");
 
         return this; 
     }
@@ -138,7 +141,7 @@ First it gets an array of the various scope level events and loads their context
             sep = emitter.scopeSep,
             counters = emitter.counters;
 
-        timing = timing || "now";
+        timing = timing ||emitter.timing || "now";
 
         emitter.log("emit", ev, data, myth, timing);
 
@@ -309,8 +312,9 @@ Emitting scoped events will count as a firing of the parent event, e.g., `.when(
 
         var tracker = new Tracker ();
 
+        tracker.emitter = emitter;
         tracker.action = new Handler(action, data, myth);
-        tracker.timing = timing || "now";
+        tracker.timing = timing || emitter.timing || "now";
         tracker.reset = reset || false;
         tracker.original = events.slice();
 
@@ -505,13 +509,13 @@ This is the primary activator.
 
 If reset is true, then we add those events before firing off the next round. 
 
-We might have an event, a handle, or an array of such things. The array could also hold an array of the array handler type. 
 
     function () {
         var tracker = this, 
             ev = tracker.event, 
             data = tracker.data,
             events = tracker.events,
+            emitter = tracker.emitter,
             cont = true;
 
 
@@ -519,11 +523,13 @@ We might have an event, a handle, or an array of such things. The array could al
             if (tracker.reset === true) {
                 tracker.add(tracker.original);
             }
-            cont = ev.execute(data, tracker.emitter, "emitWhen handler called");
+            emitter.emit("when events expired", null, tracker, tracker.timing); 
         }
-
-        return cont;
     }
+
+[when handler]()
+
+This is what will fire when all events have expired. We use this 
 
 [doc]()
 
@@ -538,21 +544,7 @@ We might have an event, a handle, or an array of such things. The array could al
     * `timing` This dictates how the action is queued. 
     * `reset` This dictates whether to reset the events after firing. 
     * `original` The original events for use by reset.
-
-        var par = tracker.actionHandler = new Handler ([tracker.action], [], []);
-
-        var handler = new Handler (function (data, passin) {
-            var ev = passin.ev;
-            par.data.push([ev, data]);
-            par.myth.push([ev, passin.myth.emit]);
-            tracker.remove(ev);
-        });
-
-
-        handler.tracker = tracker;
-
-        tracker.handler = handler; 
-
+    * `handler` This is the handler that fires when the monitored events fire.
 
     #### add(arr/str ev) 
 
@@ -1528,6 +1520,8 @@ What I want is a very clear ability to use actions. I am also wondering about sc
 But the data for the handlers is getting complicated. So the callback signature will be f(data, obj) where data is anything being passed along by the event (for simple functions) while obj contains all the different contexts, etc.  There is no this being bound; one can bind the function f if you want a context, but this will not do anything. All needed stuff should be in obj. 
 
 So what will be in obj? The keys will be data (redundant, but...),  hanCon for handler context, hanArgs for an array of "data" to pass in,  evObj, ev, emitter, 
+
+Thinking about .when only emitting events, not doing other handlers. I think that makes it much cleaner to handle. Not sure why I included the other ways. Maybe thought that having to define an event and then just one handler on it seemed silly. But really, that's what events are about. 
 
 ### Version 0.5.0 Thoughts
 
