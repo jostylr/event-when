@@ -332,26 +332,26 @@ EvW.prototype.resume = function () {
         }
     
     };
-EvW.prototype.when = function (events, action, data, myth, timing, reset) {    
+EvW.prototype.when = function (events, ev, timing, reset) {    
     
         var emitter = this;
     
-        emitter.log(".when loaded", events, action, data, myth, timing, reset);
+        emitter.log(".when loaded", events, ev, timing, reset);
     
         var tracker = new Tracker ();
     
         tracker.emitter = emitter;
-        tracker.action = new Handler(action, data, myth);
+        tracker.ev = ev;
+        var data = tracker.data = [];
+        var myth = tracker.myth [];
         tracker.timing = timing || emitter.timing || "now";
         tracker.reset = reset || false;
         tracker.original = events.slice();
     
-        var par = tracker.actionHandler = new Handler ([tracker.action], [], []);
-    
         var handler = new Handler (function (data, passin) {
             var ev = passin.ev;
-            par.data.push([ev, data]);
-            par.myth.push([ev, passin.myth.emit]);
+            data.push([ev, data]);
+            myth.push([ev, passin.myth.emit]);
             tracker.remove(ev);
         });
     
@@ -561,18 +561,18 @@ var Tracker = function () {
         return this;
     };
 
-Tracker.prototype.add = function (args) {
+Tracker.prototype.add = function (newEvents) {
     var tracker = this,
         events = tracker.events,
         handler = tracker.handler;
 
     if (arguments.length !== 1) {
-        args = Array.prototype.slice.call(arguments);
-    } else if (typeof args === "string") {
-        args = [args];
+        newEvents = Array.prototype.slice.call(arguments);
+    } else if (typeof newEvents === "string") {
+        newEvents = [newEvents];
     }
 
-    args.forEach(function (el) {
+    newEvents.forEach(function (el) {
         var num, str, order;
         if (typeof el === "string") {
             str = el;
@@ -593,6 +593,8 @@ Tracker.prototype.add = function (args) {
             }
         }
     });
+    tracker.go();
+    return tracker;
 };
 Tracker.prototype.remove = function () {
         var tracker = this,
@@ -621,19 +623,22 @@ Tracker.prototype.remove = function () {
                 } 
             } 
         });
-        return tracker.go();
+        tracker.go();
+        return tracker;
     };
 Tracker.prototype.removeStr = function (ev) {
         var tracker = this;
     
         delete tracker.events[ev];
     
-        return tracker.go();
+        tracker.go();
+        return tracker;
     };
 Tracker.prototype.go = function () {
         var tracker = this, 
-            ev = tracker.event, 
+            ev = tracker.ev, 
             data = tracker.data,
+            myth = tracker.mayth,
             events = tracker.events,
             emitter = tracker.emitter,
             cont = true;
@@ -642,8 +647,9 @@ Tracker.prototype.go = function () {
             if (tracker.reset === true) {
                 tracker.add(tracker.original);
             }
-            emitter.emit("when events expired", null, tracker, tracker.timing); 
+            emitter.emit(ev, data, myth, tracker.timing); 
         }
+        return tracker;
     };
 Tracker.prototype.cancel = function () {
         var tracker = this, 
@@ -656,7 +662,15 @@ Tracker.prototype.cancel = function () {
         for (event in keys) {
             emitter.off(event, handler);
         }
+        return tracker;
+    };
+Tracker.prototype.reinitialize = function () {
+        var tracker = this;
     
+        tracker.cancel();
+        tracker.add(tracker.original);
+        tracker.go();
+        return tracker;
     };
 
 var Handler = function (value, data, myth) {
