@@ -2,16 +2,16 @@
 
 This is an event library, but one in which events and listeners are coordinated through a single object. The emphasis throughout is on coordinating the global flow of the program. 
 
-If you wish to attach event emitters to lots of objects, such as buttons, this is library is probably not that useful. 
+If you wish to attach event emitters to lots of objects, such as buttons, this library is probably not that useful. 
 
 Instead, you attach the buttons to the events and/or handlers. 
 
 There are several noteworthy features of this library:
 
-* When. This is the titular notion. The `.when` method allows you to specify actions to take when various specified events have all fired. For example, if we call a database and read a file to assemble a webpage, then we can do something like `emitter.when(["file parsed:jack.txt", "database returned:jack"], "all data retrieved:jack");
+* When. This is the titular notion. The `.when` method allows you to specify an event to emit after various specified events have all fired. For example, if we call a database and read a file to assemble a webpage, then we can do something like `emitter.when(["file parsed:jack.txt", "database returned:jack"], "all data retrieved:jack");
 * Scope. Events can be scoped. In the above example, each of the events are scoped based on the user jack. It bubbles up from the most specific to the least specific. Each level can access the associated data at all levels. For example, we can store data at the specific jack event level while having the handler at "all data retrieved" access it. Works the other way too.
 * Actions. Events should be statements of fact. Actions can be used to call functions and are statements of doing. "Compile document" is an action and is a nice way to represent a function handler. "Document compiled" would be what might be emitted after the compilation is done. This is a great way to have a running log of event --> action. 
-* Stuff can be attached to events, emissions, and handlers. The convention is that the first bit is `data` and should be JSONable. The second bit is `myth` and can be functions and complicated "global" state objects not really intended for inspection. I find separating the two helps debugging greatly. 
+* Stuff can be attached to events, emissions, and handlers. The convention is that the first bit is `data` and should be JSONable. The second bit is `myth` and can be functions or complicated "global" state objects not really intended for inspection. I find separating the two helps debugging greatly. 
 
 Please note that no effort at efficiency has been made. This is about making it easier to develop the flow of an application. If you need something that handles large number of events quickly, this may not be the right library. 
 
@@ -103,9 +103,50 @@ __example__
     //have two events trigger the emitting of all data retrieved
     emitter.when(["file read:dog.txt", "db returned:Kat"], "all data retrieved:dog.txt+Kat");
 
-_"on:doc"
+<a name="on" />
 
-_"off:doc"
+### on(str ev, Handler f, obj data, obj myth) --> Handler
+
+Associates handler f with event ev for firing when ev is emitted.
+
+__arguments__
+
+* `ev` The event string on which to call handler f
+* `f` The handler f. This can be a function, an action string, an array of handler types, or a handler itself.
+* `data` If there is any data that f needs access to.
+* `myth` If there is any objects that f needs access to.
+
+__return__
+
+The Handler which should be used in `.off` to remove the handler, if desired. 
+
+---
+
+<a name="off" />
+
+### off(str/array events, handler fun, bool nowhen) --> emitter
+
+This removes handlers.
+
+__arguments__
+
+This function behavior changes based on the number of arguments
+
+* No arguments. This removes all handlers from all events. A complete reset.
+* `events`. This is the event string to remove the handlers from. If nothing else is provided, all handlers for that event are removed. This could also be an array of event strings in which case it is applied to each one. Or it could be null, in which case all events are searched for the removal of the given handler. 
+* `fun` This an object of type Handler. Ideally, this is the handler returned by `.on`. But it could also be a primitive, such as an action string or function.
+
+    If fun is a boolean, then it is assumed to be `nowhen` for the whole event removal. If it is null, then it is assumed all handlers of the events should be removed. 
+
+* `nowhen` If true, then it does not remove the handler associated with the removal of a tracker handler. 
+
+__return__
+
+emitter for chaining. 
+
+__example__
+
+    //todo. 
 
 _"once:doc"
 
@@ -139,28 +180,41 @@ These are the instance properties
 
 ### Tracker Methods
 
+They all return tracker for chainability. 
+
 *[add](#tracker-add)
  
 <a name="tracker-add" />
 #### add(arr/str events) 
 
-Add events to wait for.
+Add events to tracking list.
 
 __arguments__
 
-This is the same form as the `events` option
+This is the same form as the `events` option of `.when`. It can be a string or an array of [strings / array of [string, number] ]. A string is interpreted as an event to be tracked; a number indicates how many times (additional times) to wait for.
 
-<a name="tracker-add" />
-#### remove
+You can use this to add a number of wait times to an existing event.
 
-<a name="tracker-add" />
-#### removeStr
+<a name="tracker-remove" />
+#### remove(arr/str events)
 
-<a name="tracker-add" />
-#### go
+Removes event from tracking list. 
 
-<a name="tracker-add" />
-#### cancel
+__arguments__
 
-<a name="tracker-add" />
-### reinitialize
+Same as add events, except the numbers represent subtraction of the counting. 
+
+<a name="tracker-go" />
+#### go()
+
+Checks to see whether tracking list is empty; if so, the waiting event is emitted. No arguments. This is automatically called by the other methods/event changes. 
+
+<a name="tracker-cancel" />
+#### cancel()
+
+Cancel the tracking and abort with no event emitted. No arguments.
+
+<a name="tracker-reinitialize" />
+#### reinitialize()
+
+Reinitializes the tracker. The existing waiting events get cleared and replaced with the original events array. No arguments. 
