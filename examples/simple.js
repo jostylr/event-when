@@ -11,8 +11,9 @@ f = emitter.on("test 1 on", function () {
 });
 
 emitter.on("test 1 finishes", function () {
-    console.log("test 1 finishes");
+    console.log("test 1 finishes!");
     emitter.off("test 1 on", f);
+    console.log("offed");
     emitter.emit("test 1 on");
 });
 

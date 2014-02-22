@@ -1,4 +1,4 @@
-,a\# [event-when](# "version: 0.6.0-pre| jostylr")
+[event-when](# "version: 0.6.0-pre| jostylr")
 
 This is an event library that emphasizes flow-control from a single dispatch object. 
 
@@ -167,7 +167,6 @@ First it gets an array of the various scope level events and loads their context
         var events = evObj.events = [];
 
         scopes.forEach(function (el) {
-            console.log(el, emitter._handlers);
            var h = emitter._handlers[el];
            if (h) {
                 //unshifting does the bubbling up
@@ -175,7 +174,6 @@ First it gets an array of the various scope level events and loads their context
            }
         }); 
 
-        console.log(evObj.events);
         emitter.eventLoader(timing, evObj);
 
         emitter.looper();
@@ -738,7 +736,7 @@ All of the handlers are encapsulated in a try...catch that then calls the emitte
                     emitter.log("executing action", value, passin);
                     actions[value].call(passin, data);
                 } else {
-                    emitterl.log("action not found", value, passin);
+                    emitter.log("action not found", value, passin);
                 }
                 return;
             }
@@ -813,7 +811,6 @@ This removes handlers. The nowhen boolean, when true, will leave the when handle
         var handlers = emitter._handlers;
         var h, f;
 
-
         if ( (events == null) && (fun == null) ) {
             emitter._handlers = {};
             emitter.log("all handlers removed");
@@ -832,14 +829,15 @@ This removes handlers. The nowhen boolean, when true, will leave the when handle
         }
 
         if (fun) {
-            events.forEach( function (el) {
+            events.forEach( function (ev) {
                 _":remove Handler"
-                emitter.log("handler for event removed ", ev, fun );
+                emitter.log("handler for event removed", ev, fun );
             });
             return emitter;    
         } 
 
-        events.forEach( function (el) {
+
+        events.forEach( function (ev) {
             if (nowhen === true) {
                 delete handlers[ev];
                 emitter.log("removed handlers on event, leaving on when", ev); 
@@ -865,14 +863,6 @@ This will remove all handlers that are or contain the passed in f.
         fun.tracker._removeStr(ev);
     }
 
-
-[find and remove handler with matching value](# "js")
-
-All handlers have a method contains which tells us whether the first argument is in the chain of handlers contained in handler. 
-
-    handlers[ev] = handlers[ev].filter(function (handler) {
-        
-    }); 
 
 
 [remove handlers checking for when handlers](# "js")
@@ -947,7 +937,7 @@ The way it works is the f is put into a handler object. This handler object then
 
         emitter.on(ev, handler); 
 
-        emitter.log("assigned event times", ev, n, f, data, myth, timing, handler);
+        emitter.log("assigned event times", ev, n, f, data, myth, handler);
 
         return handler;
     }
@@ -1024,7 +1014,7 @@ For the `.soon`, `.later` commands, we use a waiting queue. As soon as next tick
             loopMax = emitter.loopMax,
             self = emitter.looper,
             loop = 0, 
-            f, ev, passin, evObj, events;
+            f, ev, passin, evObj, events, cur, ind;
 
 
         if (emitter.looping) {
@@ -1039,6 +1029,8 @@ For the `.soon`, `.later` commands, we use a waiting queue. As soon as next tick
             loop += 1;
         }
 
+        emitter.looping = false;
+
         if (queue.length) {
             emitter.log("looping hit max", loop);
             emitter.nextTick(self);
@@ -1046,8 +1038,6 @@ For the `.soon`, `.later` commands, we use a waiting queue. As soon as next tick
             queue.push(waiting.shift());
             emitter.nextTick(self);
         }
-
-        emitter.looping = false;
 
         return emitter;
 
@@ -1058,12 +1048,22 @@ For the `.soon`, `.later` commands, we use a waiting queue. As soon as next tick
 
 This is to execute a single handler on the event queue. 
 
-        
+    
     evObj = queue[0];
     events = evObj.events;
+    if (events.length === 0) {
+        queue.shift();
+        continue;
+    }
+
     passin = {};
-    console.log(evObj);
     cur = events[0]; 
+
+    if (events[0].handlers.length === 0) {
+        events.shift();
+        continue;
+    }
+
 
     ev = cur.scopeEvent;
     f = cur.handlers.shift();
@@ -1073,24 +1073,9 @@ This is to execute a single handler on the event queue.
         emitter.log("firing", passin);
         f.execute(evObj.emitData, passin);
         emitter.log("fired", passin);
+        _":deal with stopping"
 
-If f modifies the passed in second argument to include stop:true, then the event emission stops. This includes the current remaining handlers for that scope's events as well as all remaining bubbling up levels. 
 
-We shift the queue and continue on.
-
-        if ( passin.stop === true ) {
-            emitter.log("emission stopped", passin);
-            queue.pop();
-            continue;
-        }
-    }
-
-    if (events[0].handlers.length === 0) {
-        events.shift();
-    }
-    
-    if (events.length === 0) {
-        queue.shift();
     }
 
 [passin]()
@@ -1115,6 +1100,21 @@ This is the full object that is passed in to the handler functions as the second
         event : evObj.ev,
         evObj : evObj,
         handler : f
+    }
+
+[deal with stopping]()
+
+If f modifies the passed in second argument to include stop:true, then the event emission stops. This includes the current remaining handlers for that scope's events as well as all remaining bubbling up levels. 
+
+We remove the event from the queue. Since the queue may have changed, we find it carefully.
+
+    if ( passin.stop === true ) {
+        emitter.log("emission stopped", passin);
+        ind = queue.indexOf(evObj);
+        if (ind !== -1) {
+            queue.splice(ind);
+        }
+        continue;
     }
 
 
@@ -1169,9 +1169,8 @@ What is done here is a default and suitable for development. In production, one 
 
 
     function (e, ev, h, i) {
-        var name = h.name || "";
-
-        throw Error(ev + ":" + name + (i ? "["+i+"]" : "") + "\n" + e.message);
+        throw Error(e);
+        throw Error({e:e, ev:ev, h:h, i:i});
 
     }
 

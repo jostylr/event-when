@@ -71,7 +71,6 @@ EvW.prototype.emit = function (ev, data, myth, timing) {
         var events = evObj.events = [];
     
         scopes.forEach(function (el) {
-            console.log(el, emitter._handlers);
            var h = emitter._handlers[el];
            if (h) {
                 //unshifting does the bubbling up
@@ -79,7 +78,6 @@ EvW.prototype.emit = function (ev, data, myth, timing) {
            }
         }); 
     
-        console.log(evObj.events);
         emitter.eventLoader(timing, evObj);
     
         emitter.looper();
@@ -151,19 +149,19 @@ EvW.prototype.off = function (events, fun, nowhen) {
         }
     
         if (fun) {
-            events.forEach( function (el) {
+            events.forEach( function (ev) {
                 handlers[ev] = handlers[ev].filter(function (handler) {
                     return ! handler.contains(fun);
                 }); 
                 if ( (nowhen !== true) && fun.hasOwnProperty("tracker") )  {
                     fun.tracker._removeStr(ev);
                 }
-                emitter.log("handler for event removed ", ev, fun );
+                emitter.log("handler for event removed", ev, fun );
             });
             return emitter;    
         } 
     
-        events.forEach( function (el) {
+        events.forEach( function (ev) {
             if (nowhen === true) {
                 delete handlers[ev];
                 emitter.log("removed handlers on event, leaving on when", ev); 
@@ -230,7 +228,7 @@ EvW.prototype.looper = function () {
             loopMax = emitter.loopMax,
             self = emitter.looper,
             loop = 0, 
-            f, ev, passin, evObj, events;
+            f, ev, passin, evObj, events, cur, ind;
     
         if (emitter.looping) {
             emitter.log("looping called again");
@@ -242,9 +240,18 @@ EvW.prototype.looper = function () {
         while ( (queue.length) && (loop < loopMax ) ) {
             evObj = queue[0];
             events = evObj.events;
+            if (events.length === 0) {
+                queue.shift();
+                continue;
+            }
+            
             passin = {};
-            console.log(evObj);
             cur = events[0]; 
+            
+            if (events[0].handlers.length === 0) {
+                events.shift();
+                continue;
+            }
             
             ev = cur.scopeEvent;
             f = cur.handlers.shift();
@@ -272,23 +279,20 @@ EvW.prototype.looper = function () {
                 emitter.log("firing", passin);
                 f.execute(evObj.emitData, passin);
                 emitter.log("fired", passin);
-            
                 if ( passin.stop === true ) {
                     emitter.log("emission stopped", passin);
-                    queue.pop();
+                    ind = queue.indexOf(evObj);
+                    if (ind !== -1) {
+                        queue.splice(ind);
+                    }
                     continue;
                 }
-            }
             
-            if (events[0].handlers.length === 0) {
-                events.shift();
-            }
-            
-            if (events.length === 0) {
-                queue.shift();
             }
             loop += 1;
         }
+    
+        emitter.looping = false;
     
         if (queue.length) {
             emitter.log("looping hit max", loop);
@@ -297,8 +301,6 @@ EvW.prototype.looper = function () {
             queue.push(waiting.shift());
             emitter.nextTick(self);
         }
-    
-        emitter.looping = false;
     
         return emitter;
     
@@ -353,7 +355,7 @@ EvW.prototype.once = function (ev, f, n, data, myth) {
     
         emitter.on(ev, handler); 
     
-        emitter.log("assigned event times", ev, n, f, data, myth, timing, handler);
+        emitter.log("assigned event times", ev, n, f, data, myth, handler);
     
         return handler;
     };
@@ -521,9 +523,8 @@ EvW.prototype.makeHandler = function (value, options) {
         return new Handler(value, options);
     };
 EvW.prototype.error = function (e, ev, h, i) {
-        var name = h.name || "";
-    
-        throw Error(ev + ":" + name + (i ? "["+i+"]" : "") + "\n" + e.message);
+        throw Error(e);
+        throw Error({e:e, ev:ev, h:h, i:i});
     
     };
 
@@ -678,7 +679,7 @@ Handler.prototype.execute = function me (data, passin, value) {
                 emitter.log("executing action", value, passin);
                 actions[value].call(passin, data);
             } else {
-                emitterl.log("action not found", value, passin);
+                emitter.log("action not found", value, passin);
             }
             return;
         }
