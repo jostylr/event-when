@@ -91,9 +91,11 @@ This tests that the once removes itself. We do a case with no number and one wit
         emitter.emit("second ready");
     });
 
+
     emitter.once("second ready", function () {
         actual.push("second fires");
     }, 2);
+
 
     emitter.emit("first ready");
     emitter.emit("first ready");    
@@ -149,12 +151,15 @@ Testing the when capabilities.
 
 [code]()
 
-    emitter.when(["first ready", "second ready"], function () {
+    emitter.when(["first ready", "second ready"], "both ready");
+
+
+    emitter.on("both ready", function () {
         actual.push("when fired");
     });
 
     emitter.emit("first ready");
-    emitter.emit("first ready");    
+    emitter.emit("first ready");
     emitter.emit("second ready");
     emitter.emit("first ready");    
     emitter.emit("second ready");

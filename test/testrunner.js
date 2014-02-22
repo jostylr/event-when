@@ -147,12 +147,14 @@ var records = {
                     }    
                 });
             
-                emitter.when(["first ready", "second ready"], function () {
+                emitter.when(["first ready", "second ready"], "both ready");
+                
+                emitter.on("both ready", function () {
                     actual.push("when fired");
                 });
                 
                 emitter.emit("first ready");
-                emitter.emit("first ready");    
+                emitter.emit("first ready");
                 emitter.emit("second ready");
                 emitter.emit("first ready");    
                 emitter.emit("second ready");

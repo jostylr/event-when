@@ -1,4 +1,6 @@
+/*jshint eqnull:true*/
 /*global setTimeout, process, module, console */
+
 var EvW = function () {
     
         this._handlers = {};
@@ -315,16 +317,17 @@ EvW.prototype.when = function (events, ev, timing, reset) {
     
         tracker.emitter = emitter;
         tracker.ev = ev;
-        var data = tracker.data = [];
-        var myth = tracker.myth = [];
+        tracker.data = [];
+        tracker.myth = [];
         tracker.timing = timing || emitter.timing || "now";
         tracker.reset = reset || false;
         tracker.original = events.slice();
     
-        var handler = new Handler (function (data, passin) {
-            var ev = passin.ev;
-            data.push([ev, data]);
-            myth.push([ev, passin.myth.emit]);
+        var handler = new Handler (function (data) {
+            var passin = this;
+            var ev = passin.event;
+            tracker.data.push([ev, data]);
+            tracker.myth.push([ev, passin.myth.emit]);
             tracker.remove(ev);
         });
     
@@ -523,6 +526,7 @@ EvW.prototype.makeHandler = function (value, options) {
         return new Handler(value, options);
     };
 EvW.prototype.error = function (e, ev, h, i) {
+        console.log(arguments);
         throw Error(e);
         throw Error({e:e, ev:ev, h:h, i:i});
     
@@ -540,7 +544,7 @@ Tracker.prototype.add = function (newEvents) {
 
     if (arguments.length !== 1) {
         newEvents = Array.prototype.slice.call(arguments);
-    } else if (typeof newEvents === "string") {
+    } else if (! Array.isArray(newEvents) ) {
         newEvents = [newEvents];
     }
 
@@ -570,12 +574,11 @@ Tracker.prototype.add = function (newEvents) {
 };
 Tracker.prototype.remove = function (byeEvents) {
         var tracker = this,
-            args = Array.prototype.slice.call(arguments, 0),
             events = tracker.events;
     
         if (arguments.length !== 1) {
             byeEvents = Array.prototype.slice.call(arguments);
-        } else if (typeof newEvents === "string") {
+        } else if (! Array.isArray(byeEvents) ) {
             byeEvents = [byeEvents];
         }
     
@@ -618,8 +621,7 @@ Tracker.prototype.go = function () {
             data = tracker.data,
             myth = tracker.mayth,
             events = tracker.events,
-            emitter = tracker.emitter,
-            cont = true;
+            emitter = tracker.emitter;
     
         if (Object.keys(events).length === 0) {
             if (tracker.reset === true) {
@@ -697,7 +699,7 @@ Handler.prototype.execute = function me (data, passin, value) {
             return;
         }
 
-        if ( value.hasOwnProperty("execute") ) {
+        if ( typeof value.execute === "function" ) {
             value.execute(data, passin);
             return;
         }   

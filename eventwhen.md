@@ -28,8 +28,8 @@ This provides a succinct introduction to the library for the readme and this fil
 The file structure is fairly simple. 
 
 * [index.js](#main "save:|jshint") This is the node module entry point and only relevant file. It is a small file.
-* [ghpages/index.js](#main "save:|jshint") This is for browser access. 
-* [examples/full.js](#full-example "save: |jshint")
+* [ghpages/index.js](#main "save:") This is for browser access. 
+* `[examples/full.js](#full-example "save: |jshint")`
 * [README.md](#old-readme "save: |clean raw ") The standard README.
 * [newREADME.md](#readme "save: ") The standard README, new version.
 * [package.json](#npm-package "save: json  | jshint") The requisite package file for a npm project. 
@@ -45,7 +45,9 @@ For development, you can use the bundled literate-programming easily by using `n
 
 This is the main structure of the module file.
 
+    /*jshint eqnull:true*/
     /*global setTimeout, process, module, console */
+
     var EvW = _"constructor";
 
     _"constructor:prototype"
@@ -301,17 +303,18 @@ Emitting scoped events will count as a firing of the parent event, e.g., `.when(
 
         tracker.emitter = emitter;
         tracker.ev = ev;
-        var data = tracker.data = [];
-        var myth = tracker.myth = [];
+        tracker.data = [];
+        tracker.myth = [];
         tracker.timing = timing || emitter.timing || "now";
         tracker.reset = reset || false;
         tracker.original = events.slice();
 
 
-        var handler = new Handler (function (data, passin) {
-            var ev = passin.ev;
-            data.push([ev, data]);
-            myth.push([ev, passin.myth.emit]);
+        var handler = new Handler (function (data) {
+            var passin = this;
+            var ev = passin.event;
+            tracker.data.push([ev, data]);
+            tracker.myth.push([ev, passin.myth.emit]);
             tracker.remove(ev);
         });
 
@@ -391,10 +394,9 @@ We can add events on to the tracker. We allow it to be an array of events passed
 
         if (arguments.length !== 1) {
             newEvents = Array.prototype.slice.call(arguments);
-        } else if (typeof newEvents === "string") {
+        } else if (! Array.isArray(newEvents) ) {
             newEvents = [newEvents];
         }
-
 
         newEvents.forEach(function (el) {
             var num, str, order;
@@ -430,12 +432,11 @@ Note the `true` for the .off command is to make sure the `.remove` is not called
 
     function (byeEvents) {
         var tracker = this,
-            args = Array.prototype.slice.call(arguments, 0),
             events = tracker.events;
 
         if (arguments.length !== 1) {
             byeEvents = Array.prototype.slice.call(arguments);
-        } else if (typeof newEvents === "string") {
+        } else if (! Array.isArray(byeEvents) ) {
             byeEvents = [byeEvents];
         }
 
@@ -510,8 +511,7 @@ If reset is true, then we add those events before firing off the next round.
             data = tracker.data,
             myth = tracker.mayth,
             events = tracker.events,
-            emitter = tracker.emitter,
-            cont = true;
+            emitter = tracker.emitter;
 
 
         if (Object.keys(events).length === 0) {
@@ -754,7 +754,7 @@ All of the handlers are encapsulated in a try...catch that then calls the emitte
                 return;
             }
 
-            if ( value.hasOwnProperty("execute") ) {
+            if ( typeof value.execute === "function" ) {
                 value.execute(data, passin);
                 return;
             }   
@@ -1169,6 +1169,7 @@ What is done here is a default and suitable for development. In production, one 
 
 
     function (e, ev, h, i) {
+        console.log(arguments);
         throw Error(e);
         throw Error({e:e, ev:ev, h:h, i:i});
 
