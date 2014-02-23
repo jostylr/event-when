@@ -204,12 +204,10 @@ var records = {
                 emitter.name = key;
             
                 var expected = [
-                    "first : great",
-                    "second",
-                    "first : great",
-                    "first : greatsecond",
-                    "works",
-                    "worksyadda"
+                    "first;fire",
+                    "second;water",
+                    "first;water",
+                    "first;second;fire;water"
                     ],
                     actual = [];
                 
@@ -226,35 +224,28 @@ var records = {
             
                 emitter.off("done");
                 
-                emitter.on("first : great",  "works");
+                emitter.on("first",  "works");
                 
                 emitter.on("second", "yadda");
                 
-                actual.push(emitter.events(":").join(''));
+                emitter.on("fire",  "brim");
                 
-                actual.push(emitter.events(":", true).join(''));
-                 
+                emitter.on("water",  "works");    
+                
+                actual.push(emitter.events("fir").join(';'));
+                
+                actual.push(emitter.events("fir", true).join(';'));
+                
                 actual.push(emitter.events(function (ev) {
-                    if (ev === "first : great") {
+                    var h = emitter._handlers[ev];
+                    if ( h.contains("works", h ) ){
                         return true;
                     } else {
                         return false;
                     }
-                }).join(''));
+                }).join(';'));
                 
-                actual.push(emitter.events().join(''));
-                
-                actual.push(emitter.handlers(["first : great"])["first : great"][0].value[0]);
-                
-                // handlers
-                (function () {
-                    var key, str='', hs; 
-                    hs = emitter.handlers();
-                    for (key in hs) {
-                        str += hs[key][0].value[0];
-                    }
-                    actual.push(str);
-                } () );
+                actual.push(emitter.events().join(';'));
                 
                 emitter.on("done", function () {
                     var result;
@@ -265,299 +256,11 @@ var records = {
                     } else {
                         tester.emit("failed", {key:key, result:result});
                     }    
-                });
+                })
                 
                 emitter.emit("done");
             
             },
-        "handler with context" : function () {
-            
-                var emitter = new EventWhen();
-                var key = 'Handler with context';
-            
-                emitter.name = key;
-            
-                var expected = [
-                    "jt:hi!"
-                    ],
-                    actual = [];
-                
-                emitter.on("done", function () {
-                    var result;
-                
-                    result = Test.same(actual, expected);
-                    if (result === true ) {
-                       tester.emit("passed", key);
-                    } else {
-                        tester.emit("failed", {key:key, result:result});
-                    }    
-                });
-            
-                emitter.on("first ready", function (data, emitter, args) {
-                    var self = this;
-                    actual.push(self.name + ":" + args);
-                }, {name:"jt"}, "hi!");
-                
-                emitter.emit("first ready");
-                
-                emitter.emit("done");
-            
-            },
-        "handler with two handles" : function () {
-            
-                var emitter = new EventWhen();
-                var key = 'Handler with two handles';
-            
-                emitter.name = key;
-            
-                var expected = [
-                    "jt:hi!",
-                    "action fired received"
-                    ],
-                    actual = [];
-                
-                emitter.on("done", function () {
-                    var result;
-                
-                    result = Test.same(actual, expected);
-                    if (result === true ) {
-                       tester.emit("passed", key);
-                    } else {
-                        tester.emit("failed", {key:key, result:result});
-                    }    
-                });
-            
-                emitter.on("first ready", [function (data, emitter, args) {
-                    var self = this;
-                    actual.push(self.name + ":" + args);
-                }, "an action fired"], {name:"jt"}, "hi!");
-                
-                emitter.on("an action fired", function () {
-                    actual.push("action fired received");
-                });
-                
-                emitter.emit("first ready");
-                
-                emitter.emit("done");
-            
-            },
-        "canceling" : function () {
-            
-                var emitter = new EventWhen();
-                var key = 'canceling';
-            
-                emitter.name = key;
-            
-                var expected = [
-                    "emit this",
-                    "emit that 1",
-                    "emit that 2",
-                    "seen because the handler array is not stopped"
-                    ],
-                    actual = [];
-                
-                emitter.on("done", function () {
-                    var result;
-                
-                    result = Test.same(actual, expected);
-                    if (result === true ) {
-                       tester.emit("passed", key);
-                    } else {
-                        tester.emit("failed", {key:key, result:result});
-                    }    
-                });
-            
-                emitter.on("emit this", [function () {
-                        actual.push("emit this");
-                        return false;
-                    }, function () {
-                        actual.push("not actually ever seen");
-                }]);
-                
-                emitter.on("emit this", [function () {
-                        actual.push("not seen either");
-                }]);
-                
-                emitter.on("emit that", [function () {
-                        actual.push("emit that 1");
-                }]);
-                
-                emitter.on("emit that", [function (data, emitter) {
-                        actual.push("emit that 2");
-                        emitter.stop(true);
-                    }, function () {
-                        actual.push("seen because the handler array is not stopped");
-                }]);
-                
-                emitter.on("emit that", [function () {
-                        actual.push("never seen as it gets canceled beforehand");
-                }]);
-                
-                emitter.emit("emit this");
-                emitter.emit("emit that");
-                
-                emitter.emit("done");
-            
-            },
-        "error checking" : function () {
-            
-                var emitter = new EventWhen();
-                var key = 'error checking';
-            
-                emitter.name = key;
-            
-                var expected = [
-                    "error event:awesome\nChecking!",
-                    "Checking!\nerror event\nawesome"
-                    ],
-                    actual = [];
-                
-                emitter.on("done", function () {
-                    var result;
-                
-                    result = Test.same(actual, expected);
-                    if (result === true ) {
-                       tester.emit("passed", key);
-                    } else {
-                        tester.emit("failed", {key:key, result:result});
-                    }    
-                });
-            
-                // default error
-                
-                emitter.on("error event", function () {
-                    throw Error("Checking!");
-                }).name = "awesome";
-                
-                try {
-                    emitter.emit("error event");
-                } catch (e) {
-                    actual.push(e.message);
-                }
-                
-                //error overide
-                
-                emitter.error = function (e, ev, h) {
-                    actual.push([e.message, ev, h.name].join("\n"));
-                };
-                
-                emitter.emit("error event");
-                
-                emitter.emit("done");
-            
-            },
-        "flow testing" : function () {
-            
-                var emitter = new EventWhen();
-                var key = 'flow testing';
-            
-                emitter.name = key;
-            
-                var expected = [
-                    "A",
-                    "B",
-                    "C",
-                    "E",
-                    "D"
-                    ],
-                    actual = [];
-                
-                emitter.on("done", function () {
-                    var result;
-                
-                    result = Test.same(actual, expected);
-                    if (result === true ) {
-                       tester.emit("passed", key);
-                    } else {
-                        tester.emit("failed", {key:key, result:result});
-                    }    
-                });
-            
-                emitter.on("A", function () {
-                    actual.push("A");
-                    emitter.later("C");
-                });
-                emitter.on("C", function () {
-                    actual.push("C");
-                    emitter.later("D");
-                });
-                emitter.on("B", function () {
-                    actual.push("B");
-                    emitter.later("E");
-                });
-                
-                emitter.on("D", function () {
-                    actual.push("D");
-                });
-                
-                emitter.on("E", function () {
-                    actual.push("E");
-                });
-                
-                emitter.when(["A", "B", "C", "D", "E"], "done");
-                
-                emitter.emit("A");
-                emitter.emit("B");
-            
-            },
-        ".when with later" : function () {
-            
-                var emitter = new EventWhen();
-                var key = '.when with later';
-            
-                emitter.name = key;
-            
-                var expected = [
-                    "A",
-                    "B",
-                    "E",
-                    "D",
-                    "C"
-                    ],
-                    actual = [];
-                
-                emitter.on("done", function () {
-                    var result;
-                
-                    result = Test.same(actual, expected);
-                    if (result === true ) {
-                       tester.emit("passed", key);
-                    } else {
-                        tester.emit("failed", {key:key, result:result});
-                    }    
-                });
-            
-                emitter.on("A", function () {
-                    actual.push("A");
-                });
-                emitter.on("B", function () {
-                    actual.push("B");
-                });
-                
-                emitter.on("C", function () {
-                    actual.push("C");
-                });
-                
-                emitter.on("D", function () {
-                    actual.push("D");
-                });
-                
-                emitter.on("E", function () {
-                    actual.push("E");
-                });
-                
-                emitter.when(["A", "B"], "C", {timing: "later"});
-                
-                emitter.when(["A", "B"], "D", {timing: "firstLater"});
-                
-                emitter.when(["A", "B"], "E");
-                
-                var temp = emitter.when(["A", "B", "C", "D", "E"], "done");
-                
-                emitter.emit("A");
-                emitter.emit("B");
-            
-            }
 };
 
 tester.on("passed", function (key) {

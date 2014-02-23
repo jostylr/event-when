@@ -246,7 +246,7 @@ Let's have a function that acts and then an event that emits saying it acted.
 
 ## Listing handlers and events
 
-Can we filter events appropriately? 
+This is testing .events(). 
 
 [key]()
 
@@ -254,48 +254,39 @@ Can we filter events appropriately?
 
 [expected]()
 
-    first : great
-    second
-    first : great
-    first : greatsecond
-    works
-    worksyadda
+    first;fire
+    second;water
+    first;water
+    first;second;fire;water
 
 [code]()
 
     emitter.off("done");
 
-    emitter.on("first : great",  "works");
+    emitter.on("first",  "works");
 
     emitter.on("second", "yadda");
 
-    actual.push(emitter.events(":").join(''));
+    emitter.on("fire",  "brim");
 
-    actual.push(emitter.events(":", true).join(''));
- 
+    emitter.on("water",  "works");    
+
+    actual.push(emitter.events("fir").join(';'));
+
+    actual.push(emitter.events("fir", true).join(';'));
+    
     actual.push(emitter.events(function (ev) {
-        if (ev === "first : great") {
+        var h = emitter._handlers[ev];
+        if ( h.contains("works", h ) ){
             return true;
         } else {
             return false;
         }
-    }).join(''));
+    }).join(';'));
+    
+    actual.push(emitter.events().join(';'));
 
-    actual.push(emitter.events().join(''));
-
-    actual.push(emitter.handlers(["first : great"])["first : great"][0].value[0]);
-
-    // handlers
-    (function () {
-        var key, str='', hs; 
-        hs = emitter.handlers();
-        for (key in hs) {
-            str += hs[key][0].value[0];
-        }
-        actual.push(str);
-    } () );
-
-    _"async emitting";
+    _"async emitting"
 
     emitter.emit("done");
 
@@ -586,12 +577,12 @@ This is a simple test runner.
             ".when waiting for 2 events" : _"when*test template",
             "checking action naming" : _"action*test template",
             "checking handlers and events" : _"Listing handlers and events*test template",
-            "handler with context" : _"handler with context*test template",
-            "handler with two handles" : _"Handler with two handles*test template",
-            "canceling" : _"canceling*test template",
-            "error checking" : _"error checking*test template",
-            "flow testing" : _"flow testing*test template",
-            ".when with later" : _"when async*test template"
+"handler with context" : _"handler with context*test template",
+"handler with two handles" : _"Handler with two handles*test template",
+"canceling" : _"canceling*test template",
+"error checking" : _"error checking*test template",
+"flow testing" : _"flow testing*test template",
+".when with later" : _"when async*test template"
     };
 
 

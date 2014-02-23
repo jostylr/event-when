@@ -48,17 +48,19 @@ This is the main structure of the module file.
     /*jshint eqnull:true*/
     /*global setTimeout, process, module, console */
 
-    var EvW = _"constructor";
+    var Handler = _"handler";
 
-    _"constructor:prototype"
+    _"handler:prototype"
 
     var Tracker = _"tracker";
 
     _"tracker:prototype"
 
-    var Handler = _"handler";
+    var EvW = _"constructor";
 
-    _"handler:prototype"
+    _"constructor:prototype"
+
+
 
     module.exports = EvW;
 
@@ -613,6 +615,7 @@ It takes an event (a string) and a Handler or something that converts to a Handl
                 handlers[ev].push(f);
         } else {
             handlers[ev] = [f];
+            handlers[ev].contains = f.contains;
         }
 
         return f;
@@ -671,6 +674,62 @@ The prototype object
     Handler.prototype.execute = _":execute";
     Handler.prototype.contains = _":contains";
 
+[traverse]()
+
+This is a generic way to traverse the handler hierarchy. 
+
+The com object is a hash of functions that deal with the various types of handler values:  action (string), fun (functions), array (array), handler (handlers), error (anything else). 
+
+    function me (com, args, value) {
+        if ( value == null ) {
+            if ( this.hasOwnProperty("value") ) {
+                value = this.value;
+            } else {
+                value = {};
+            }
+        }
+
+        var ret;
+
+        if (typeof value === "string") {
+            if (typeof com.string === "function") {
+                return com.action(com, args, value);
+            }
+        }
+            
+        if (typeof value === "function") {
+            if (typeof com.arg === "function") {
+                return com.fun(com, args, value);
+            }
+        }
+            
+        if ( Array.isArray(value) ) {
+            ret = value.map(function (el) {
+                return me.call(null, com, args, value); 
+            });
+            if (typeof com.array === "function") {
+                return com.array(com, args, ret, value);
+            } else {
+                return ret;
+            }
+        }
+
+        if ( typeof value.traverse === "function" ) {
+            ret = value.traverse(com, args, value);
+            if (typeof com.handler === "function") {
+                return com.handler(ret);
+            } else {
+                return ret;
+            }
+        }   
+
+        if (typeof com.error === "function") {
+            com.error(com, args, value); 
+        } else {
+            return ; 
+        }
+
+    }
 
 [contains]() 
 
@@ -686,6 +745,7 @@ The first if will says that the handler contains itself.
         }
         
         value = value || this.value;
+
         if (value === val) {
             return true;
         } 
@@ -696,7 +756,7 @@ The first if will says that the handler contains itself.
             });
         }
 
-        if ( value.hasOwnProperty("contains") ) {
+        if ( value && typeof value.contains === "function" ) {
             return value.contains(val);
         } 
 
@@ -726,7 +786,7 @@ All of the handlers are encapsulated in a try...catch that then calls the emitte
     function me (data, passin, value) {
         var handler = this,
             emitter = passin.emitter,                
-            actions = emitter.actions;
+            actions = emitter._actions;
         
         value = value || handler.value;
 
@@ -734,7 +794,7 @@ All of the handlers are encapsulated in a try...catch that then calls the emitte
             if (typeof value === "string") {
                 if ( actions.hasOwnProperty(value) ) {
                     emitter.log("executing action", value, passin);
-                    actions[value].call(passin, data);
+                    actions[value].execute(data, passin);
                 } else {
                     emitter.log("action not found", value, passin);
                 }
@@ -760,7 +820,6 @@ All of the handlers are encapsulated in a try...catch that then calls the emitte
             }   
 
             emitter.log("value not executable", value, passin);
-            throw ["value not executable", value, passin];
 
         } catch (e) {
             emitter.error(e, value, data, passin);
@@ -1184,7 +1243,7 @@ If just one argument is provided, then the handler is returned.
 If two arguments are provided, but the second is null, then this is a signal to delete the action. 
 
 
-    function (name, handler, that, args) {
+    function (name, handler, data, passin) {
         var emitter = this;
 
         if (arguments.length === 1) {
@@ -1197,7 +1256,7 @@ If two arguments are provided, but the second is null, then this is a signal to 
             return name;
         }
         
-        var action = new Handler(handler, {that:that, args:args, name: name}); 
+        var action = new Handler(handler, data, passin); 
 
         if (emitter._actions.hasOwnProperty(name) ) {
             emitter.log("Overwriting action " + name);

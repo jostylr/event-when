@@ -1,6 +1,211 @@
 /*jshint eqnull:true*/
 /*global setTimeout, process, module, console */
 
+var Handler = function (value, data, myth) {
+        if ( (value instanceof Handler) && 
+             (arguments.length === 1) ) {
+                return value;
+        }
+    
+        var handler = this;
+    
+        handler.value = value; 
+        handler.data = data;
+        handler.myth = myth;
+    
+        return handler;
+    };
+
+Handler.prototype.execute = function me (data, passin, value) {
+    var handler = this,
+        emitter = passin.emitter,                
+        actions = emitter._actions;
+    
+    value = value || handler.value;
+
+    try {
+        if (typeof value === "string") {
+            if ( actions.hasOwnProperty(value) ) {
+                emitter.log("executing action", value, passin);
+                actions[value].execute(data, passin);
+            } else {
+                emitter.log("action not found", value, passin);
+            }
+            return;
+        }
+
+        if (typeof value === "function") {
+            emitter.log("executing function", value, passin);
+            value.call(passin, data);
+            return; 
+        }
+
+        if ( Array.isArray(value) ) {
+            value.forEach(function (el) {
+                me(data, passin, el); 
+            });
+            return;
+        }
+
+        if ( typeof value.execute === "function" ) {
+            value.execute(data, passin);
+            return;
+        }   
+
+        emitter.log("value not executable", value, passin);
+
+    } catch (e) {
+        emitter.error(e, value, data, passin);
+    }
+
+    return;
+};
+Handler.prototype.contains = function me (val, value) {
+        if (this === val) {
+            return true;
+        }
+        
+        value = value || this.value;
+    
+        if (value === val) {
+            return true;
+        } 
+    
+        if ( Array.isArray(value) ) {
+            return value.some(function (el) {
+                return me(val, el);
+            });
+        }
+    
+        if ( value && typeof value.contains === "function" ) {
+            return value.contains(val);
+        } 
+    
+        return false;
+    
+    };
+
+var Tracker = function () {
+        this.events = {};
+        return this;
+    };
+
+Tracker.prototype.add = function (newEvents) {
+    var tracker = this,
+        events = tracker.events,
+        handler = tracker.handler;
+
+    if (arguments.length !== 1) {
+        newEvents = Array.prototype.slice.call(arguments);
+    } else if (! Array.isArray(newEvents) ) {
+        newEvents = [newEvents];
+    }
+
+    newEvents.forEach(function (el) {
+        var num, str, order;
+        if (typeof el === "string") {
+            str = el;
+            num = 1;
+        }
+        if (Array.isArray(el) ) {
+            if ((typeof el[1] === "number") && (el[1] >= 1) && (typeof el[0] === "string") ) {
+                num = el[1];
+                str = el[0];
+            } 
+        }
+        if (str && (typeof num === "number") ) {
+            if (events.hasOwnProperty(str) ) {
+                events[str] += num;
+            } else {
+                tracker.emitter.on(str, handler, order);
+                events[str] = num;
+            }
+        }
+    });
+    tracker.go();
+    return tracker;
+};
+Tracker.prototype.remove = function (byeEvents) {
+        var tracker = this,
+            events = tracker.events;
+    
+        if (arguments.length !== 1) {
+            byeEvents = Array.prototype.slice.call(arguments);
+        } else if (! Array.isArray(byeEvents) ) {
+            byeEvents = [byeEvents];
+        }
+    
+        byeEvents.forEach(function (el) {
+            var num, str;
+            if (typeof el === "string") {
+                str = el;
+                num = 1;
+            }
+            if (Array.isArray(el) ) {
+                if ((typeof el[1] === "number") && (el[1] >= 1) && (typeof el[0] === "string") ) {
+                    num = el[1];
+                    str = el[0];
+                } 
+            }
+            if (str && num) {
+                if (events.hasOwnProperty(str) ) {
+                    events[str] -= num;             
+                    if (events[str] <= 0) {
+                        delete events[str];
+                        tracker.emitter.off(str, tracker.handler, true);
+                    }
+                } 
+            } 
+        });
+        tracker.go();
+        return tracker;
+    };
+Tracker.prototype._removeStr = function (ev) {
+        var tracker = this;
+    
+        delete tracker.events[ev];
+    
+        tracker.go();
+        return tracker;
+    };
+Tracker.prototype.go = function () {
+        var tracker = this, 
+            ev = tracker.ev, 
+            data = tracker.data,
+            myth = tracker.mayth,
+            events = tracker.events,
+            emitter = tracker.emitter;
+    
+        if (Object.keys(events).length === 0) {
+            if (tracker.reset === true) {
+                tracker.add(tracker.original);
+            }
+            emitter.emit(ev, data, myth, tracker.timing); 
+        }
+        return tracker;
+    };
+Tracker.prototype.cancel = function () {
+        var tracker = this, 
+            emitter = tracker.emitter,
+            handler = tracker.handler,
+            event, keys;
+        
+        keys = Object.keys(tracker.events);
+    
+        for (event in keys) {
+            emitter.off(event, handler);
+        }
+        return tracker;
+    };
+Tracker.prototype.reinitialize = function () {
+        var tracker = this;
+    
+        tracker.cancel();
+        tracker.add(tracker.original);
+        tracker.go();
+        return tracker;
+    };
+
 var EvW = function () {
     
         this._handlers = {};
@@ -29,6 +234,7 @@ EvW.prototype.on = function (ev, f, data, myth) {
             handlers[ev].push(f);
     } else {
         handlers[ev] = [f];
+        handlers[ev].contains = f.contains;
     }
 
     return f;
@@ -459,7 +665,7 @@ EvW.prototype.handlers = function (events) {
         return ret;
     
     };
-EvW.prototype.action = function (name, handler, that, args) {
+EvW.prototype.action = function (name, handler, data, passin) {
         var emitter = this;
     
         if (arguments.length === 1) {
@@ -472,7 +678,7 @@ EvW.prototype.action = function (name, handler, that, args) {
             return name;
         }
         
-        var action = new Handler(handler, {that:that, args:args, name: name}); 
+        var action = new Handler(handler, data, passin); 
     
         if (emitter._actions.hasOwnProperty(name) ) {
             emitter.log("Overwriting action " + name);
@@ -529,211 +735,6 @@ EvW.prototype.error = function (e, ev, h, i) {
         console.log(arguments);
         throw Error(e);
         throw Error({e:e, ev:ev, h:h, i:i});
-    
-    };
-
-var Tracker = function () {
-        this.events = {};
-        return this;
-    };
-
-Tracker.prototype.add = function (newEvents) {
-    var tracker = this,
-        events = tracker.events,
-        handler = tracker.handler;
-
-    if (arguments.length !== 1) {
-        newEvents = Array.prototype.slice.call(arguments);
-    } else if (! Array.isArray(newEvents) ) {
-        newEvents = [newEvents];
-    }
-
-    newEvents.forEach(function (el) {
-        var num, str, order;
-        if (typeof el === "string") {
-            str = el;
-            num = 1;
-        }
-        if (Array.isArray(el) ) {
-            if ((typeof el[1] === "number") && (el[1] >= 1) && (typeof el[0] === "string") ) {
-                num = el[1];
-                str = el[0];
-            } 
-        }
-        if (str && (typeof num === "number") ) {
-            if (events.hasOwnProperty(str) ) {
-                events[str] += num;
-            } else {
-                tracker.emitter.on(str, handler, order);
-                events[str] = num;
-            }
-        }
-    });
-    tracker.go();
-    return tracker;
-};
-Tracker.prototype.remove = function (byeEvents) {
-        var tracker = this,
-            events = tracker.events;
-    
-        if (arguments.length !== 1) {
-            byeEvents = Array.prototype.slice.call(arguments);
-        } else if (! Array.isArray(byeEvents) ) {
-            byeEvents = [byeEvents];
-        }
-    
-        byeEvents.forEach(function (el) {
-            var num, str;
-            if (typeof el === "string") {
-                str = el;
-                num = 1;
-            }
-            if (Array.isArray(el) ) {
-                if ((typeof el[1] === "number") && (el[1] >= 1) && (typeof el[0] === "string") ) {
-                    num = el[1];
-                    str = el[0];
-                } 
-            }
-            if (str && num) {
-                if (events.hasOwnProperty(str) ) {
-                    events[str] -= num;             
-                    if (events[str] <= 0) {
-                        delete events[str];
-                        tracker.emitter.off(str, tracker.handler, true);
-                    }
-                } 
-            } 
-        });
-        tracker.go();
-        return tracker;
-    };
-Tracker.prototype._removeStr = function (ev) {
-        var tracker = this;
-    
-        delete tracker.events[ev];
-    
-        tracker.go();
-        return tracker;
-    };
-Tracker.prototype.go = function () {
-        var tracker = this, 
-            ev = tracker.ev, 
-            data = tracker.data,
-            myth = tracker.mayth,
-            events = tracker.events,
-            emitter = tracker.emitter;
-    
-        if (Object.keys(events).length === 0) {
-            if (tracker.reset === true) {
-                tracker.add(tracker.original);
-            }
-            emitter.emit(ev, data, myth, tracker.timing); 
-        }
-        return tracker;
-    };
-Tracker.prototype.cancel = function () {
-        var tracker = this, 
-            emitter = tracker.emitter,
-            handler = tracker.handler,
-            event, keys;
-        
-        keys = Object.keys(tracker.events);
-    
-        for (event in keys) {
-            emitter.off(event, handler);
-        }
-        return tracker;
-    };
-Tracker.prototype.reinitialize = function () {
-        var tracker = this;
-    
-        tracker.cancel();
-        tracker.add(tracker.original);
-        tracker.go();
-        return tracker;
-    };
-
-var Handler = function (value, data, myth) {
-        if ( (value instanceof Handler) && 
-             (arguments.length === 1) ) {
-                return value;
-        }
-    
-        var handler = this;
-    
-        handler.value = value; 
-        handler.data = data;
-        handler.myth = myth;
-    
-        return handler;
-    };
-
-Handler.prototype.execute = function me (data, passin, value) {
-    var handler = this,
-        emitter = passin.emitter,                
-        actions = emitter.actions;
-    
-    value = value || handler.value;
-
-    try {
-        if (typeof value === "string") {
-            if ( actions.hasOwnProperty(value) ) {
-                emitter.log("executing action", value, passin);
-                actions[value].call(passin, data);
-            } else {
-                emitter.log("action not found", value, passin);
-            }
-            return;
-        }
-
-        if (typeof value === "function") {
-            emitter.log("executing function", value, passin);
-            value.call(passin, data);
-            return; 
-        }
-
-        if ( Array.isArray(value) ) {
-            value.forEach(function (el) {
-                me(data, passin, el); 
-            });
-            return;
-        }
-
-        if ( typeof value.execute === "function" ) {
-            value.execute(data, passin);
-            return;
-        }   
-
-        emitter.log("value not executable", value, passin);
-        throw ["value not executable", value, passin];
-
-    } catch (e) {
-        emitter.error(e, value, data, passin);
-    }
-
-    return;
-};
-Handler.prototype.contains = function me (val, value) {
-        if (this === val) {
-            return true;
-        }
-        
-        value = value || this.value;
-        if (value === val) {
-            return true;
-        } 
-    
-        if ( Array.isArray(value) ) {
-            return value.some(function (el) {
-                return me(val, el);
-            });
-        }
-    
-        if ( value.hasOwnProperty("contains") ) {
-            return value.contains(val);
-        } 
-    
-        return false;
     
     };
 
