@@ -518,6 +518,80 @@ var records = {
             emitter.emit("B");
         
         },
+    ".when with later" : function () {
+        
+            var emitter = new EventWhen();
+            var key = '.when with later';
+        
+            emitter.name = key;
+        
+            var expected = [
+                "A",
+                "B",
+                "E",
+                "A",
+                "A",
+                "B",
+                "E",
+                "D",
+                "B",
+                "D",
+                "C",
+                "C",
+                "A",
+                "E",
+                "D",
+                "C"
+                ],
+                actual = [];
+            
+            emitter.on("done", function () {
+                var result;
+            
+                result = Test.same(actual, expected);
+                if (result === true ) {
+                   tester.emit("passed", key);
+                } else {
+                    tester.emit("failed", {key:key, result:result});
+                }    
+            });
+        
+            emitter.on("A", function () {
+                actual.push("A");
+            });
+            emitter.on("B", function () {
+                actual.push("B");
+            });
+            
+            emitter.on("C", function () {
+                actual.push("C");
+            });
+            
+            emitter.on("D", function () {
+                actual.push("D");
+            });
+            
+            emitter.on("E", function () {
+                actual.push("E");
+            });
+            
+            emitter.when(["A", "B"], "C", "later", true);
+            
+            emitter.when(["A", "B"], "D", "soon", true);
+            
+            emitter.when(["A", "B"], "E", "momentary", true);
+            
+            var temp = emitter.when([["A", 4], ["B", 3], ["C", 3], ["D", 3], ["E", 3]], "done");
+            
+            emitter.emit("A");
+            emitter.emit("B");
+            emitter.emit("A");
+            emitter.emit("A");
+            emitter.emit("B");
+            emitter.later("A");
+            emitter.emit("B");
+        
+        }
 };
 
 tester.on("passed", function (key) {

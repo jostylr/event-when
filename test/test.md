@@ -473,11 +473,21 @@ Does `.later` work for `.when`?
     A
     B
     E
+    A
+    A
+    B
+    E
+    D
+    B
+    D
+    C
+    C
+    A
+    E
     D
     C
 
 [code]()
-
 
     emitter.on("A", function () {
         actual.push("A");
@@ -498,15 +508,20 @@ Does `.later` work for `.when`?
         actual.push("E");
     });
 
-    emitter.when(["A", "B"], "C", {timing: "later"});
+    emitter.when(["A", "B"], "C", "later", true);
 
-    emitter.when(["A", "B"], "D", {timing: "firstLater"});
+    emitter.when(["A", "B"], "D", "soon", true);
 
-    emitter.when(["A", "B"], "E");
+    emitter.when(["A", "B"], "E", "momentary", true);
 
-    var temp = emitter.when(["A", "B", "C", "D", "E"], "done");
+    var temp = emitter.when([["A", 4], ["B", 3], ["C", 3], ["D", 3], ["E", 3]], "done");
 
     emitter.emit("A");
+    emitter.emit("B");
+    emitter.emit("A");
+    emitter.emit("A");
+    emitter.emit("B");
+    emitter.later("A");
     emitter.emit("B");
 
 
@@ -612,7 +627,7 @@ This is a simple test runner.
         "canceling" : _"canceling*test template",
         "error checking" : _"error checking*test template",
         "flow testing" : _"flow testing*test template",
-".when with later" : _"when async*test template"
+        ".when with later" : _"when async*test template"
     };
 
 
