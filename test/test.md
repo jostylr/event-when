@@ -194,6 +194,7 @@ Testing actions.
 
 ## Handler with context
 
+Want to pass in some data and some myth
 
 [key]()
 
@@ -201,17 +202,19 @@ Testing actions.
 
 [expected]()
 
-    jt:hi!
+    jt:says hi!
 
 [code]()
 
 
-    emitter.on("first ready", function (data, emitter, args) {
+    emitter.on("first ready", function (data) {
         var self = this;
-        actual.push(self.name + ":" + args);
-    }, {name:"jt"}, "hi!");
+        actual.push(self.myth.handler.name + 
+            ":" + self.data.handler + 
+            " " + data + self.myth.emit.punctuation);
+    }, "says", {name:"jt"});
 
-    emitter.emit("first ready");
+    emitter.emit("first ready", "hi", {punctuation: "!"});
 
     emitter.emit("done");
 
@@ -226,21 +229,29 @@ Let's have a function that acts and then an event that emits saying it acted.
 
 [expected]()
 
-    jt:hi!
-    action fired received
+    one:golden
+    two:golden
+    three:golden
 
 [code]()
 
-    emitter.on("first ready", [function (data, emitter, args) {
-        var self = this;
-        actual.push(self.name + ":" + args);
-    }, "an action fired"], {name:"jt"}, "hi!");
+    emitter.on("first ready", [function (data) {
+        actual.push("one:"+data);
+    }, "an action fired"]);
 
-    emitter.on("an action fired", function () {
-        actual.push("action fired received");
+    emitter.on("first ready", "great");
+
+    emitter.action("an action fired", function (data) {
+        actual.push("two:"+data);
     });
 
-    emitter.emit("first ready");
+    emitter.action("great", function (data) {
+        actual.push("three:"+data);
+    });
+
+
+
+    emitter.emit("first ready", "golden");
 
     emitter.emit("done");
 
@@ -309,37 +320,41 @@ Can we remove handlers or stop events?
 
 [code]()
 
-    emitter.on("emit this", [function () {
+    emitter.action("stop emission", function () {
             actual.push("emit this");
-            return false;
-        }, function () {
+            this.stop = true;
+    });
+
+    emitter.action("not seen in array",function () {
             actual.push("not actually ever seen");
-    }]);
+    }); 
 
-    emitter.on("emit this", [function () {
+    emitter.on("bubbling stopping", ["stop emission", "not seen in array" ]);
+
+    emitter.on("bubbling stopping", function () {
             actual.push("not seen either");
-    }]);
+    });
 
 
-    emitter.on("emit that", [function () {
+    emitter.on("stopping test", [function () {
             actual.push("emit that 1");
     }]);
 
 
-    emitter.on("emit that", [function (data, emitter) {
+    emitter.on("stopping test", [function () {
             actual.push("emit that 2");
-            emitter.stop(true);
+            this.emitter.stop(true);
         }, function () {
             actual.push("seen because the handler array is not stopped");
     }]);
 
-    emitter.on("emit that", [function () {
+    emitter.on("stopping test", [function () {
             actual.push("never seen as it gets canceled beforehand");
     }]);
 
 
-    emitter.emit("emit this");
-    emitter.emit("emit that");
+    emitter.emit("bubbling stopping");
+    emitter.emit("stopping test");
 
     emitter.emit("done");
 
@@ -353,7 +368,7 @@ Let's throw an error.
 
 [expected]()
 
-    error event:awesome\nChecking!
+    Error: Checking!
     Checking!\nerror event\nawesome
 
 [code]()        
@@ -361,9 +376,11 @@ Let's throw an error.
 
     // default error
 
-    emitter.on("error event", function () {
+    var h = emitter.on("error event", function () {
         throw Error("Checking!");
-    }).name = "awesome";
+    })
+
+    h.name = "awesome";
 
 
     try {
@@ -374,8 +391,8 @@ Let's throw an error.
 
     //error overide
 
-    emitter.error = function (e, ev, h) {
-        actual.push([e.message, ev, h.name].join("\n"));
+    emitter.error = function (e, value, data, passin) {
+        actual.push([e.message, passin.event, passin.handler.name].join("\n"));
     };
 
     emitter.emit("error event");
@@ -394,8 +411,14 @@ Does `.later` work?
 [expected]()
 
     A
+    J
+    I
+    K
+    G
+    H
     B
     C
+    F
     E
     D
 
@@ -405,25 +428,32 @@ Does `.later` work?
     emitter.on("A", function () {
         actual.push("A");
         emitter.later("C");
+        emitter.now("term:I");
+        emitter.momentary("term:G");
+        emitter.momentary("term:H");
+        emitter.now("term:J");
     });
+
+    emitter.on("A", function () {
+        emitter.now("term:K");
+    });
+
     emitter.on("C", function () {
         actual.push("C");
-        emitter.later("D");
+        emitter.later("term:D");
+        emitter.soon("term:F");
     });
     emitter.on("B", function () {
         actual.push("B");
-        emitter.later("E");
+        emitter.later("term:E");
     });
 
-    emitter.on("D", function () {
-        actual.push("D");
+    emitter.on("term", function () {
+        var passin = this;
+        actual.push(passin.evObj.pieces[1]);
     });
 
-    emitter.on("E", function () {
-        actual.push("E");
-    });
-
-    emitter.when(["A", "B", "C", "D", "E"], "done");
+    emitter.when([["term",8]], "done");
 
     emitter.emit("A");
     emitter.emit("B");
@@ -571,17 +601,17 @@ This is a simple test runner.
         key;
         
     var records = {
-            "basic again" : _"basic again*test template",
-            "simple once test" : _"once*test template",
-            "turning off a handler" : _"off*test template",
-            ".when waiting for 2 events" : _"when*test template",
-            "checking action naming" : _"action*test template",
-            "checking handlers and events" : _"Listing handlers and events*test template",
-"handler with context" : _"handler with context*test template",
-"handler with two handles" : _"Handler with two handles*test template",
-"canceling" : _"canceling*test template",
-"error checking" : _"error checking*test template",
-"flow testing" : _"flow testing*test template",
+        "basic again" : _"basic again*test template",
+        "simple once test" : _"once*test template",
+        "turning off a handler" : _"off*test template",
+        ".when waiting for 2 events" : _"when*test template",
+        "checking action naming" : _"action*test template",
+        "checking handlers and events" : _"Listing handlers and events*test template",
+        "handler with context" : _"handler with context*test template",
+        "handler with two handles" : _"Handler with two handles*test template",
+        "canceling" : _"canceling*test template",
+        "error checking" : _"error checking*test template",
+        "flow testing" : _"flow testing*test template",
 ".when with later" : _"when async*test template"
     };
 

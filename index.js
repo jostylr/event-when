@@ -16,50 +16,104 @@ var Handler = function (value, data, myth) {
         return handler;
     };
 
-Handler.prototype.execute = function me (data, passin, value) {
-    var handler = this,
-        emitter = passin.emitter,                
-        actions = emitter._actions;
-    
-    value = value || handler.value;
-
-    try {
-        if (typeof value === "string") {
-            if ( actions.hasOwnProperty(value) ) {
-                emitter.log("executing action", value, passin);
-                actions[value].execute(data, passin);
-            } else {
-                emitter.log("action not found", value, passin);
-            }
-            return;
+Handler.prototype.traverse = function me (com, args, value) {
+    if ( value == null ) {
+        if ( this.hasOwnProperty("value") ) {
+            value = this.value;
+        } else {
+            value = {};
         }
-
-        if (typeof value === "function") {
-            emitter.log("executing function", value, passin);
-            value.call(passin, data);
-            return; 
-        }
-
-        if ( Array.isArray(value) ) {
-            value.forEach(function (el) {
-                me(data, passin, el); 
-            });
-            return;
-        }
-
-        if ( typeof value.execute === "function" ) {
-            value.execute(data, passin);
-            return;
-        }   
-
-        emitter.log("value not executable", value, passin);
-
-    } catch (e) {
-        emitter.error(e, value, data, passin);
     }
 
-    return;
-};
+    var ret;
+
+    if (typeof value === "string") {
+        if (typeof com.string === "function") {
+            return com.action(com, args, value);
+        }
+    }
+        
+    if (typeof value === "function") {
+        if (typeof com.arg === "function") {
+            return com.fun(com, args, value);
+        }
+    }
+        
+    if ( Array.isArray(value) ) {
+        ret = value.map(function (el) {
+            return me.call(null, com, args, el); 
+        });
+        if (typeof com.array === "function") {
+            return com.array(com, args, ret, value);
+        } else {
+            return ret;
+        }
+    }
+
+    if ( typeof value.traverse === "function" ) {
+        ret = value.traverse(com, args, value);
+        if (typeof com.handler === "function") {
+            return com.handler(ret);
+        } else {
+            return ret;
+        }
+    }   
+
+    if (typeof com.error === "function") {
+        com.error(com, args, value); 
+    } else {
+        return ; 
+    }
+
+}; 
+Handler.prototype.execute = function me (data, passin, value) {
+        if (passin.stop) {
+            return;
+        }
+    
+        var handler = this,
+            emitter = passin.emitter,                
+            actions = emitter._actions;
+    
+        value = value || handler.value;
+    
+        try {
+            if (typeof value === "string") {
+                if ( actions.hasOwnProperty(value) ) {
+                    emitter.log("executing action", value, passin);
+                    actions[value].execute(data, passin);
+                } else {
+                    emitter.log("action not found", value, passin);
+                }
+                return;
+            }
+    
+            if (typeof value === "function") {
+                emitter.log("executing function", value, passin);
+                value.call(passin, data);
+                return; 
+            }
+    
+            if ( Array.isArray(value) ) {
+                value.forEach(function (el) {
+                    me(data, passin, el); 
+                });
+                return;
+            }
+    
+            if ( typeof value.execute === "function" ) {
+                value.execute(data, passin);
+                return;
+            }   
+    
+            emitter.log("value not executable", value, passin);
+    
+        } catch (e) {
+            emitter.error(e, value, data, passin);
+        }
+    
+        return;
+    }; 
 Handler.prototype.contains = function me (val, value) {
         if (this === val) {
             return true;
@@ -217,7 +271,7 @@ var EvW = function () {
         this.looping = false;
         this.loopMax = 1000;
         this.emitCount = 0;
-        this.timing = "now";
+        this.timing = "momentary";
     
         this.looper = this.looper.bind(this);
     
@@ -244,11 +298,11 @@ EvW.prototype.emit = function (ev, data, myth, timing) {
         var emitter = this, 
             sep = emitter.scopeSep;
     
-        timing = timing ||emitter.timing || "now";
+        timing = timing ||emitter.timing || "momentary";
     
         emitter.log("emit", ev, data, myth, timing);
     
-        var scopes = ev.split(sep);
+        var pieces = ev.split(sep);
     
         emitter.emitCount += 1;
     
@@ -256,7 +310,7 @@ EvW.prototype.emit = function (ev, data, myth, timing) {
             scopeMyth = {}; 
     
         var lev = "";
-        scopes = scopes.map(function (el) {
+        scopes = pieces.map(function (el) {
             var dm;
             lev += (lev ? sep + el : el);
             dm = emitter.scope(lev);
@@ -270,6 +324,7 @@ EvW.prototype.emit = function (ev, data, myth, timing) {
             emitData : data,
             emitMyth : myth,
             scopes : scopes, 
+            pieces : pieces,
             scopeData : scopeData,
             scopeMyth : scopeMyth,
             count : emitter.emitCount,
@@ -443,11 +498,16 @@ EvW.prototype.looper = function () {
             return;
         }
     
+        if ( (queue.length === 0) && (waiting.length > 0) ) {
+            queue.push(waiting.shift());
+        }
+    
         emitter.looping = true;
     
         while ( (queue.length) && (loop < loopMax ) ) {
             evObj = queue[0];
             events = evObj.events;
+            
             if (events.length === 0) {
                 queue.shift();
                 continue;
@@ -463,7 +523,6 @@ EvW.prototype.looper = function () {
             
             ev = cur.scopeEvent;
             f = cur.handlers.shift();
-            
             if (f) {
                 passin = {
                         emitter : emitter,
@@ -491,7 +550,7 @@ EvW.prototype.looper = function () {
                     emitter.log("emission stopped", passin);
                     ind = queue.indexOf(evObj);
                     if (ind !== -1) {
-                        queue.splice(ind);
+                        queue.splice(ind, 1);
                     }
                     continue;
                 }
@@ -506,7 +565,6 @@ EvW.prototype.looper = function () {
             emitter.log("looping hit max", loop);
             emitter.nextTick(self);
         } else if ( waiting.length ) {
-            queue.push(waiting.shift());
             emitter.nextTick(self);
         }
     
@@ -531,7 +589,7 @@ EvW.prototype.when = function (events, ev, timing, reset) {
     
         var handler = new Handler (function (data) {
             var passin = this;
-            var ev = passin.event;
+            var ev = passin.scope;
             tracker.data.push([ev, data]);
             tracker.myth.push([ev, passin.myth.emit]);
             tracker.remove(ev);
@@ -731,11 +789,10 @@ EvW.prototype.scope = function (ev, data, myth) {
 EvW.prototype.makeHandler = function (value, options) {
         return new Handler(value, options);
     };
-EvW.prototype.error = function (e, ev, h, i) {
-        console.log(arguments);
+EvW.prototype.error = function (e) {
+        var emitter = this;
+        emitter.looping = false;
         throw Error(e);
-        throw Error({e:e, ev:ev, h:h, i:i});
-    
     };
 
 module.exports = EvW;

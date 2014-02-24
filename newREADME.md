@@ -37,7 +37,7 @@ __arguments__
 * `ev`  A string that denotes the event. 
 * `data` Any value. It will be passed into the handler. Expected to be JSONable; great for logging. Think properties.
 * `myth` Also any value. Expected to be an object of functions, think methods or messy state objects. 
-* `timing` One of "now", "momentary", "soon", "later" implying emission first on queue, last on queue, first on next cycle, last on next cycle, respectively. Now is the default if not provided. 
+* `timing` One of "now", "momentary", "soon", "later" implying emission first on queue, last on queue, first on next cycle, last on next cycle, respectively. "Momentary" is the default if not provided as that will preserve the order of emitting.
 
 __return__
 
@@ -45,7 +45,7 @@ The emitter for chaining. The events may or may not be already emitted depending
 
 __convenience forms__ 
 
-* `.now`  Event A emits B, B fires before A finishes. This is the function calling model.
+* `.now`  Event A emits B, B fires after the emitting handler finishes, but before other handler's for A finishes. This is the function calling model.
 * `.momentary` Event A emits B, B fires after A finishes. This is more of a synchronous callback model. 
 * `.soon` Event A emits B then C, both with soon, then C fires after next tick. B fires after second tick.
 * `.later` Event A emits B then C, both with later, then B fires after next tick. C fires after second tick.

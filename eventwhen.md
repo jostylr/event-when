@@ -90,7 +90,7 @@ We bind resume to the instance since it will be passed in without context to the
         this.looping = false;
         this.loopMax = 1000;
         this.emitCount = 0;
-        this.timing = "now";
+        this.timing = "momentary";
 
         this.looper = this.looper.bind(this);
 
@@ -136,11 +136,11 @@ First it gets an array of the various scope level events and loads their context
         var emitter = this, 
             sep = emitter.scopeSep;
 
-        timing = timing ||emitter.timing || "now";
+        timing = timing ||emitter.timing || "momentary";
 
         emitter.log("emit", ev, data, myth, timing);
 
-        var scopes = ev.split(sep);
+        var pieces = ev.split(sep);
 
         emitter.emitCount += 1;
 
@@ -148,7 +148,7 @@ First it gets an array of the various scope level events and loads their context
             scopeMyth = {}; 
 
         var lev = "";
-        scopes = scopes.map(function (el) {
+        scopes = pieces.map(function (el) {
             var dm;
             lev += (lev ? sep + el : el);
             dm = emitter.scope(lev);
@@ -162,6 +162,7 @@ First it gets an array of the various scope level events and loads their context
             emitData : data,
             emitMyth : myth,
             scopes : scopes, 
+            pieces : pieces,
             scopeData : scopeData,
             scopeMyth : scopeMyth,
             count : emitter.emitCount,
@@ -199,7 +200,7 @@ First it gets an array of the various scope level events and loads their context
     * `ev`  A string that denotes the event. 
     * `data` Any value. It will be passed into the handler. Expected to be JSONable; great for logging. Think properties.
     * `myth` Also any value. Expected to be an object of functions, think methods or messy state objects. 
-    * `timing` One of "now", "momentary", "soon", "later" implying emission first on queue, last on queue, first on next cycle, last on next cycle, respectively. Now is the default if not provided. 
+    * `timing` One of "now", "momentary", "soon", "later" implying emission first on queue, last on queue, first on next cycle, last on next cycle, respectively. "Momentary" is the default if not provided as that will preserve the order of emitting.
 
     __return__
 
@@ -207,7 +208,7 @@ First it gets an array of the various scope level events and loads their context
 
     __convenience forms__ 
 
-    * `.now`  Event A emits B, B fires before A finishes. This is the function calling model.
+    * `.now`  Event A emits B, B fires after the emitting handler finishes, but before other handler's for A finishes. This is the function calling model.
     * `.momentary` Event A emits B, B fires after A finishes. This is more of a synchronous callback model. 
     * `.soon` Event A emits B then C, both with soon, then C fires after next tick. B fires after second tick.
     * `.later` Event A emits B then C, both with later, then B fires after next tick. C fires after second tick.
@@ -314,18 +315,18 @@ Emitting scoped events will count as a firing of the parent event, e.g., `.when(
 
         var handler = new Handler (function (data) {
             var passin = this;
-            var ev = passin.event;
+            var ev = passin.scope;
             tracker.data.push([ev, data]);
             tracker.myth.push([ev, passin.myth.emit]);
             tracker.remove(ev);
         });
-
 
         handler.tracker = tracker;
 
         tracker.handler = handler; 
 
         tracker.add(events);
+
 
 We return the tracker since one should use that to remove it. If you want the handler itself, it is in tracker.handler. It just seems more natural this way since the manipulations use tracker. 
 
@@ -648,7 +649,7 @@ This is where we define handlers. It seems appropriate to sandwich them between 
 
 The idea is that we will encapsulate all handlers into a handler object. When a function or something else is passed into .on and the others, it will be converted into a handler object and that object gets returned. If a handler object is passed in, then it gets attached.
 
-This is a constructor and it should return `this` if it is creating or the value if it is already an instance and no data/myth is being added. If there is one of those things, then the handler gets wrapped in another handler. 
+This is a constructor and it should return `this`. Whatever value is passed in will get wrapped in a handler. 
 
 A handler can have values for data and myth. 
 
@@ -669,9 +670,17 @@ A handler can have values for data and myth.
 
 [prototype]()
 
-The prototype object
+The prototype object.
 
-    Handler.prototype.execute = _":execute";
+* traverse A generic method for going across the handler structure.
+* contains Returns a boolean indicating whether the given handler type is contained in the handler. 
+* execute Executes the handler
+* summarize Goes level by level summarizing the structure of the handler
+
+
+---
+    Handler.prototype.traverse = _":traverse"; 
+    Handler.prototype.execute = _":execute"; 
     Handler.prototype.contains = _":contains";
 
 [traverse]()
@@ -705,7 +714,7 @@ The com object is a hash of functions that deal with the various types of handle
             
         if ( Array.isArray(value) ) {
             ret = value.map(function (el) {
-                return me.call(null, com, args, value); 
+                return me.call(null, com, args, el); 
             });
             if (typeof com.array === "function") {
                 return com.array(com, args, ret, value);
@@ -784,10 +793,14 @@ All of the handlers are encapsulated in a try...catch that then calls the emitte
 
 
     function me (data, passin, value) {
+        if (passin.stop) {
+            return;
+        }
+
         var handler = this,
             emitter = passin.emitter,                
             actions = emitter._actions;
-        
+
         value = value || handler.value;
 
         try {
@@ -1081,6 +1094,11 @@ For the `.soon`, `.later` commands, we use a waiting queue. As soon as next tick
             return;
         }
 
+        if ( (queue.length === 0) && (waiting.length > 0) ) {
+            queue.push(waiting.shift());
+        }
+
+
         emitter.looping = true;
 
         while ( (queue.length) && (loop < loopMax ) ) {
@@ -1094,7 +1112,6 @@ For the `.soon`, `.later` commands, we use a waiting queue. As soon as next tick
             emitter.log("looping hit max", loop);
             emitter.nextTick(self);
         } else if ( waiting.length ) {
-            queue.push(waiting.shift());
             emitter.nextTick(self);
         }
 
@@ -1110,10 +1127,12 @@ This is to execute a single handler on the event queue.
     
     evObj = queue[0];
     events = evObj.events;
+
     if (events.length === 0) {
         queue.shift();
         continue;
     }
+
 
     passin = {};
     cur = events[0]; 
@@ -1126,7 +1145,6 @@ This is to execute a single handler on the event queue.
 
     ev = cur.scopeEvent;
     f = cur.handlers.shift();
-
     if (f) {
         passin = _":passin";
         emitter.log("firing", passin);
@@ -1171,7 +1189,7 @@ We remove the event from the queue. Since the queue may have changed, we find it
         emitter.log("emission stopped", passin);
         ind = queue.indexOf(evObj);
         if (ind !== -1) {
-            queue.splice(ind);
+            queue.splice(ind, 1);
         }
         continue;
     }
@@ -1212,6 +1230,7 @@ This describes the passin object for the handler arguments
 
     }
 
+
 ### Next Tick
 
 The cede control function -- node vs browser.
@@ -1226,12 +1245,14 @@ All handlers are encapsulated in a try..catch. This allows for easy error handli
 
 What is done here is a default and suitable for development. In production, one might want to think whether throwing an error is a good thing or not. 
 
+// e, value, data, passin
 
-    function (e, ev, h, i) {
-        console.log(arguments);
+Since we are throwing an error, we need to make sure emitter.looping is set to false so that if the error is handled and path resumes, we still get a flow of the emitter. 
+
+    function (e) {
+        var emitter = this;
+        emitter.looping = false;
         throw Error(e);
-        throw Error({e:e, ev:ev, h:h, i:i});
-
     }
 
 ### Name an action
