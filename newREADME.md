@@ -83,7 +83,7 @@ To modify the later events to emit immediately or later, change `evObj.q` and `e
 <a name="when" />
 ### when(arr/str events, str ev, obj data, obj myth, str timing, bool reset ) --> tracker 
 
-This is how to do som action after several different events have all fired. Firing order is irrelevant. 
+This is how to do som action after several different events have all fired. Firing order is irrelevant, but if an event fires more times than is counted and then the when is reset after some other events fire, those extra times do not get counted. 
 
 __arguments__
 
@@ -152,9 +152,9 @@ _"once:doc"
 
 _"stop:doc"
 
-_"events:doc"
+_"events for listing:doc"
 
-_"handlers:doc"
+_"handlers for events:doc"
 
 _"actions:doc"
 

@@ -1,5 +1,6 @@
 [event-when](# "version: 0.6.0-pre| jostylr")
 
+
 This is an event library that emphasizes flow-control from a single dispatch object. 
 
 ## Introduction
@@ -47,6 +48,8 @@ This is the main structure of the module file.
 
     /*jshint eqnull:true*/
     /*global setTimeout, process, module, console */
+
+    var empty = {};
 
     var Handler = _"handler";
 
@@ -134,7 +137,8 @@ First it gets an array of the various scope level events and loads their context
 
     function (ev, data, myth, timing) {
         var emitter = this, 
-            sep = emitter.scopeSep;
+            sep = emitter.scopeSep, 
+            scopes;
 
         timing = timing ||emitter.timing || "momentary";
 
@@ -148,7 +152,8 @@ First it gets an array of the various scope level events and loads their context
             scopeMyth = {}; 
 
         var lev = "";
-        var scopes = pieces.map(function (el) {
+
+        scopes = pieces.map(function (el) {
             var dm;
             lev += (lev ? sep + el : el);
             dm = emitter.scope(lev);
@@ -339,7 +344,7 @@ We return the tracker since one should use that to remove it. If you want the ha
     <a name="when" />
     ### when(arr/str events, str ev, obj data, obj myth, str timing, bool reset ) --> tracker 
 
-    This is how to do som action after several different events have all fired. Firing order is irrelevant. 
+    This is how to do som action after several different events have all fired. Firing order is irrelevant, but if an event fires more times than is counted and then the when is reset after some other events fire, those extra times do not get counted. 
 
     __arguments__
 
@@ -491,13 +496,13 @@ This cancels the .when, removing the handler from all remaining events.
         var tracker = this, 
             emitter = tracker.emitter,
             handler = tracker.handler,
-            event, keys;
+             keys;
         
         keys = Object.keys(tracker.events);
 
-        for (event in keys) {
+        keys.forEach(function (event) {
             emitter.off(event, handler);
-        }
+        });
         return tracker;
     }
 
@@ -599,7 +604,37 @@ We first cancel everything to clear it out and then we attach the new stuff.
 
 [example]()
 
-    //todo
+    // wait for 5 emits of some before saying great
+    var t = emitter.when([["some", 5]], "great");
+    //add in waiting for neat
+    t.add("neat");
+    // check to see if it is ready to go. it isn't so nothing happens
+    t.go();
+    // remove 3 wait events for some
+    t.remove([["some", 3]]);
+    // gives current events for tracking
+    console.log(t.events); 
+    //emit event neat which removes it from waiting list.
+    emitter.emit("neat");
+    // emit some, bringing down to just waiting for one
+    emitter.emit("some");
+    // emit remaining "some" which triggers emission of "great"
+    emitter.emit("some");
+    // emit "great" again
+    t.go();
+    // wait for "neat"
+    t.add("neat");
+    //nothing happens
+    t.go()
+    //emit neat, "great" gets emitted
+    emitter.emit("neat");
+    t.add("neat");
+    //removal triggers "great" to be emitted
+    t.remove("neat");
+    // back to starting list of events
+    t.reinitialize();
+    // cancel tracking
+    t.cancel();
 
 ### On
 
@@ -672,72 +707,74 @@ A handler can have values for data and myth.
 
 The prototype object.
 
-* traverse A generic method for going across the handler structure.
 * contains Returns a boolean indicating whether the given handler type is contained in the handler. 
 * execute Executes the handler
 * summarize Goes level by level summarizing the structure of the handler
 
 
 ---
-    Handler.prototype.traverse = _":traverse"; 
     Handler.prototype.execute = _":execute"; 
     Handler.prototype.contains = _":contains";
+    Handler.prototype.summarize = _":summarize";
+
 
 [traverse]()
 
-This is a generic way to traverse the handler hierarchy. 
+This is a generic skeleton to copy in making traversals through the handler objects. 
 
-The com object is a hash of functions that deal with the various types of handler values:  action (string), fun (functions), array (array), handler (handlers), error (anything else). 
+I tried to make it into a stand-alone walker, but it just made everything more complicated. This is largely setup with the idea of using return values in each if. If not, you can do else ifs. 
 
-    function me (com, args, value) {
-        if ( value == null ) {
-            if ( this.hasOwnProperty("value") ) {
-                value = this.value;
-            } else {
-                value = {};
-            }
+    function me (val, value) {
+
+This can be called as a method, in which case this should have a value.
+
+        if (typeof value === "undefined ) {     
+            value = this.value;
         }
+
+Any intial work can be done here. A short circuit for the contains method is put here. 
+
+
+A string denotes an action
+
+       if (typeof value === "string") {
+
+        }
+
+        if (typeof value === "function") {
+        }
+
+
+We use the empty object to make sure that we do not accidentally get the global object with this (would happen if el is undefined).
 
         var ret;
-
-        if (typeof value === "string") {
-            if (typeof com.string === "function") {
-                return com.action(com, args, value);
-            }
-        }
-            
-        if (typeof value === "function") {
-            if (typeof com.arg === "function") {
-                return com.fun(com, args, value);
-            }
-        }
-            
         if ( Array.isArray(value) ) {
             ret = value.map(function (el) {
-                return me.call(null, com, args, el); 
+                return me.call({}, val, el);
             });
-            if (typeof com.array === "function") {
-                return com.array(com, args, ret, value);
-            } else {
-                return ret;
-            }
+do something with ret
         }
 
-        if ( typeof value.traverse === "function" ) {
-            ret = value.traverse(com, args, value);
-            if (typeof com.handler === "function") {
-                return com.handler(ret);
-            } else {
-                return ret;
-            }
-        }   
+Dealing with it being a handler. Note that value.value is probably what is going to be used. So you could also decide to if value.value is defined, then call me with that, instead of using it as a method. 
 
-        if (typeof com.error === "function") {
-            com.error(com, args, value); 
-        } else {
-            return ; 
-        }
+        if ( value && typeof value.METHODNAME === "function" ) {
 
+        } 
+
+Cleanup. Maybe an error to deal with it at this point. Or just return nothing. 
+
+
+    }
+
+
+[error]()
+
+The error code for dealing with traversal; it appears in two places as a shortcut. 
+
+    if (typeof com.error === "function") {
+        return com.error(com, args, value); 
+    } else {
+        return ; 
     }
 
 [contains]() 
@@ -761,7 +798,7 @@ The first if will says that the handler contains itself.
 
         if ( Array.isArray(value) ) {
             return value.some(function (el) {
-                return me(val, el);
+                return me.call(empty, val, el);
             });
         }
 
@@ -822,7 +859,7 @@ All of the handlers are encapsulated in a try...catch that then calls the emitte
 
             if ( Array.isArray(value) ) {
                 value.forEach(function (el) {
-                    me(data, passin, el); 
+                    me.call(empty, data, passin, el); 
                 });
                 return;
             }
@@ -841,27 +878,43 @@ All of the handlers are encapsulated in a try...catch that then calls the emitte
         return;
     }
 
-[string verb](# "js")
+[summarize]()
 
-The verb could be either an action, if it matches, or it is treated as an event. Handler.timing is a string that if equal to later, emits the event as a later and if firstLater, then emits later but first in queue. Anything else, including undefined, leads to .emit.
+This tries to report the structure of the handlers. We use the property name "name" for the tag to return for any given level.
 
-An action is an instanceof Handler. So we call its execute method. Hope it is not self-referential...but if it is is the `counters.execute` variable should stop infinity in its tracks.
+    function me (value) {
+        var ret, lead;
 
-    if (  (act = emitter.action(verb)) ) {
-        emitter.log(ev + " --> " + verb);
-        cont = act.execute(data, emitter, ev, args, that);
-    } else if (emitter._handlers.hasOwnProperty(verb) ) {
-        emitter.log(ev + " --emitting: " + verb );
-        if (handler.timing === "later") {
-            emitter.later(verb, data);
-        } else if (handler.timing === "firstLater") {
-            emitter.later(verb, data, true);
-        } else {        
-            emitter.emit(verb, data, handler.timing, true);
+        if (typeof value === "undefined" ) {     
+            value = this;
         }
-    } else {
-        emitter.log("Unknown string:" + verb);
-    }
+
+       if (typeof value === "string") {
+            return "a:" + value;
+        }
+
+        if (typeof value === "function") {
+            return "f:" + (value.name || "");
+        }
+
+        if ( Array.isArray(value) ) {
+            ret = value.map(function (el) {
+                return me.call(empty, el);
+            });
+            lead = value.name || "";
+            return "arr: " + lead + " [" + ret.join(", ") + "]";
+        }
+
+        if ( value && typeof value.summarize === "function" ) {
+            ret = me.call(empty, value.value);
+            lead = value.name || "";
+            return "h: "+ lead + " " + ret;
+        } 
+
+        return "unknown";
+
+        }
+
 
 [make](# "js")
 
@@ -870,6 +923,8 @@ This is a simple wrapper for new Handler
     function (value, options) {
         return new Handler(value, options);
     }
+
+[doc]()
 
 
 ### Off
@@ -1518,9 +1573,9 @@ The readme for this. A lot of the pieces come from the doc sections.
 
     _"stop:doc"
 
-    _"events:doc"
+    _"events for listing:doc"
 
-    _"handlers:doc"
+    _"handlers for events:doc"
 
     _"actions:doc"
 
@@ -1617,11 +1672,6 @@ This is a basic example that runs all the documentation code.
     var EvW = require("../index.js");
     var emitter = new EvW();
 
-    _"on:example"
-
-    _"emit:example"
-
-    _"later:example"
 
 
 ## TODO

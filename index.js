@@ -1,6 +1,8 @@
 /*jshint eqnull:true*/
 /*global setTimeout, process, module, console */
 
+var empty = {};
+
 var Handler = function (value, data, myth) {
         if ( (value instanceof Handler) && 
              (arguments.length === 1) ) {
@@ -16,104 +18,54 @@ var Handler = function (value, data, myth) {
         return handler;
     };
 
-Handler.prototype.traverse = function me (com, args, value) {
-    if ( value == null ) {
-        if ( this.hasOwnProperty("value") ) {
-            value = this.value;
-        } else {
-            value = {};
-        }
-    }
-
-    var ret;
-
-    if (typeof value === "string") {
-        if (typeof com.string === "function") {
-            return com.action(com, args, value);
-        }
-    }
-        
-    if (typeof value === "function") {
-        if (typeof com.arg === "function") {
-            return com.fun(com, args, value);
-        }
-    }
-        
-    if ( Array.isArray(value) ) {
-        ret = value.map(function (el) {
-            return me.call(null, com, args, el); 
-        });
-        if (typeof com.array === "function") {
-            return com.array(com, args, ret, value);
-        } else {
-            return ret;
-        }
-    }
-
-    if ( typeof value.traverse === "function" ) {
-        ret = value.traverse(com, args, value);
-        if (typeof com.handler === "function") {
-            return com.handler(ret);
-        } else {
-            return ret;
-        }
-    }   
-
-    if (typeof com.error === "function") {
-        com.error(com, args, value); 
-    } else {
-        return ; 
-    }
-
-}; 
 Handler.prototype.execute = function me (data, passin, value) {
-        if (passin.stop) {
+    if (passin.stop) {
+        return;
+    }
+
+    var handler = this,
+        emitter = passin.emitter,                
+        actions = emitter._actions;
+
+    value = value || handler.value;
+
+    try {
+        if (typeof value === "string") {
+            if ( actions.hasOwnProperty(value) ) {
+                emitter.log("executing action", value, passin);
+                actions[value].execute(data, passin);
+            } else {
+                emitter.log("action not found", value, passin);
+            }
             return;
         }
-    
-        var handler = this,
-            emitter = passin.emitter,                
-            actions = emitter._actions;
-    
-        value = value || handler.value;
-    
-        try {
-            if (typeof value === "string") {
-                if ( actions.hasOwnProperty(value) ) {
-                    emitter.log("executing action", value, passin);
-                    actions[value].execute(data, passin);
-                } else {
-                    emitter.log("action not found", value, passin);
-                }
-                return;
-            }
-    
-            if (typeof value === "function") {
-                emitter.log("executing function", value, passin);
-                value.call(passin, data);
-                return; 
-            }
-    
-            if ( Array.isArray(value) ) {
-                value.forEach(function (el) {
-                    me(data, passin, el); 
-                });
-                return;
-            }
-    
-            if ( typeof value.execute === "function" ) {
-                value.execute(data, passin);
-                return;
-            }   
-    
-            emitter.log("value not executable", value, passin);
-    
-        } catch (e) {
-            emitter.error(e, value, data, passin);
+
+        if (typeof value === "function") {
+            emitter.log("executing function", value, passin);
+            value.call(passin, data);
+            return; 
         }
-    
-        return;
-    }; 
+
+        if ( Array.isArray(value) ) {
+            value.forEach(function (el) {
+                me.call(empty, data, passin, el); 
+            });
+            return;
+        }
+
+        if ( typeof value.execute === "function" ) {
+            value.execute(data, passin);
+            return;
+        }   
+
+        emitter.log("value not executable", value, passin);
+
+    } catch (e) {
+        emitter.error(e, value, data, passin);
+    }
+
+    return;
+}; 
 Handler.prototype.contains = function me (val, value) {
         if (this === val) {
             return true;
@@ -127,7 +79,7 @@ Handler.prototype.contains = function me (val, value) {
     
         if ( Array.isArray(value) ) {
             return value.some(function (el) {
-                return me(val, el);
+                return me.call(empty, val, el);
             });
         }
     
@@ -138,6 +90,38 @@ Handler.prototype.contains = function me (val, value) {
         return false;
     
     };
+Handler.prototype.summarize = function me (value) {
+        var ret, lead;
+    
+        if (typeof value === "undefined" ) {     
+            value = this;
+        }
+    
+       if (typeof value === "string") {
+            return "a:" + value;
+        }
+    
+        if (typeof value === "function") {
+            return "f:" + (value.name || "");
+        }
+    
+        if ( Array.isArray(value) ) {
+            ret = value.map(function (el) {
+                return me.call(empty, el);
+            });
+            lead = value.name || "";
+            return "arr: " + lead + " [" + ret.join(", ") + "]";
+        }
+    
+        if ( value && typeof value.summarize === "function" ) {
+            ret = me.call(empty, value.value);
+            lead = value.name || "";
+            return "h: "+ lead + " " + ret;
+        } 
+    
+        return "unknown";
+    
+        };
 
 var Tracker = function () {
         this.events = {};
@@ -242,13 +226,13 @@ Tracker.prototype.cancel = function () {
         var tracker = this, 
             emitter = tracker.emitter,
             handler = tracker.handler,
-            event, keys;
+             keys;
         
         keys = Object.keys(tracker.events);
     
-        for (event in keys) {
+        keys.forEach(function (event) {
             emitter.off(event, handler);
-        }
+        });
         return tracker;
     };
 Tracker.prototype.reinitialize = function () {
@@ -296,7 +280,8 @@ EvW.prototype.on = function (ev, f, data, myth) {
 };
 EvW.prototype.emit = function (ev, data, myth, timing) {
         var emitter = this, 
-            sep = emitter.scopeSep;
+            sep = emitter.scopeSep, 
+            scopes;
     
         timing = timing ||emitter.timing || "momentary";
     
@@ -310,7 +295,8 @@ EvW.prototype.emit = function (ev, data, myth, timing) {
             scopeMyth = {}; 
     
         var lev = "";
-        var scopes = pieces.map(function (el) {
+    
+        scopes = pieces.map(function (el) {
             var dm;
             lev += (lev ? sep + el : el);
             dm = emitter.scope(lev);

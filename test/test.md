@@ -439,14 +439,92 @@ Does `.later` work for `.when`?
     emitter.later("A");
     emitter.emit("B");
 
+## Handler info
 
+This tests the summarize of handlers. 
+
+[expected]()
+
+    h: fred arr: bob [a:hi, f:, h:  arr:  [a:dude, f:]]
+
+[code]()
+
+    var h = emitter.on("cool", ["hi", function() {}, emitter.makeHandler(["dude", function(){}])]);
+
+    h.name = "fred";
+    h.value[1].name = "jack";
+    h.value.name = "bob";
+
+    actual.push(h.summarize());
+
+    emitter.emit("done");
+
+## Tracker testing
+
+[expected]()
+
+    some:5
+    some:2,neat:1
+    some:1
+    great emitted
+    great emitted
+    neat:1
+    great emitted
+    neat:1
+    great emitted
+    ---
+    some:5
+    great emitted
+    ---
+
+[code]()
+
+    emitter.on("great", function () {
+        actual.push("great emitted");
+    });
+
+    var t = emitter.when([["some", 5]], "great");
+
+    var report = function () {
+        var keys = Object.keys(t.events);
+        var obj = keys.map(function (el) {
+            return el + ":" + t.events[el];
+        });
+        actual.push( obj.join(",") || "---" );
+    };
+
+    report();
+    t.add("neat");
+    t.go();
+    t.remove([["some", 3]]);
+    report();
+    emitter.emit("neat");
+    emitter.emit("some");
+    report();
+    emitter.emit("some");
+    t.go();
+    t.add("neat");
+    report();
+    t.go();
+    emitter.emit("neat");
+    t.add("neat");
+    report();
+    t.remove("neat");
+    report();
+    t.reinitialize();
+    report();
+    t.cancel();
+
+    report();
+
+    emitter.emit("done");
 
 ## Done
 
 This is a snippet that should be placed at the end of each async function. 
 
     emitter.on("done", function () {
-        t.deepEqual(actual, expected);
+        s.deepEqual(actual, expected);
     });
 
 
@@ -454,8 +532,8 @@ This is a snippet that should be placed at the end of each async function.
 
 This is the test template
 
-    test('_"*:expected|heading"', function (t) {
-        t.plan(1);
+    test('_"*:expected|heading"', function (s) {
+        s.plan(1);
 
         var emitter = new EventWhen();
 
@@ -504,25 +582,29 @@ We define a command that takes a list of items separated by returns and makes an
         test = require('tape');
 
     _"two on and some emits*test template";
-    
+
     _"simple once test*test template";
-    
+
     _"turning off a handler*test template";
-    
+
     _"when waiting for 2 events*test template";
-    
+
     _"checking action naming*test template";
-    
+
     _"checking handlers and events*test template";
-    
+
     _"handler with context*test template";
-    
+
     _"handler with two handles*test template";
-    
+
     _"canceling*test template";
-    
+
     _"error checking*test template";
-    
+
     _"flow testing*test template";
 
     _"when with later*test template";
+
+    _"handler info*test template";    
+
+    _"tracker testing*test template";    

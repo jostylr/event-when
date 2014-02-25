@@ -2,8 +2,8 @@
 var EventWhen = require('../index.js'),
     test = require('tape');
 
-test('two on and some emits', function (t) {
-    t.plan(1);
+test('two on and some emits', function (s) {
+    s.plan(1);
 
     var emitter = new EventWhen();
 
@@ -14,7 +14,7 @@ test('two on and some emits', function (t) {
         actual = [];
 
     emitter.on("done", function () {
-        t.deepEqual(actual, expected);
+        s.deepEqual(actual, expected);
     });
 
     emitter.on("first ready", function () {
@@ -31,8 +31,8 @@ test('two on and some emits', function (t) {
 
 });
 
-test('simple once test', function (t) {
-    t.plan(1);
+test('simple once test', function (s) {
+    s.plan(1);
 
     var emitter = new EventWhen();
 
@@ -44,7 +44,7 @@ test('simple once test', function (t) {
         actual = [];
 
     emitter.on("done", function () {
-        t.deepEqual(actual, expected);
+        s.deepEqual(actual, expected);
     });
 
     emitter.once("first ready", function () {
@@ -63,8 +63,8 @@ test('simple once test', function (t) {
 
 });
 
-test('turning off a handler', function (t) {
-    t.plan(1);
+test('turning off a handler', function (s) {
+    s.plan(1);
 
     var emitter = new EventWhen();
 
@@ -76,7 +76,7 @@ test('turning off a handler', function (t) {
         actual = [];
 
     emitter.on("done", function () {
-        t.deepEqual(actual, expected);
+        s.deepEqual(actual, expected);
     });
 
     var h = emitter.on("first ready", function () {
@@ -97,8 +97,8 @@ test('turning off a handler', function (t) {
 
 });
 
-test('when waiting for 2 events', function (t) {
-    t.plan(1);
+test('when waiting for 2 events', function (s) {
+    s.plan(1);
 
     var emitter = new EventWhen();
 
@@ -108,7 +108,7 @@ test('when waiting for 2 events', function (t) {
         actual = [];
 
     emitter.on("done", function () {
-        t.deepEqual(actual, expected);
+        s.deepEqual(actual, expected);
     });
 
     emitter.when(["first ready", "second ready"], "both ready");
@@ -127,8 +127,8 @@ test('when waiting for 2 events', function (t) {
 
 });
 
-test('checking action naming', function (t) {
-    t.plan(1);
+test('checking action naming', function (s) {
+    s.plan(1);
 
     var emitter = new EventWhen();
 
@@ -138,7 +138,7 @@ test('checking action naming', function (t) {
         actual = [];
 
     emitter.on("done", function () {
-        t.deepEqual(actual, expected);
+        s.deepEqual(actual, expected);
     });
 
     emitter.action("fire the first one", function () {
@@ -153,8 +153,8 @@ test('checking action naming', function (t) {
 
 });
 
-test('checking handlers and events', function (t) {
-    t.plan(1);
+test('checking handlers and events', function (s) {
+    s.plan(1);
 
     var emitter = new EventWhen();
 
@@ -167,7 +167,7 @@ test('checking handlers and events', function (t) {
         actual = [];
 
     emitter.on("done", function () {
-        t.deepEqual(actual, expected);
+        s.deepEqual(actual, expected);
     });
 
     emitter.on("first",  "works");
@@ -197,8 +197,8 @@ test('checking handlers and events', function (t) {
 
 });
 
-test('handler with context', function (t) {
-    t.plan(1);
+test('handler with context', function (s) {
+    s.plan(1);
 
     var emitter = new EventWhen();
 
@@ -208,7 +208,7 @@ test('handler with context', function (t) {
         actual = [];
 
     emitter.on("done", function () {
-        t.deepEqual(actual, expected);
+        s.deepEqual(actual, expected);
     });
 
     emitter.on("first ready", function (data) {
@@ -224,8 +224,8 @@ test('handler with context', function (t) {
 
 });
 
-test('handler with two handles', function (t) {
-    t.plan(1);
+test('handler with two handles', function (s) {
+    s.plan(1);
 
     var emitter = new EventWhen();
 
@@ -237,7 +237,7 @@ test('handler with two handles', function (t) {
         actual = [];
 
     emitter.on("done", function () {
-        t.deepEqual(actual, expected);
+        s.deepEqual(actual, expected);
     });
 
     emitter.on("first ready", [function (data) {
@@ -260,8 +260,8 @@ test('handler with two handles', function (t) {
 
 });
 
-test('canceling', function (t) {
-    t.plan(1);
+test('canceling', function (s) {
+    s.plan(1);
 
     var emitter = new EventWhen();
 
@@ -274,7 +274,7 @@ test('canceling', function (t) {
         actual = [];
 
     emitter.on("done", function () {
-        t.deepEqual(actual, expected);
+        s.deepEqual(actual, expected);
     });
 
     emitter.action("stop emission", function () {
@@ -314,8 +314,8 @@ test('canceling', function (t) {
 
 });
 
-test('error checking', function (t) {
-    t.plan(1);
+test('error checking', function (s) {
+    s.plan(1);
 
     var emitter = new EventWhen();
 
@@ -326,7 +326,7 @@ test('error checking', function (t) {
         actual = [];
 
     emitter.on("done", function () {
-        t.deepEqual(actual, expected);
+        s.deepEqual(actual, expected);
     });
 
     // default error
@@ -355,8 +355,8 @@ test('error checking', function (t) {
 
 });
 
-test('flow testing', function (t) {
-    t.plan(1);
+test('flow testing', function (s) {
+    s.plan(1);
 
     var emitter = new EventWhen();
 
@@ -376,7 +376,7 @@ test('flow testing', function (t) {
         actual = [];
 
     emitter.on("done", function () {
-        t.deepEqual(actual, expected);
+        s.deepEqual(actual, expected);
     });
 
     emitter.on("A", function () {
@@ -414,8 +414,8 @@ test('flow testing', function (t) {
 
 });
 
-test('when with later', function (t) {
-    t.plan(1);
+test('when with later', function (s) {
+    s.plan(1);
 
     var emitter = new EventWhen();
 
@@ -440,7 +440,7 @@ test('when with later', function (t) {
         actual = [];
 
     emitter.on("done", function () {
-        t.deepEqual(actual, expected);
+        s.deepEqual(actual, expected);
     });
 
     emitter.on("A", function () {
@@ -477,5 +477,99 @@ test('when with later', function (t) {
     emitter.emit("B");
     emitter.later("A");
     emitter.emit("B");
+
+});
+
+test('handler info', function (s) {
+    s.plan(1);
+
+    var emitter = new EventWhen();
+
+    var expected = [
+        "h: fred arr: bob [a:hi, f:, h:  arr:  [a:dude, f:]]"
+        ],
+        actual = [];
+
+    emitter.on("done", function () {
+        s.deepEqual(actual, expected);
+    });
+
+    var h = emitter.on("cool", ["hi", function() {}, emitter.makeHandler(["dude", function(){}])]);
+    
+    h.name = "fred";
+    h.value[1].name = "jack";
+    h.value.name = "bob";
+    
+    actual.push(h.summarize());
+    
+    emitter.emit("done");
+
+});    
+
+test('tracker testing', function (s) {
+    s.plan(1);
+
+    var emitter = new EventWhen();
+
+    var expected = [
+        "some:5",
+        "some:2,neat:1",
+        "some:1",
+        "great emitted",
+        "great emitted",
+        "neat:1",
+        "great emitted",
+        "neat:1",
+        "great emitted",
+        "---",
+        "some:5",
+        "great emitted",
+        "---"
+        ],
+        actual = [];
+
+    emitter.on("done", function () {
+        s.deepEqual(actual, expected);
+    });
+
+    emitter.on("great", function () {
+        actual.push("great emitted");
+    });
+    
+    var t = emitter.when([["some", 5]], "great");
+    
+    var report = function () {
+        var keys = Object.keys(t.events);
+        var obj = keys.map(function (el) {
+            return el + ":" + t.events[el];
+        });
+        actual.push( obj.join(",") || "---" );
+    };
+    
+    report();
+    t.add("neat");
+    t.go();
+    t.remove([["some", 3]]);
+    report();
+    emitter.emit("neat");
+    emitter.emit("some");
+    report();
+    emitter.emit("some");
+    t.go();
+    t.add("neat");
+    report();
+    t.go();
+    emitter.emit("neat");
+    t.add("neat");
+    report();
+    t.remove("neat");
+    report();
+    t.reinitialize();
+    report();
+    t.cancel();
+    
+    report();
+    
+    emitter.emit("done");
 
 });
