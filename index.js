@@ -310,7 +310,7 @@ EvW.prototype.emit = function (ev, data, myth, timing) {
             scopeMyth = {}; 
     
         var lev = "";
-        scopes = pieces.map(function (el) {
+        var scopes = pieces.map(function (el) {
             var dm;
             lev += (lev ? sep + el : el);
             dm = emitter.scope(lev);

@@ -3,49 +3,9 @@
 This is a set of tests for this library to pass. 
 
 
-
-## basic on/emit test
-
-This tests the basic emit--on functions
-
-
-    function () {
-
-        var emitter = new EventWhen();
-        var key = "basic on/emit test";
-
-        var expected = [
-            "first fires",
-            "second fires"
-            ],
-            actual = [];
-        
-        _"async emitting";
-
-
-        emitter.on("first ready", function () {
-            actual.push("first fires");
-            emitter.emit("second ready");
-        });
-
-        emitter.on("second ready", function () {
-            actual.push("second fires");
-            emitter.emit("done");
-        });
-
-        emitter.emit("first ready");
-
-    }
-
-## basic again
-
-[sample.js](#basic-again "save: *test template")
+## two on and some emits
 
 This tests the basic emit--on functions
-
-[key]()
-
-    basic again
 
 
 [expected]()
@@ -68,13 +28,9 @@ This tests the basic emit--on functions
     emitter.emit("first ready");
 
 
-## once
+## simple once test
 
 This tests that the once removes itself. We do a case with no number and one with 2 attached. 
-
-[key]()
-
-    simple once test
 
 
 [expected]() 
@@ -102,13 +58,11 @@ This tests that the once removes itself. We do a case with no number and one wit
     emitter.emit("second ready");
     emitter.emit("done");
 
-## off
+## turning off a handler
+
 
 This tests that we can remove handlers.
 
-[key]()
-
-    turning off a handler
 
 [expected]()
 
@@ -135,14 +89,10 @@ This tests that we can remove handlers.
 
     emitter.emit("done");
 
-## when
+## when waiting for 2 events
 
 Testing the when capabilities.
 
-
-[key]()
-    
-    .when waiting for 2 events
 
 [expected]()
     
@@ -166,13 +116,9 @@ Testing the when capabilities.
 
     emitter.emit("done");
 
-## action
+## checking action naming
 
 Testing actions.
-
-[key]()
-
-    checking action naming
 
 
 [expected]()
@@ -196,9 +142,6 @@ Testing actions.
 
 Want to pass in some data and some myth
 
-[key]()
-
-    Handler with context
 
 [expected]()
 
@@ -221,11 +164,6 @@ Want to pass in some data and some myth
 ## Handler with two handles
 
 Let's have a function that acts and then an event that emits saying it acted. 
-
-
-[key]()
-
-    Handler with two handles
 
 [expected]()
 
@@ -255,24 +193,19 @@ Let's have a function that acts and then an event that emits saying it acted.
 
     emitter.emit("done");
 
-## Listing handlers and events
+## checking handlers and events
 
 This is testing .events(). 
 
-[key]()
-
-    checking handlers and events
 
 [expected]()
 
     first;fire
-    second;water
+    done;second;water
     first;water
-    first;second;fire;water
+    done;first;second;fire;water
 
 [code]()
-
-    emitter.off("done");
 
     emitter.on("first",  "works");
 
@@ -297,8 +230,6 @@ This is testing .events().
     
     actual.push(emitter.events().join(';'));
 
-    _"async emitting"
-
     emitter.emit("done");
 
 
@@ -306,9 +237,6 @@ This is testing .events().
 
 Can we remove handlers or stop events? 
 
-[key]()
-
-    canceling
 
 [expected]()
 
@@ -362,9 +290,6 @@ Can we remove handlers or stop events?
 
 Let's throw an error.
 
-[key]()
-
-    error checking
 
 [expected]()
 
@@ -378,7 +303,7 @@ Let's throw an error.
 
     var h = emitter.on("error event", function () {
         throw Error("Checking!");
-    })
+    });
 
     h.name = "awesome";
 
@@ -402,11 +327,6 @@ Let's throw an error.
 ## Flow testing
 
 Does `.later` work? 
-
-
-[key]()
-
-    flow testing
 
 [expected]()
 
@@ -459,14 +379,9 @@ Does `.later` work?
     emitter.emit("B");
 
 
-## when async
+## when with later
 
 Does `.later` work for `.when`? 
-
-
-[key]()
-
-    .when with later
 
 [expected]()
 
@@ -514,7 +429,7 @@ Does `.later` work for `.when`?
 
     emitter.when(["A", "B"], "E", "momentary", true);
 
-    var temp = emitter.when([["A", 4], ["B", 3], ["C", 3], ["D", 3], ["E", 3]], "done");
+    emitter.when([["A", 4], ["B", 3], ["C", 3], ["D", 3], ["E", 3]], "done");
 
     emitter.emit("A");
     emitter.emit("B");
@@ -526,43 +441,32 @@ Does `.later` work for `.when`?
 
 
 
-## Async emitting
+## Done
 
 This is a snippet that should be placed at the end of each async function. 
 
     emitter.on("done", function () {
-        var result;
-
-        result = Test.same(actual, expected);
-        if (result === true ) {
-           tester.emit("passed", key);
-        } else {
-            tester.emit("failed", {key:key, result:result});
-        }    
-    })
+        t.deepEqual(actual, expected);
+    });
 
 
 ## Test Template
 
 This is the test template
 
-    function () {
+    test('_"*:expected|heading"', function (t) {
+        t.plan(1);
 
         var emitter = new EventWhen();
-        var key = '_"*:key"';
-
-        emitter.name = key;
 
         var expected = _"*:expected| arrayify",
             actual = [];
-        
-        _"async emitting";
+
+        _"done"
 
         _"*:code"
 
-//        console.log("done with", key);
-
-    }
+    })
 
 ## Arrayify
 
@@ -581,101 +485,44 @@ We define a command that takes a list of items separated by returns and makes an
         }).join('",\n"') + '"\n]';
     }
 
-[arrayify](#arrayify "define: command | | now")
+ [arrayify](#arrayify "define: command | | now")
 
 
-## [test.js](#test.js "save: |jshint")
+## Heading
 
-This is the set of test functions one can use. Basic. 
+    function () {
+        return this.hblock.heading.split("*")[0]; 
+    }
 
-    /*global module*/
-    module.exports.same = function (inp, out) {
-        var i, n = inp.length;
+ [heading](#heading "define: command | | now")
 
-        if (inp.length !== out.length) {
-            return inp;
-        }
-
-        for (i =0; i <n; i+=1 ) {
-            if (inp[i] !== out[i]) {
-                return "expected: "+out[i] + "\nactual: " +inp[i];
-            }
-        }
-        return true;
-    };
 
 ## [testrunner.js](#testrunner.js "save: |jshint")
 
-This is a simple test runner. 
-
-
-    /*global require, console, process*/
+    /*global require*/
     var EventWhen = require('../index.js'),
-        Test = require('./test.js'),
-        tester = new EventWhen(),
-        key;
-        
-    var records = {
-        "basic again" : _"basic again*test template",
-        "simple once test" : _"once*test template",
-        "turning off a handler" : _"off*test template",
-        ".when waiting for 2 events" : _"when*test template",
-        "checking action naming" : _"action*test template",
-        "checking handlers and events" : _"Listing handlers and events*test template",
-        "handler with context" : _"handler with context*test template",
-        "handler with two handles" : _"Handler with two handles*test template",
-        "canceling" : _"canceling*test template",
-        "error checking" : _"error checking*test template",
-        "flow testing" : _"flow testing*test template",
-        ".when with later" : _"when async*test template"
-    };
+        test = require('tape');
 
+    _"two on and some emits*test template";
+    
+    _"simple once test*test template";
+    
+    _"turning off a handler*test template";
+    
+    _"when waiting for 2 events*test template";
+    
+    _"checking action naming*test template";
+    
+    _"checking handlers and events*test template";
+    
+    _"handler with context*test template";
+    
+    _"handler with two handles*test template";
+    
+    _"canceling*test template";
+    
+    _"error checking*test template";
+    
+    _"flow testing*test template";
 
-    tester.on("passed", _":passing");
-
-    tester.on("failed", _":failing");
-
-    for (key in records) {
-        records[key]();
-    }
-
-    process.on('exit', function () {
-        var n = Object.keys(records).length;
-        if ( n > 0 ) {
-            console.log("Remaining keys:", Object.keys(records));
-            throw(n + " number of failures!");
-        }
-    });
-
-
-
-[passing](# "js")
-
-    function (key) {
-        key = key.toLowerCase();
-        delete records[key];
-        console.log("passed: " + key);
-    }
-
-[failing](# "js")
-
-    function (data) {
-        console.log("FAILED: " + data.key);
-        console.log(data.result);
-    }    
-
-[run sync tests](# "js")
-
-    function (tests) {
-        var key, result; 
-
-
-        for (key in tests ) {
-            result = tests[key]();
-            if (result === true) {
-                tester.emit("passed", key);
-            } else {
-                tester.emit("failed", {key:key, result:result});
-            }
-        }
-    }
+    _"when with later*test template";

@@ -148,7 +148,7 @@ First it gets an array of the various scope level events and loads their context
             scopeMyth = {}; 
 
         var lev = "";
-        scopes = pieces.map(function (el) {
+        var scopes = pieces.map(function (el) {
             var dm;
             lev += (lev ? sep + el : el);
             dm = emitter.scope(lev);
@@ -1661,7 +1661,8 @@ The requisite npm package file.
         "node": ">0.6"
       },
       "devDependencies" : {
-        "literate-programming" : "~0.7.2"
+        "literate-programming" : "~0.7.2",
+        "tape": "~2.5.0"
       },
       "dependencies":{
       },
@@ -1707,6 +1708,7 @@ We should ignore node_modules (particularly the dev ones)
 
     node_modules
     ghpages
+
 
 ## npmignore
 
