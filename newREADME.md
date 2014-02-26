@@ -11,9 +11,9 @@ There are several noteworthy features of this library:
 * When. This is the titular notion. The `.when` method allows you to specify an event to emit after various specified events have all fired. For example, if we call a database and read a file to assemble a webpage, then we can do something like `emitter.when(["file parsed:jack.txt", "database returned:jack"], "all data retrieved:jack");
 * Scope. Events can be scoped. In the above example, each of the events are scoped based on the user jack. It bubbles up from the most specific to the least specific. Each level can access the associated data at all levels. For example, we can store data at the specific jack event level while having the handler at "all data retrieved" access it. Works the other way too.
 * Actions. Events should be statements of fact. Actions can be used to call functions and are statements of doing. "Compile document" is an action and is a nice way to represent a function handler. "Document compiled" would be what might be emitted after the compilation is done. This is a great way to have a running log of event --> action. 
-* Stuff can be attached to events, emissions, and handlers. The convention is that the first bit is `data` and should be JSONable. The second bit is `myth` and can be functions or complicated "global" state objects not really intended for inspection. I find separating the two helps debugging greatly. 
+* Stuff can be attached to events, emissions, and handlers. Emits send data, handlers have contexts, and events have scope contexts.
 
-Please note that no effort at efficiency has been made. This is about making it easier to develop the flow of an application. If you need something that handles large number of events quickly, this may not be the right library. 
+Please note that no particular effort at efficiency has been made. This is about making it easier to develop the flow of an application. If you need something that handles large number of events quickly, this may not be the right library. 
 
 ### Install
 
@@ -28,15 +28,14 @@ These are methods on the emitter object.
 
 ---
 <a name="emit" />
-### emit(str ev, obj data, obj myth, str timing) --> emitter
+### emit(str ev, obj data, str timing) --> emitter
 
 Emit the event.  
 
 __arguments__
 
 * `ev`  A string that denotes the event. 
-* `data` Any value. It will be passed into the handler. Expected to be JSONable; great for logging. Think properties.
-* `myth` Also any value. Expected to be an object of functions, think methods or messy state objects. 
+* `data` Any value. It will be passed into the handler as the first argument. 
 * `timing` One of "now", "momentary", "soon", "later" implying emission first on queue, last on queue, first on next cycle, last on next cycle, respectively. "Momentary" is the default if not provided as that will preserve the order of emitting.
 
 __return__
@@ -64,11 +63,7 @@ To modify the later events to emit immediately or later, change `evObj.q` and `e
     emitter.now("got data", {dog : "fifi"});
     // scoped event to have it passed around, 
     // `got data:dogs` called first, then `got data`
-    // both data and a myth object passed in
-    emitter.now("got data:dogs",
-         ["fifi", "barney"], 
-         {dog: function (name) {return "great, "+name;} }
-    );
+    emitter.now("got data:dogs",["fifi", "barney"]);
     // data need not be an object
     emitter.now("got a string", "hey there");
     
@@ -81,7 +76,7 @@ To modify the later events to emit immediately or later, change `evObj.q` and `e
 
 ---
 <a name="when" />
-### when(arr/str events, str ev, obj data, obj myth, str timing, bool reset ) --> tracker 
+### when(arr/str events, str ev, obj data, str timing, bool reset ) --> tracker 
 
 This is how to do som action after several different events have all fired. Firing order is irrelevant, but if an event fires more times than is counted and then the when is reset after some other events fire, those extra times do not get counted. 
 
@@ -105,7 +100,7 @@ __example__
 
 <a name="on" />
 
-### on(str ev, Handler f, obj data, obj myth) --> Handler
+### on(str ev, Handler f, obj context) --> Handler
 
 Associates handler f with event ev for firing when ev is emitted.
 
@@ -113,8 +108,7 @@ __arguments__
 
 * `ev` The event string on which to call handler f
 * `f` The handler f. This can be a function, an action string, an array of handler types, or a handler itself.
-* `data` If there is any data that f needs access to.
-* `myth` If there is any objects that f needs access to.
+* `context` What the this should be set to.
 
 __return__
 
@@ -158,6 +152,13 @@ _"handlers for events:doc"
 
 _"actions:doc"
 
+<a name="error" />
+### error()
+
+This is where errors can be dealt with when executing handlers. It is passed in the error object as well as the event, data, handler, context... If you terminate the flow by throwing an error, be sure to set emitter.looping to false. This is a method to be overwritten. 
+
+_"log:doc"
+
 ### Object Types
 
 * Emitter. This module exports a single function, the constructor for this type. It is what handles managing all the events. It really should be called Dispatcher. 
@@ -172,7 +173,7 @@ Trackers are responsible for tracking the state of a `.when` call. It is fine to
 These are the instance properties
 
 * `events` The list of currently active events/counts that are being tracked. To manipulate, use the tracker methods below.
-* `ev` The action that will be taken when all events have fired. This will use the     passed in data and myth objects for the handler slot in the passin object.
+* `ev` The action that will be taken when all events have fired. It will emit the data from all the events in the form of an array of arrays: `[[event emitted, data], ...]`
 * `timing` This dictates how the action is queued. 
 * `reset` This dictates whether to reset the events after firing. 
 * `original` The original events for use by reset/reinitialize.

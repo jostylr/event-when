@@ -203,7 +203,7 @@ test('handler with context', function (s) {
     var emitter = new EventWhen();
 
     var expected = [
-        "jt:says hi!"
+        "jt: hi!"
         ],
         actual = [];
 
@@ -213,12 +213,11 @@ test('handler with context', function (s) {
 
     emitter.on("first ready", function (data) {
         var self = this;
-        actual.push(self.myth.handler.name + 
-            ":" + self.data.handler + 
-            " " + data + self.myth.emit.punctuation);
-    }, "says", {name:"jt"});
+        actual.push(self.name + 
+            ": " + data[0] + data[1].punctuation);
+    }, {name:"jt"});
     
-    emitter.emit("first ready", "hi", {punctuation: "!"});
+    emitter.emit("first ready", ["hi", {punctuation: "!"}]);
     
     emitter.emit("done");
 
@@ -277,9 +276,9 @@ test('canceling', function (s) {
         s.deepEqual(actual, expected);
     });
 
-    emitter.action("stop emission", function () {
+    emitter.action("stop emission", function (data, evObj) {
             actual.push("emit this");
-            this.stop = true;
+            evObj.stop = true;
     });
     
     emitter.action("not seen in array",function () {
@@ -296,9 +295,9 @@ test('canceling', function (s) {
             actual.push("emit that 1");
     }]);
     
-    emitter.on("stopping test", [function () {
+    emitter.on("stopping test", [function (data, evObj) {
             actual.push("emit that 2");
-            this.emitter.stop(true);
+            evObj.emitter.stop(true);
         }, function () {
             actual.push("seen because the handler array is not stopped");
     }]);
@@ -345,8 +344,9 @@ test('error checking', function (s) {
     
     //error overide
     
-    emitter.error = function (e, value, data, passin) {
-        actual.push([e.message, passin.event, passin.handler.name].join("\n"));
+    emitter.error = function (e, value, data, evObj) {
+        var cur = evObj.cur;
+        actual.push([e.message, cur[0], cur[1].name].join("\n"));
     };
     
     emitter.emit("error event");
@@ -402,9 +402,8 @@ test('flow testing', function (s) {
         emitter.later("term:E");
     });
     
-    emitter.on("term", function () {
-        var passin = this;
-        actual.push(passin.evObj.pieces[1]);
+    emitter.on("term", function (data, evObj) {
+        actual.push(evObj.pieces[1]);
     });
     
     emitter.when([["term",8]], "done");

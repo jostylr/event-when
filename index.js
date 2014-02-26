@@ -3,7 +3,7 @@
 
 var empty = {};
 
-var Handler = function (value, data, myth) {
+var Handler = function (value, context) {
         if ( (value instanceof Handler) && 
              (arguments.length === 1) ) {
                 return value;
@@ -12,56 +12,56 @@ var Handler = function (value, data, myth) {
         var handler = this;
     
         handler.value = value; 
-        handler.data = data;
-        handler.myth = myth;
+        handler.context = context;
     
         return handler;
     };
 
-Handler.prototype.execute = function me (data, passin, value) {
-    if (passin.stop) {
+Handler.prototype.execute = function me (data, evObj, context, value) {
+    if (evObj.stop) {
         return;
     }
 
     var handler = this,
-        emitter = passin.emitter,                
+        emitter = evObj.emitter,                
         actions = emitter._actions;
 
     value = value || handler.value;
+    context = value.context || this.context || context || empty;
 
     try {
         if (typeof value === "string") {
             if ( actions.hasOwnProperty(value) ) {
-                emitter.log("executing action", value, passin);
-                actions[value].execute(data, passin);
+                emitter.log("executing action", value, evObj);
+                actions[value].execute(data, evObj, context);
             } else {
-                emitter.log("action not found", value, passin);
+                emitter.log("action not found", value, evObj);
             }
             return;
         }
 
         if (typeof value === "function") {
-            emitter.log("executing function", value, passin);
-            value.call(passin, data);
+            emitter.log("executing function", value, evObj);
+            value.call(context, data, evObj);
             return; 
         }
 
         if ( Array.isArray(value) ) {
             value.forEach(function (el) {
-                me.call(empty, data, passin, el); 
+                me.call(empty, data, evObj, context, el); 
             });
             return;
         }
 
         if ( typeof value.execute === "function" ) {
-            value.execute(data, passin);
+            value.execute(data, evObj, context);
             return;
         }   
 
-        emitter.log("value not executable", value, passin);
+        emitter.log("value not executable", value, evObj);
 
     } catch (e) {
-        emitter.error(e, value, data, passin);
+        emitter.error(e, value, data, evObj, context);
     }
 
     return;
@@ -210,7 +210,6 @@ Tracker.prototype.go = function () {
         var tracker = this, 
             ev = tracker.ev, 
             data = tracker.data,
-            myth = tracker.mayth,
             events = tracker.events,
             emitter = tracker.emitter;
     
@@ -218,7 +217,7 @@ Tracker.prototype.go = function () {
             if (tracker.reset === true) {
                 tracker.add(tracker.original);
             }
-            emitter.emit(ev, data, myth, tracker.timing); 
+            emitter.emit(ev, data, tracker.timing); 
         }
         return tracker;
     };
@@ -228,11 +227,15 @@ Tracker.prototype.cancel = function () {
             handler = tracker.handler,
              keys;
         
+        emitter.log("canceling tracker", tracker);
+    
         keys = Object.keys(tracker.events);
     
         keys.forEach(function (event) {
             emitter.off(event, handler);
         });
+    
+        tracker.data = [];
         return tracker;
     };
 Tracker.prototype.reinitialize = function () {
@@ -262,11 +265,11 @@ var EvW = function () {
         return this; 
     };
 
-EvW.prototype.on = function (ev, f, data, myth) {
+EvW.prototype.on = function (ev, f, context) {
     var emitter = this,
         handlers = emitter._handlers;
 
-    f = new Handler(f, data, myth ); 
+    f = new Handler(f, context ); 
 
     if (handlers.hasOwnProperty(ev)) {
             handlers[ev].push(f);
@@ -278,54 +281,41 @@ EvW.prototype.on = function (ev, f, data, myth) {
     return f;
 
 };
-EvW.prototype.emit = function (ev, data, myth, timing) {
+EvW.prototype.emit = function (ev, data, timing) {
         var emitter = this, 
             sep = emitter.scopeSep, 
-            scopes;
+            scopes = {};
     
         timing = timing ||emitter.timing || "momentary";
     
-        emitter.log("emit", ev, data, myth, timing);
+        emitter.log("emit", ev, data, timing);
     
         var pieces = ev.split(sep);
     
         emitter.emitCount += 1;
     
-        var scopeData = {}, 
-            scopeMyth = {}; 
-    
-        var lev = "";
-    
-        scopes = pieces.map(function (el) {
-            var dm;
-            lev += (lev ? sep + el : el);
-            dm = emitter.scope(lev);
-            scopeData[lev] = dm.data;
-            scopeMyth[lev] = dm.myth;
-            return lev;
-        });
-    
         var evObj = {
+            emitter: emitter,
             ev : ev,
-            emitData : data,
-            emitMyth : myth,
+            data : data,
             scopes : scopes, 
             pieces : pieces,
-            scopeData : scopeData,
-            scopeMyth : scopeMyth,
             count : emitter.emitCount,
             timing : timing
         };
     
         var events = evObj.events = [];
     
-        scopes.forEach(function (el) {
-           var h = emitter._handlers[el];
-           if (h) {
+        pieces.reduce(function (prev, el) {
+            var ret = prev + (prev ? sep + el : el);            
+            scopes[ret] = emitter.scope(ret);
+            var h = emitter._handlers[ret];
+            if (h) {
                 //unshifting does the bubbling up
-               events.unshift({scopeEvent: el, handlers: h.slice()});
-           }
-        }); 
+               events.unshift({scopeEvent: ret, handlers: h.slice()});
+            }
+            return ret;
+        }, ""); 
     
         emitter.eventLoader(timing, evObj);
     
@@ -353,24 +343,24 @@ EvW.prototype.eventLoader = function (timing, evObj) {
                 emitter._queue.unshift(evObj);
         }
     };
-EvW.prototype.now = function (ev, data, myth) {
+EvW.prototype.now = function (ev, data) {
         var emitter = this;
-        emitter.emit(ev, data, myth, "now");
+        emitter.emit(ev, data, "now");
         return emitter;
     };
-EvW.prototype.momentary = function (ev, data, myth) {
+EvW.prototype.momentary = function (ev, data) {
         var emitter = this;
-        emitter.emit(ev, data, myth, "momentary");
+        emitter.emit(ev, data, "momentary");
         return emitter;
     };
-EvW.prototype.soon = function (ev, data, myth) {
+EvW.prototype.soon = function (ev, data) {
         var emitter = this;
-        emitter.emit(ev, data, myth, "soon");
+        emitter.emit(ev, data, "soon");
         return emitter;
     };
-EvW.prototype.later = function (ev, data, myth) {
+EvW.prototype.later = function (ev, data) {
         var emitter = this;
-        emitter.emit(ev, data, myth, "later");
+        emitter.emit(ev, data, "later");
         return emitter;
     };
 EvW.prototype.off = function (events, fun, nowhen) {
@@ -477,7 +467,7 @@ EvW.prototype.looper = function () {
             loopMax = emitter.loopMax,
             self = emitter.looper,
             loop = 0, 
-            f, ev, passin, evObj, events, cur, ind;
+            f, ev, evObj, events, cur, ind;
     
         if (emitter.looping) {
             emitter.log("looping called again");
@@ -499,7 +489,6 @@ EvW.prototype.looper = function () {
                 continue;
             }
             
-            passin = {};
             cur = events[0]; 
             
             if (events[0].handlers.length === 0) {
@@ -510,30 +499,12 @@ EvW.prototype.looper = function () {
             ev = cur.scopeEvent;
             f = cur.handlers.shift();
             if (f) {
-                passin = {
-                        emitter : emitter,
-                        scope : ev,
-                        data : {
-                            emit : evObj.emitData,
-                            event : evObj.scopeData[ev],
-                            events : evObj.scopeData,
-                            handler : f.data
-                        },
-                        myth : {
-                            emit : evObj.emitMyth,
-                            event : evObj.scopeMyth[ev],
-                            events : evObj.scopeMyth,
-                            handler : f.myth
-                        },
-                        event : evObj.ev,
-                        evObj : evObj,
-                        handler : f
-                    };
-                emitter.log("firing", passin);
-                f.execute(evObj.emitData, passin);
-                emitter.log("fired", passin);
-                if ( passin.stop === true ) {
-                    emitter.log("emission stopped", passin);
+                evObj.cur = [ev, f];
+                emitter.log("firing", ev, evObj);
+                f.execute(evObj.data, evObj);
+                emitter.log("fired", ev, evObj);
+                if ( evObj.stop === true ) {
+                    emitter.log("emission stopped", ev, evObj);
                     ind = queue.indexOf(evObj);
                     if (ind !== -1) {
                         queue.splice(ind, 1);
@@ -568,16 +539,13 @@ EvW.prototype.when = function (events, ev, timing, reset) {
         tracker.emitter = emitter;
         tracker.ev = ev;
         tracker.data = [];
-        tracker.myth = [];
         tracker.timing = timing || emitter.timing || "now";
         tracker.reset = reset || false;
         tracker.original = events.slice();
     
-        var handler = new Handler (function (data) {
-            var passin = this;
-            var ev = passin.scope;
+        var handler = new Handler (function (data, evObj) {
+            var ev = evObj.cur[0];
             tracker.data.push([ev, data]);
-            tracker.myth.push([ev, passin.myth.emit]);
             tracker.remove(ev);
         });
     
@@ -589,11 +557,11 @@ EvW.prototype.when = function (events, ev, timing, reset) {
     
         return tracker;
     };
-EvW.prototype.once = function (ev, f, n, data, myth) {
+EvW.prototype.once = function (ev, f, n, context) {
         var emitter = this, 
             handler, g;
     
-        handler = new Handler([f], data, myth);
+        handler = new Handler([f], context);
     
         handler.n = n || 1;
     
@@ -608,7 +576,7 @@ EvW.prototype.once = function (ev, f, n, data, myth) {
     
         emitter.on(ev, handler); 
     
-        emitter.log("assigned event times", ev, n, f, data, myth, handler);
+        emitter.log("assigned event times", ev, n, f, context, handler);
     
         return handler;
     };
@@ -709,8 +677,12 @@ EvW.prototype.handlers = function (events) {
         return ret;
     
     };
-EvW.prototype.action = function (name, handler, data, passin) {
+EvW.prototype.action = function (name, handler, context) {
         var emitter = this;
+    
+        if (arguments.length === 0) {
+            return Object.keys(emitter._actions);
+        }
     
         if (arguments.length === 1) {
             return emitter._actions[name];
@@ -718,21 +690,21 @@ EvW.prototype.action = function (name, handler, data, passin) {
     
         if ( (arguments.length === 2) && (handler === null) ) {
             delete emitter._actions[name];
-            emitter.log("Removed action " + name);
+            emitter.log("Removed action ", name);
             return name;
         }
         
-        var action = new Handler(handler, data, passin); 
+        var action = new Handler(handler, context); 
     
         if (emitter._actions.hasOwnProperty(name) ) {
-            emitter.log("Overwriting action " + name);
+            emitter.log("Overwriting action ", name);
         }
     
         emitter._actions[name] = action;
     
-        return name;
+        return action;
     };
-EvW.prototype.scope = function (ev, data, myth) {
+EvW.prototype.scope = function (ev, obj) {
         var emitter = this,
             scope;
     
@@ -746,34 +718,28 @@ EvW.prototype.scope = function (ev, data, myth) {
             if (scope) {
                 return scope;
             } else {
-                return {
-                    data : null,
-                    myth : null
-                };
+                return null;
             }
         }
         
-        if ( (data === null) && (myth === null) ) {
+        if ( obj == null ) {
             emitter.log("Deleting scope event", ev, scope);
             delete emitter._scopes[ev];
             return scope;
         }
     
         if (emitter._scopes.hasOwnProperty(ev) ) {
-            emitter.log("Overwriting scope event", ev, data, myth, emitter._scopes[ev] );
+            emitter.log("Overwriting scope event", ev, obj, emitter._scopes[ev] );
         } else {
-            emitter.log("Creating scope event", ev, data, myth);
+            emitter.log("Creating scope event", ev, obj);
         }
     
-        emitter._scopes[ev] = {
-            data : (typeof data === "undefined" ? null : data),
-            myth : (typeof myth === "undefined" ? null : myth)
-        };
+        emitter._scopes[ev] = obj;
     
         return ev;
     };
-EvW.prototype.makeHandler = function (value, options) {
-        return new Handler(value, options);
+EvW.prototype.makeHandler = function (value, context) {
+        return new Handler(value, context);
     };
 EvW.prototype.error = function (e) {
         var emitter = this;

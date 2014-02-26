@@ -20,9 +20,9 @@ This provides a succinct introduction to the library for the readme and this fil
     * When. This is the titular notion. The `.when` method allows you to specify an event to emit after various specified events have all fired. For example, if we call a database and read a file to assemble a webpage, then we can do something like `emitter.when(["file parsed:jack.txt", "database returned:jack"], "all data retrieved:jack");
     * Scope. Events can be scoped. In the above example, each of the events are scoped based on the user jack. It bubbles up from the most specific to the least specific. Each level can access the associated data at all levels. For example, we can store data at the specific jack event level while having the handler at "all data retrieved" access it. Works the other way too.
     * Actions. Events should be statements of fact. Actions can be used to call functions and are statements of doing. "Compile document" is an action and is a nice way to represent a function handler. "Document compiled" would be what might be emitted after the compilation is done. This is a great way to have a running log of event --> action. 
-    * Stuff can be attached to events, emissions, and handlers. The convention is that the first bit is `data` and should be JSONable. The second bit is `myth` and can be functions or complicated "global" state objects not really intended for inspection. I find separating the two helps debugging greatly. 
+    * Stuff can be attached to events, emissions, and handlers. Emits send data, handlers have contexts, and events have scope contexts.
 
-    Please note that no effort at efficiency has been made. This is about making it easier to develop the flow of an application. If you need something that handles large number of events quickly, this may not be the right library. 
+    Please note that no particular effort at efficiency has been made. This is about making it easier to develop the flow of an application. If you need something that handles large number of events quickly, this may not be the right library. 
 
 ## Files
 
@@ -135,54 +135,41 @@ This function is the core of both emit and later.
 First it gets an array of the various scope level events and loads their context objects. We create the event object which holds all relevant bits for this event call. 
 
 
-    function (ev, data, myth, timing) {
+    function (ev, data, timing) {
         var emitter = this, 
             sep = emitter.scopeSep, 
-            scopes;
+            scopes = {};
 
         timing = timing ||emitter.timing || "momentary";
 
-        emitter.log("emit", ev, data, myth, timing);
+        emitter.log("emit", ev, data, timing);
 
         var pieces = ev.split(sep);
 
         emitter.emitCount += 1;
 
-        var scopeData = {}, 
-            scopeMyth = {}; 
-
-        var lev = "";
-
-        scopes = pieces.map(function (el) {
-            var dm;
-            lev += (lev ? sep + el : el);
-            dm = emitter.scope(lev);
-            scopeData[lev] = dm.data;
-            scopeMyth[lev] = dm.myth;
-            return lev;
-        });
-
         var evObj = {
+            emitter: emitter,
             ev : ev,
-            emitData : data,
-            emitMyth : myth,
+            data : data,
             scopes : scopes, 
             pieces : pieces,
-            scopeData : scopeData,
-            scopeMyth : scopeMyth,
             count : emitter.emitCount,
             timing : timing
         };
 
         var events = evObj.events = [];
 
-        scopes.forEach(function (el) {
-           var h = emitter._handlers[el];
-           if (h) {
+        pieces.reduce(function (prev, el) {
+            var ret = prev + (prev ? sep + el : el);            
+            scopes[ret] = emitter.scope(ret);
+            var h = emitter._handlers[ret];
+            if (h) {
                 //unshifting does the bubbling up
-               events.unshift({scopeEvent: el, handlers: h.slice()});
-           }
-        }); 
+               events.unshift({scopeEvent: ret, handlers: h.slice()});
+            }
+            return ret;
+        }, ""); 
 
         emitter.eventLoader(timing, evObj);
 
@@ -196,15 +183,14 @@ First it gets an array of the various scope level events and loads their context
 
     ---
     <a name="emit" />
-    ### emit(str ev, obj data, obj myth, str timing) --> emitter
+    ### emit(str ev, obj data, str timing) --> emitter
 
     Emit the event.  
 
     __arguments__
 
     * `ev`  A string that denotes the event. 
-    * `data` Any value. It will be passed into the handler. Expected to be JSONable; great for logging. Think properties.
-    * `myth` Also any value. Expected to be an object of functions, think methods or messy state objects. 
+    * `data` Any value. It will be passed into the handler as the first argument. 
     * `timing` One of "now", "momentary", "soon", "later" implying emission first on queue, last on queue, first on next cycle, last on next cycle, respectively. "Momentary" is the default if not provided as that will preserve the order of emitting.
 
     __return__
@@ -236,11 +222,7 @@ First it gets an array of the various scope level events and loads their context
     emitter.now("got data", {dog : "fifi"});
     // scoped event to have it passed around, 
     // `got data:dogs` called first, then `got data`
-    // both data and a myth object passed in
-    emitter.now("got data:dogs",
-         ["fifi", "barney"], 
-         {dog: function (name) {return "great, "+name;} }
-    );
+    emitter.now("got data:dogs",["fifi", "barney"]);
     // data need not be an object
     emitter.now("got a string", "hey there");
 
@@ -255,9 +237,9 @@ First it gets an array of the various scope level events and loads their context
 
 This makes the now, later, ... methods. TIMING gets replaced with the timing. That's it!
 
-    function (ev, data, myth) {
+    function (ev, data) {
         var emitter = this;
-        emitter.emit(ev, data, myth, "TIMING");
+        emitter.emit(ev, data, "TIMING");
         return emitter;
     }
 
@@ -292,7 +274,7 @@ This loads the event object in the appropriate queue.
 
 This is a key innovation. The idea is that once this is called, a handler is created that attaches to all the listed events and takes care of figuring when they have all called. 
 
-When all the events have fired, then the given event emits with a data/myth object that are arrays of all the fired event's data/myths. 
+When all the events have fired, then the given event emits with a data object that is an array  of all the fired event's data, specifically the array elements are arrays of the form `[event name, data]`. 
 
 The return is the tracker which contains all things that might need to be accessed. It also contains the remove methods to cancel the `.when`.
 
@@ -312,17 +294,14 @@ Emitting scoped events will count as a firing of the parent event, e.g., `.when(
         tracker.emitter = emitter;
         tracker.ev = ev;
         tracker.data = [];
-        tracker.myth = [];
         tracker.timing = timing || emitter.timing || "now";
         tracker.reset = reset || false;
         tracker.original = events.slice();
 
 
-        var handler = new Handler (function (data) {
-            var passin = this;
-            var ev = passin.scope;
+        var handler = new Handler (function (data, evObj) {
+            var ev = evObj.cur[0];
             tracker.data.push([ev, data]);
-            tracker.myth.push([ev, passin.myth.emit]);
             tracker.remove(ev);
         });
 
@@ -342,7 +321,7 @@ We return the tracker since one should use that to remove it. If you want the ha
 
     ---
     <a name="when" />
-    ### when(arr/str events, str ev, obj data, obj myth, str timing, bool reset ) --> tracker 
+    ### when(arr/str events, str ev, obj data, str timing, bool reset ) --> tracker 
 
     This is how to do som action after several different events have all fired. Firing order is irrelevant, but if an event fires more times than is counted and then the when is reset after some other events fire, those extra times do not get counted. 
 
@@ -490,7 +469,7 @@ This is mainly for use with the `.off` method where the handler has already been
 
 [cancel](# "js")
 
-This cancels the .when, removing the handler from all remaining events. 
+This cancels the .when, removing the handler from all remaining events and clearing the data. 
 
     function () {
         var tracker = this, 
@@ -498,11 +477,15 @@ This cancels the .when, removing the handler from all remaining events.
             handler = tracker.handler,
              keys;
         
+        emitter.log("canceling tracker", tracker);
+
         keys = Object.keys(tracker.events);
 
         keys.forEach(function (event) {
             emitter.off(event, handler);
         });
+
+        tracker.data = [];
         return tracker;
     }
 
@@ -517,7 +500,6 @@ If reset is true, then we add those events before firing off the next round.
         var tracker = this, 
             ev = tracker.ev, 
             data = tracker.data,
-            myth = tracker.mayth,
             events = tracker.events,
             emitter = tracker.emitter;
 
@@ -526,7 +508,7 @@ If reset is true, then we add those events before firing off the next round.
             if (tracker.reset === true) {
                 tracker.add(tracker.original);
             }
-            emitter.emit(ev, data, myth, tracker.timing); 
+            emitter.emit(ev, data, tracker.timing); 
         }
         return tracker;
     }
@@ -554,7 +536,7 @@ We first cancel everything to clear it out and then we attach the new stuff.
     These are the instance properties
 
     * `events` The list of currently active events/counts that are being tracked. To manipulate, use the tracker methods below.
-    * `ev` The action that will be taken when all events have fired. This will use the     passed in data and myth objects for the handler slot in the passin object.
+    * `ev` The action that will be taken when all events have fired. It will emit the data from all the events in the form of an array of arrays: `[[event emitted, data], ...]`
     * `timing` This dictates how the action is queued. 
     * `reset` This dictates whether to reset the events after firing. 
     * `original` The original events for use by reset/reinitialize.
@@ -641,11 +623,11 @@ We first cancel everything to clear it out and then we attach the new stuff.
 It takes an event (a string) and a Handler or something that converts to a Handler.  To have segments that are always in order, use a Handler with an array value of handler-types that will be executed in order.
 
 
-    function (ev, f, data, myth) {
+    function (ev, f, context) {
         var emitter = this,
             handlers = emitter._handlers;
 
-        f = new Handler(f, data, myth ); 
+        f = new Handler(f, context ); 
 
         if (handlers.hasOwnProperty(ev)) {
                 handlers[ev].push(f);
@@ -662,7 +644,7 @@ It takes an event (a string) and a Handler or something that converts to a Handl
 
     <a name="on" />
 
-    ### on(str ev, Handler f, obj data, obj myth) --> Handler
+    ### on(str ev, Handler f, obj context) --> Handler
 
     Associates handler f with event ev for firing when ev is emitted.
 
@@ -670,8 +652,7 @@ It takes an event (a string) and a Handler or something that converts to a Handl
 
     * `ev` The event string on which to call handler f
     * `f` The handler f. This can be a function, an action string, an array of handler types, or a handler itself.
-    * `data` If there is any data that f needs access to.
-    * `myth` If there is any objects that f needs access to.
+    * `context` What the this should be set to.
 
     __return__
 
@@ -686,9 +667,9 @@ The idea is that we will encapsulate all handlers into a handler object. When a 
 
 This is a constructor and it should return `this`. Whatever value is passed in will get wrapped in a handler. 
 
-A handler can have values for data and myth. 
+A handler can have a context. The closest context to an executing handler will be used.  
 
-    function (value, data, myth) {
+    function (value, context) {
         if ( (value instanceof Handler) && 
              (arguments.length === 1) ) {
                 return value;
@@ -697,8 +678,7 @@ A handler can have values for data and myth.
         var handler = this;
 
         handler.value = value; 
-        handler.data = data;
-        handler.myth = myth;
+        handler.context = context;
 
         return handler;
     }
@@ -829,50 +809,51 @@ We pass in data, emitter, args, event string into the handler functions. This or
 All of the handlers are encapsulated in a try...catch that then calls the emitter's .error method (which can be overwritten). The default will rethrow the error with more information. 
 
 
-    function me (data, passin, value) {
-        if (passin.stop) {
+    function me (data, evObj, context, value) {
+        if (evObj.stop) {
             return;
         }
 
         var handler = this,
-            emitter = passin.emitter,                
+            emitter = evObj.emitter,                
             actions = emitter._actions;
 
         value = value || handler.value;
+        context = value.context || this.context || context || empty;
 
         try {
             if (typeof value === "string") {
                 if ( actions.hasOwnProperty(value) ) {
-                    emitter.log("executing action", value, passin);
-                    actions[value].execute(data, passin);
+                    emitter.log("executing action", value, evObj);
+                    actions[value].execute(data, evObj, context);
                 } else {
-                    emitter.log("action not found", value, passin);
+                    emitter.log("action not found", value, evObj);
                 }
                 return;
             }
 
             if (typeof value === "function") {
-                emitter.log("executing function", value, passin);
-                value.call(passin, data);
+                emitter.log("executing function", value, evObj);
+                value.call(context, data, evObj);
                 return; 
             }
 
             if ( Array.isArray(value) ) {
                 value.forEach(function (el) {
-                    me.call(empty, data, passin, el); 
+                    me.call(empty, data, evObj, context, el); 
                 });
                 return;
             }
 
             if ( typeof value.execute === "function" ) {
-                value.execute(data, passin);
+                value.execute(data, evObj, context);
                 return;
             }   
 
-            emitter.log("value not executable", value, passin);
+            emitter.log("value not executable", value, evObj);
 
         } catch (e) {
-            emitter.error(e, value, data, passin);
+            emitter.error(e, value, data, evObj, context);
         }
 
         return;
@@ -920,8 +901,8 @@ This tries to report the structure of the handlers. We use the property name "na
 
 This is a simple wrapper for new Handler
 
-    function (value, options) {
-        return new Handler(value, options);
+    function (value, context) {
+        return new Handler(value, context);
     }
 
 [doc]()
@@ -1045,11 +1026,11 @@ This method produces a wrapper around a provided function that automatically rem
 
 The way it works is the f is put into a handler object. This handler object then has a function placed as the first to be invoked. When invoked, it will decrement the number of times and remove the handler if it is less than or equal to 0. That's it. No function wrapping in a function.
 
-    function (ev, f, n, data, myth) {
+    function (ev, f, n, context) {
         var emitter = this, 
             handler, g;
 
-        handler = new Handler([f], data, myth);
+        handler = new Handler([f], context);
 
         handler.n = n || 1;
 
@@ -1064,7 +1045,7 @@ The way it works is the f is put into a handler object. This handler object then
 
         emitter.on(ev, handler); 
 
-        emitter.log("assigned event times", ev, n, f, data, myth, handler);
+        emitter.log("assigned event times", ev, n, f, context, handler);
 
         return handler;
     }
@@ -1141,7 +1122,7 @@ For the `.soon`, `.later` commands, we use a waiting queue. As soon as next tick
             loopMax = emitter.loopMax,
             self = emitter.looper,
             loop = 0, 
-            f, ev, passin, evObj, events, cur, ind;
+            f, ev, evObj, events, cur, ind;
 
 
         if (emitter.looping) {
@@ -1189,7 +1170,6 @@ This is to execute a single handler on the event queue.
     }
 
 
-    passin = {};
     cur = events[0]; 
 
     if (events[0].handlers.length === 0) {
@@ -1201,38 +1181,14 @@ This is to execute a single handler on the event queue.
     ev = cur.scopeEvent;
     f = cur.handlers.shift();
     if (f) {
-        passin = _":passin";
-        emitter.log("firing", passin);
-        f.execute(evObj.emitData, passin);
-        emitter.log("fired", passin);
+        evObj.cur = [ev, f];
+        emitter.log("firing", ev, evObj);
+        f.execute(evObj.data, evObj);
+        emitter.log("fired", ev, evObj);
         _":deal with stopping"
 
-
     }
 
-[passin]()
-
-This is the full object that is passed in to the handler functions as the second argument. The data.emit is the same as the first argument. 
-
-    {
-        emitter : emitter,
-        scope : ev,
-        data : {
-            emit : evObj.emitData,
-            event : evObj.scopeData[ev],
-            events : evObj.scopeData,
-            handler : f.data
-        },
-        myth : {
-            emit : evObj.emitMyth,
-            event : evObj.scopeMyth[ev],
-            events : evObj.scopeMyth,
-            handler : f.myth
-        },
-        event : evObj.ev,
-        evObj : evObj,
-        handler : f
-    }
 
 [deal with stopping]()
 
@@ -1240,49 +1196,13 @@ If f modifies the passed in second argument to include stop:true, then the event
 
 We remove the event from the queue. Since the queue may have changed, we find it carefully.
 
-    if ( passin.stop === true ) {
-        emitter.log("emission stopped", passin);
+    if ( evObj.stop === true ) {
+        emitter.log("emission stopped", ev, evObj);
         ind = queue.indexOf(evObj);
         if (ind !== -1) {
             queue.splice(ind, 1);
         }
         continue;
-    }
-
-
-[doc]() 
-
-This describes the passin object for the handler arguments
-
-    Every handler that is called gets two arguments passed to it: `data` from the emit event and `passin` which contains
-
-    * `emitter` is he object that manages the events. 
-    * `scope` is the current scope event level.
-    * `data` contains data from `emit`, current scope `event` level, all the `events` along the scope chain, and data from the `handler` itself. 
-    * `myth` is the messy object from each of the same sources as data. 
-    * `event` is the full original event string.
-    * `evObj` is the full object containing various pieces with `events` being the arrray of `{scopeEvent, handlers} If you want to manipulate the flow, this is the array to manipulate.
-    * `handler` is the handler being used. It is a wrapped thingy, so don't expect it to be a function. 
-
-    In addition, `passin.stop` being set to true will cause the event handling and bubbling to stop.
-
-    __example__
-
-    Here we demonstrate using the various passin properties
-
-        _":example"
-
-[example]()
-
-    function (data, passin) {
-        var ret = [];
-        ret.push(passin.data.emit === data);
-        ret.push(passin.scope);
-        ret.push(JSON.stringify(passin.data.emit));
-        ret.push(JSON.stringify(passin.data.event));
-        ret.push(JSON.stringify(passin.data.events));
-        ret.push(JSON.stringify(passin.data.handler));
-
     }
 
 
@@ -1300,7 +1220,7 @@ All handlers are encapsulated in a try..catch. This allows for easy error handli
 
 What is done here is a default and suitable for development. In production, one might want to think whether throwing an error is a good thing or not. 
 
-// e, value, data, passin
+// e, value, data, evObj, context
 
 Since we are throwing an error, we need to make sure emitter.looping is set to false so that if the error is handled and path resumes, we still get a flow of the emitter. 
 
@@ -1309,6 +1229,14 @@ Since we are throwing an error, we need to make sure emitter.looping is set to f
         emitter.looping = false;
         throw Error(e);
     }
+
+[doc]() 
+
+    <a name="error" />
+    ### error()
+
+    This is where errors can be dealt with when executing handlers. It is passed in the error object as well as the event, data, handler, context... If you terminate the flow by throwing an error, be sure to set emitter.looping to false. This is a method to be overwritten. 
+
 
 ### Name an action
 
@@ -1319,8 +1247,12 @@ If just one argument is provided, then the handler is returned.
 If two arguments are provided, but the second is null, then this is a signal to delete the action. 
 
 
-    function (name, handler, data, passin) {
+    function (name, handler, context) {
         var emitter = this;
+
+        if (arguments.length === 0) {
+            return Object.keys(emitter._actions);
+        }
 
         if (arguments.length === 1) {
             return emitter._actions[name];
@@ -1328,22 +1260,42 @@ If two arguments are provided, but the second is null, then this is a signal to 
 
         if ( (arguments.length === 2) && (handler === null) ) {
             delete emitter._actions[name];
-            emitter.log("Removed action " + name);
+            emitter.log("Removed action ", name);
             return name;
         }
         
-        var action = new Handler(handler, data, passin); 
+        var action = new Handler(handler, context); 
 
         if (emitter._actions.hasOwnProperty(name) ) {
-            emitter.log("Overwriting action " + name);
+            emitter.log("Overwriting action ", name);
         }
 
         emitter._actions[name] = action;
 
-        return name;
+        return action;
     }
 
 We return the name so that one can define an action and then use it. 
+
+[doc]() 
+
+    <a name="action" />
+    ### action(str name, handler, obj context) --> action handler
+
+    This allows one to associate a string with a handler for easier naming. It should be active voice to distinguish from event strings.
+
+    __arguments__
+
+    * `name` This is the action name.
+    * `handler` This is the handler-type object to associate with the action. 
+    * `context` The context to call the handler in. 
+
+    __return
+
+    * 0 arguments. Returns the whole list of defined actions.
+    * 1 argument. Returns the handler associated with the action.
+    * 2 arguments, second null. Deletes association action.
+    * 2, 3 arguments. Returns created handler that is now linked to action string. 
 
 ### Name a scope
 
@@ -1353,7 +1305,7 @@ This is where we define the function for adding/removing that context. Given an 
 
 We return the event name so that it can then be used for something else. 
 
-    function (ev, data, myth) {
+    function (ev, obj) {
         var emitter = this,
             scope;
 
@@ -1367,29 +1319,23 @@ We return the event name so that it can then be used for something else.
             if (scope) {
                 return scope;
             } else {
-                return {
-                    data : null,
-                    myth : null
-                };
+                return null;
             }
         }
         
-        if ( (data === null) && (myth === null) ) {
+        if ( obj == null ) {
             emitter.log("Deleting scope event", ev, scope);
             delete emitter._scopes[ev];
             return scope;
         }
 
         if (emitter._scopes.hasOwnProperty(ev) ) {
-            emitter.log("Overwriting scope event", ev, data, myth, emitter._scopes[ev] );
+            emitter.log("Overwriting scope event", ev, obj, emitter._scopes[ev] );
         } else {
-            emitter.log("Creating scope event", ev, data, myth);
+            emitter.log("Creating scope event", ev, obj);
         }
 
-        emitter._scopes[ev] = {
-            data : (typeof data === "undefined" ? null : data),
-            myth : (typeof myth === "undefined" ? null : myth)
-        };
+        emitter._scopes[ev] = obj;
 
         return ev;
     }
@@ -1397,34 +1343,32 @@ We return the event name so that it can then be used for something else.
 [doc]()
 
     <a name="scope" />
-    ### scope(str ev, obj data, obj myth) --> scope keys/ {data, myth} / ev
+    ### scope(str ev, obj) --> scope keys/ obj / ev
 
     This manages associated data and other stuff for the scoped event ev. 
 
     __arguments__ 
 
     * `ev` This is the full event to associate the information with. 
-    * `data` This is data to be available when the event is called. It should be JSONable.
-    * `myth` This is complicated stuff associated with the event, maybe DOM elements, global 
-    state, functions. 
+    * `obj` This is whatever one wants to associate with the scope. 
 
     __return__
 
     * 0 arguments. Leads to the scope keys being returned. 
-    * 1 arguments. Leads to specified scope's data/myth being returned as {data:data, myth:myth}
-    * 2+ arguments. Leads to the event string being returned after storing the data/myth.
+    * 1 arguments. Leads to specified scope's object being returned.
+    * 2 arguments. Leads to the event string being returned after storing the object.
 
 
 [example]()
 
     // stores reference to button element
-    emitter.scope("button:submit", {id:"great"}, {dom: submitButton});
+    emitter.scope("button:submit", {id:"great", dom: submitButton});
     // returns submitButton
     emitter.scope("button:submit");
-    //overwrites submitButton
-    emitter.scope("button:submit", , popupWarning);
+    //overwrites obj
+    emitter.scope("button:submit", popupWarning);
     //clears scope button:submit
-    emitter.scope("button:submit", null, null);
+    emitter.scope("button:submit", null);
 
 
 ### Event listing
@@ -1578,6 +1522,10 @@ The readme for this. A lot of the pieces come from the doc sections.
     _"handlers for events:doc"
 
     _"actions:doc"
+
+    _"error handling:doc"
+
+    _"log:doc"
 
     ### Object Types
 
@@ -1739,6 +1687,10 @@ But the data for the handlers is getting complicated. So the callback signature 
 So what will be in obj? The keys will be data (redundant, but...),  hanCon for handler context, hanArgs for an array of "data" to pass in,  evObj, ev, emitter, 
 
 Thinking about .when only emitting events, not doing other handlers. I think that makes it much cleaner to handle. Not sure why I included the other ways. Maybe thought that having to define an event and then just one handler on it seemed silly. But really, that's what events are about. 
+
+---
+
+Decided to jettison all the myth/data stuff and the passin object. Instead, events emit data (a single object) and the context of arguments is either provided by the handler or is the empty object. The second argument is the event Object which should have the current scope too. The event definitions will not have any distinct data -- this can be put in the handler's context if needed. 
 
 ### Version 0.5.0 Thoughts
 
