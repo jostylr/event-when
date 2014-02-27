@@ -559,9 +559,15 @@ EvW.prototype.when = function (events, ev, timing, reset) {
     };
 EvW.prototype.once = function (ev, f, n, context) {
         var emitter = this, 
-            handler, g;
+            handler, g, temp;
     
         handler = new Handler([f], context);
+    
+        if ( (typeof n !== "number") && (typeof context === "number") ) {
+            temp = n;
+            n = context;
+            context = temp;
+        }
     
         handler.n = n || 1;
     

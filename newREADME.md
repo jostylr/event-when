@@ -2,13 +2,15 @@
 
 This is an event library, but one in which events and listeners are coordinated through a single object. The emphasis throughout is on coordinating the global flow of the program. 
 
-If you wish to attach event emitters to lots of objects, such as buttons, this library is probably not that useful. 
-
-Instead, you attach the buttons to the events and/or handlers. 
+Most event libraries suggest making objects into emitters. This library is designed to allow you to attach the object to the event/handler/emit.
 
 There are several noteworthy features of this library:
 
-* When. This is the titular notion. The `.when` method allows you to specify an event to emit after various specified events have all fired. For example, if we call a database and read a file to assemble a webpage, then we can do something like `emitter.when(["file parsed:jack.txt", "database returned:jack"], "all data retrieved:jack");
+* When. This is the titular notion. The `.when` method allows you to specify an event to emit after various specified events have all fired. For example, if we call a database and read a file to assemble a webpage, then we can do something like 
+    ```
+    emitter.when(["file parsed:jack.txt", "database returned:jack"], "all data retrieved:jack");
+    ```
+    This is why the idea of a central emitter is particularly useful to this library's intent.
 * Scope. Events can be scoped. In the above example, each of the events are scoped based on the user jack. It bubbles up from the most specific to the least specific. Each level can access the associated data at all levels. For example, we can store data at the specific jack event level while having the handler at "all data retrieved" access it. Works the other way too.
 * Actions. Events should be statements of fact. Actions can be used to call functions and are statements of doing. "Compile document" is an action and is a nice way to represent a function handler. "Document compiled" would be what might be emitted after the compilation is done. This is a great way to have a running log of event --> action. 
 * Stuff can be attached to events, emissions, and handlers. Emits send data, handlers have contexts, and events have scope contexts.
@@ -23,8 +25,18 @@ Install using `npm install event-when` though I prefer doing it via package.json
 
 These are methods on the emitter object. 
 
-* [Emit](#emit)
-* [When[(#when)
+* [emit](#emit)
+* [when](#when)
+* [on](#on)
+* [off](#off)
+* [once](#once)
+* [stop](#stop)
+* [action](#actions)
+* [scope](#scope)
+* [events](#events)
+* [handlers](#handlers)
+* [error](#error)
+* [makeLog](#log)
 
 ---
 <a name="emit" />
@@ -51,29 +63,21 @@ __convenience forms__
 
 __scope__ 
 
-Note that if ev contains the [event separator](#event-separator) then it will be broken up into multiple events, each one being emitted. The order of emission is from the most specific to the general (bubbling up). 
+Note that if ev contains the event separator, `:` by default, then it will be broken up into multiple events, each one being emitted. The order of emission is from the most specific to the general (bubbling up). `emitter.scopeSep` holds what to split on.
 
-To stop, the bubbling, clear the `evObj.events` array. 
+To stop the emitting and any bubbling, set `evObj.stop === true`. To do more fine-controlled stopping, you need to manipulate evObj.events which is of the form `{str scopeEvent, arr handlers}`. 
 
-To modify the later events to emit immediately or later, change `evObj.q` and `evObj.action`. 
+Once started, the handlers for all the scopes fire in sequence without interruption unless an `emit.now` is emitted. To delay the handling, one needs to manipulate `evObj.emitter._queue` and `._waiting`. Not recommended. 
 
-    // event with no data 
-    emitter.now("no data passed in");
-    // plain event using data to say what happened
-    emitter.now("got data", {dog : "fifi"});
-    // scoped event to have it passed around, 
-    // `got data:dogs` called first, then `got data`
-    emitter.now("got data:dogs",["fifi", "barney"]);
-    // data need not be an object
-    emitter.now("got a string", "hey there");
-    
-    // the events give the order. Note all are queued before any event is handled
-    var data = {enters: "dog"}
-    emitter.later("third", data);
-    emitter.later("second", data, true);
-    emitter.later("fourth", data);
-    emitter.later("first", data, true);
+    emitter.emit("text filled", anything);
+    emitter.now("urgernt event");
+    emitter.later("whenever", anything);
+    emitter.soon("i'll wait but not too long");
+    // generic:specific gets handled then generic
+    emitter.emit("generic:specific");
 
+---
+<a name="when" />
 ---
 <a name="when" />
 ### when(arr/str events, str ev, obj data, str timing, bool reset ) --> tracker 
@@ -98,8 +102,8 @@ __example__
     //have two events trigger the emitting of all data retrieved
     emitter.when(["file read:dog.txt", "db returned:Kat"], "all data retrieved:dog.txt+Kat");
 
+---
 <a name="on" />
-
 ### on(str ev, Handler f, obj context) --> Handler
 
 Associates handler f with event ev for firing when ev is emitted.
@@ -115,9 +119,7 @@ __return__
 The Handler which should be used in `.off` to remove the handler, if desired. 
 
 ---
-
 <a name="off" />
-
 ### off(str/array events, handler fun, bool nowhen) --> emitter
 
 This removes handlers.
@@ -142,22 +144,79 @@ __example__
 
     //todo. 
 
-_"once:doc"
+---
+<a name="once" />
+### once(event, handler f, int n, obj context) --> handler h
 
-_"stop:doc"
+This attaches the handler f to fire when event is emitted. But it tracks it to be removed after firing n times. Given its name, the default n is 1.
 
-_"events for listing:doc"
+---
+<a name="stop" />
+### stop(str/bool toRemove) --> emitter
 
-_"handlers for events:doc"
+Removes events from the queue. 
 
-_"actions:doc"
+---
+<a name="action" />
+### action(str name, handler, obj context) --> action handler
 
+This allows one to associate a string with a handler for easier naming. It should be active voice to distinguish from event strings.
+
+__arguments__
+
+* `name` This is the action name.
+* `handler` This is the handler-type object to associate with the action. 
+* `context` The context to call the handler in. 
+
+__return__
+
+* 0 arguments. Returns the whole list of defined actions.
+* 1 argument. Returns the handler associated with the action.
+* 2 arguments, second null. Deletes association action.
+* 2, 3 arguments. Returns created handler that is now linked to action string. 
+
+---
+<a name="scope" />
+### scope(str ev, obj) --> scope keys/ obj / ev
+
+This manages associated data and other stuff for the scoped event ev. 
+
+__arguments__ 
+
+* `ev` This is the full event to associate the information with. 
+* `obj` This is whatever one wants to associate with the scope. 
+
+__return__
+
+* 0 arguments. Leads to the scope keys being returned. 
+* 1 arguments. Leads to specified scope's object being returned.
+* 2 arguments. Leads to the event string being returned after storing the object.
+
+---
+<a name="events" />
+### events( fun/str/reg partial, bool negate) --> arr keys
+
+This returns a list of defined events that match the passed in partial condition. 
+
+---
+<a name="handlers" />
+### handlers(arr events) --> obj evt:handlers
+
+Given a list of events, such as given by event listing, produce an object with those events as keys and the values as the handlers. 
+
+---
 <a name="error" />
 ### error()
 
 This is where errors can be dealt with when executing handlers. It is passed in the error object as well as the event, data, handler, context... If you terminate the flow by throwing an error, be sure to set emitter.looping to false. This is a method to be overwritten. 
 
-_"log:doc"
+---
+<a name="log" />
+### makeLog() --> fun
+
+This creates a log function. It is a convenient form, but the log property should often be overwritten. If this is not invoked, then the log is a noop for performance/memory. 
+
+`emitter.log` expects a description as a first argument and then whatever else varies. 
 
 ### Object Types
 
@@ -165,7 +224,11 @@ _"log:doc"
 * [Handler](#handler)
 * [Tracker](#tracker)
 
-_"handler:doc"
+Handlers are the objects that respond to emitted events. Generally they wrap handler type objects. 
+
+### Handler types
+
+### Handler methods
 
 Trackers are responsible for tracking the state of a `.when` call. It is fine to set one up and ignore it. But if you need it to be a bit more dynamic, this is what you can modify. 
 ### Tracker Properties
@@ -183,7 +246,11 @@ These are the instance properties
 
 They all return tracker for chainability. 
 
-*[add](#tracker-add)
+* [add](#tracker-add)
+* [remove](#tracker-remove)
+* [go](#tracker-go)
+* [cancel](#tracker-cancel)
+* [reinitialize](#tracker-reinitialize)
  
 <a name="tracker-add" />
 #### add(arr/str events) 
@@ -200,6 +267,12 @@ You can use this to add a number of wait times to an existing event.
 #### remove(arr/str events)
 
 Removes event from tracking list. 
+
+```
+t.remove("neat");
+t.remove(["neat", "some"]);
+t.remove([["some", 4]]);
+```
 
 __arguments__
 
