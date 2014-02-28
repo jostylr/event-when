@@ -26,13 +26,24 @@ This provides a succinct introduction to the library for the readme and this fil
 
     Please note that no particular effort at efficiency has been made. This is about making it easier to develop the flow of an application. If you need something that handles large number of events quickly, this may not be the right library. 
 
+    ## Using
+
+    In the browser, include index.js. It will attach the constructor to EventWhen in the global space. 
+
+    For node, use `npm install index.js` or, better, add it to the package.json file with `--save` appended. 
+
+    Then require and instantiate an emitter:
+    ```
+    var EventWhen = require('event-when');
+    emitter = new EventWhen();
+    ```
+
 ## Files
 
 The file structure is fairly simple. 
 
 * [index.js](#main "save:|jshint") This is the node module entry point and only relevant file. It is a small file.
 * [ghpages/index.js](#main "save:") This is for browser access. 
-* `[examples/full.js](#full-example "save: |jshint")`
 * [README.md](#old-readme "save: |clean raw ") The standard README.
 * [newREADME.md](#readme "save: ") The standard README, new version.
 * [package.json](#npm-package "save: json  | jshint") The requisite package file for a npm project. 
@@ -51,21 +62,29 @@ This is the main structure of the module file.
     /*jshint eqnull:true*/
     /*global setTimeout, process, module, console */
 
-    var empty = {};
+    ;(function () {
+        var empty = {};
 
-    var Handler = _"handler";
+        var Handler = _"handler";
 
-    _"handler:prototype"
+        _"handler:prototype"
 
-    var Tracker = _"tracker";
+        var Tracker = _"tracker";
 
-    _"tracker:prototype"
+        _"tracker:prototype"
 
-    var EvW = _"constructor";
+        var EvW = _"constructor";
 
-    _"constructor:prototype"
+        _"constructor:prototype"
 
-    module.exports = EvW;
+        if (module) {
+            module.exports = EvW;
+        } else {
+            this.EventWhen = EvW;
+        }
+
+    } () );
+
 
 ### Constructor
 
@@ -130,6 +149,27 @@ The various prototype methods on the event emitter.
     EvW.prototype.scope = _"name a scope";
     EvW.prototype.makeHandler = _"handler:make";
     EvW.prototype.error = _"error handling";
+
+[doc]()
+
+
+
+    Each instance has, in addition to the prototype methods listed below, the following public properties: 
+
+    * `scopeSep` is the scope separator in the event parsing. The default is `:`. We can have multiple levels; the top level is the global event. 
+    * `count` tracks the number of events emitted. 
+    * `looping` tracks whether we are in the executing loop. 
+    * `loopMax` is a toggle to decide when to yield to the next cycle for responsiveness. Default 1000. 
+    * `timing` The default timing for `.emit` which defaults to "momentary".
+
+    It also has "private" variables that are best manipulated by the methods.
+
+    * `_handlers` has key:value of `event:[handler1, handler2,..]` and will fire them in that order. 
+    * `_queue` consists of events to be fired in this cycle.
+    * `_waiting` is the queue for events to be fired after next tick.
+    * `_actions` has k:v of `action name: handler` The handler can be of type Handler or anything convertible to it. 
+    *`_scopes` has k:v of `scope name: object` When an event is emitted with the given scope, the object will be passed in and only events scoped to that scope will fire. 
+
 
 ### Emit
 
@@ -202,7 +242,7 @@ First it gets an array of the various scope level events and loads their context
     __convenience forms__ 
 
     * `.now`  Event A emits B, B fires after the emitting handler finishes, but before other handler's for A finishes. This is the function calling model.
-    * `.momentary` Event A emits B, B fires after A finishes. This is more of a synchronous callback model. 
+    * `.momentary` Event A emits B, B fires after A finishes. This is more of a synchronous callback model. It is the same as `.emit` with the default setting.
     * `.soon` Event A emits B then C, both with soon, then C fires after next tick. B fires after second tick.
     * `.later` Event A emits B then C, both with later, then B fires after next tick. C fires after second tick.
 
@@ -210,17 +250,20 @@ First it gets an array of the various scope level events and loads their context
 
     Note that if ev contains the event separator, `:` by default, then it will be broken up into multiple events, each one being emitted. The order of emission is from the most specific to the general (bubbling up). `emitter.scopeSep` holds what to split on.
 
-    To stop the emitting and any bubbling, set `evObj.stop === true`. To do more fine-controlled stopping, you need to manipulate evObj.events which is of the form `{str scopeEvent, arr handlers}`. 
+    To stop the emitting and any bubbling, set `evObj.stop === true` in the handler with signature `(data, evObj)`. To do more fine-controlled stopping, you need to manipulate evObj.events which is an array consisting of objects of the form `{str scopeEvent, arr handlers}`. 
 
     Once started, the handlers for all the scopes fire in sequence without interruption unless an `emit.now` is emitted. To delay the handling, one needs to manipulate `evObj.emitter._queue` and `._waiting`. Not recommended. 
+
+
+    __example__
 
         _":example"
 
 [example]()
 
-    emitter.emit("text filled", anything);
-    emitter.now("urgernt event");
-    emitter.later("whenever", anything);
+    emitter.emit("text filled", someData);
+    emitter.now("urgent event");
+    emitter.later("whenever", otherData);
     emitter.soon("i'll wait but not too long");
     // generic:specific gets handled then generic
     emitter.emit("generic:specific");
@@ -311,11 +354,10 @@ We return the tracker since one should use that to remove it. If you want the ha
 
 [doc]()
 
-    ---
-    <a name="when" />
-    ### when(arr/str events, str ev, obj data, str timing, bool reset ) --> tracker 
 
-    This is how to do som action after several different events have all fired. Firing order is irrelevant, but if an event fires more times than is counted and then the when is reset after some other events fire, those extra times do not get counted. 
+    ### when(arr/str events, str ev, str timing, bool reset ) --> tracker 
+
+    This is how to do some action after several different events have all fired. Firing order is irrelevant, but if an event fires more times than is counted and then the when is reset after some other events fire, those extra times do not get counted. 
 
     __arguments__
 
@@ -1530,10 +1572,6 @@ The readme for this. A lot of the pieces come from the doc sections.
 
     _"introduction:doc"
 
-    ### Install
-
-    Install using `npm install event-when` though I prefer doing it via package.json and `npm install`. 
-
     ### Method specification
 
     These are methods on the emitter object. 
@@ -1552,61 +1590,69 @@ The readme for this. A lot of the pieces come from the doc sections.
     * [makeLog](#log)
 
     ---
-    <a name="emit" />
+    <a name="emit"></a>
     _"emit:doc"
 
     ---
-    <a name="when" />
+    <a name="when"></a>
     _"when:doc"
 
     ---
-    <a name="on" />
+    <a name="on"></a>
     _"on:doc"
 
     ---
-    <a name="off" />
+    <a name="off"></a>
     _"off:doc"
 
     ---
-    <a name="once" />
+    <a name="once"></a>
     _"once:doc"
 
     ---
-    <a name="stop" />
+    <a name="stop"></a>
     _"stop:doc"
 
     ---
-    <a name="action" />
+    <a name="action"></a>
     _"name an action:doc"
 
     ---
-    <a name="scope" />
+    <a name="scope"></a>
     _"name a scope:doc"
 
     ---
-    <a name="events" />
+    <a name="events"></a>
     _"event listing:doc"
 
     ---
-    <a name="handlers" />
+    <a name="handlers"></a>
     _"handlers for events:doc"
 
     ---
-    <a name="error" />
+    <a name="error"></a>
     _"error handling:doc"
 
     ---
-    <a name="log" />
+    <a name="log"></a>
     _"log:doc"
 
     ### Object Types
 
-    * Emitter. This module exports a single function, the constructor for this type. It is what handles managing all the events. It really should be called Dispatcher. 
-    * [Handler](#handler)
-    * [Tracker](#tracker)
+    * [Emitter](#emitter). This module exports a single function, the constructor for this type. It is what handles managing all the events. It really should be called Dispatcher. 
+    * [Handler](#handler) This is the object type that interfaces between event/emits and action/functions. 
+    * [Tracker](#tracker) This is what tracks the status of when to fire `.when` events.
 
+    ---
+    <a name="emitter"></a>
+    _"constructor:doc"
+
+    ---
+    <a name="handler"></a>
     _"handler:doc"
 
+    ---
+    <a name="tracker"></a>
     _"tracker:doc"
 
 
@@ -1684,14 +1730,6 @@ You can pass in functions, strings, arrays of these things, arrays with an array
  ### .Error
 
 Since we are controlling the flow, we can also control error throwing. So that is what the emitter.error method does. All calls to handlers have their errors caught and sent to the .error method. The default is to throw the error again with the event string and handler name added to the error. 
-
-## Full Example
-
-This is a basic example that runs all the documentation code. 
-
-    var EvW = require("../index.js");
-    var emitter = new EvW();
-
 
 
 ## TODO

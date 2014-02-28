@@ -17,9 +17,17 @@ There are several noteworthy features of this library:
 
 Please note that no particular effort at efficiency has been made. This is about making it easier to develop the flow of an application. If you need something that handles large number of events quickly, this may not be the right library. 
 
-### Install
+## Using
 
-Install using `npm install event-when` though I prefer doing it via package.json and `npm install`. 
+In the browser, include index.js. It will attach the constructor to EventWhen in the global space. 
+
+For node, use `npm install index.js` or, better, add it to the package.json file with `--save` appended. 
+
+Then require and instantiate an emitter:
+```
+var EventWhen = require('event-when');
+emitter = new EventWhen();
+```
 
 ### Method specification
 
@@ -39,7 +47,7 @@ These are methods on the emitter object.
 * [makeLog](#log)
 
 ---
-<a name="emit" />
+<a name="emit"></a>
 ### emit(str ev, obj data, str timing) --> emitter
 
 Emit the event.  
@@ -57,7 +65,7 @@ The emitter for chaining. The events may or may not be already emitted depending
 __convenience forms__ 
 
 * `.now`  Event A emits B, B fires after the emitting handler finishes, but before other handler's for A finishes. This is the function calling model.
-* `.momentary` Event A emits B, B fires after A finishes. This is more of a synchronous callback model. 
+* `.momentary` Event A emits B, B fires after A finishes. This is more of a synchronous callback model. It is the same as `.emit` with the default setting.
 * `.soon` Event A emits B then C, both with soon, then C fires after next tick. B fires after second tick.
 * `.later` Event A emits B then C, both with later, then B fires after next tick. C fires after second tick.
 
@@ -65,24 +73,24 @@ __scope__
 
 Note that if ev contains the event separator, `:` by default, then it will be broken up into multiple events, each one being emitted. The order of emission is from the most specific to the general (bubbling up). `emitter.scopeSep` holds what to split on.
 
-To stop the emitting and any bubbling, set `evObj.stop === true`. To do more fine-controlled stopping, you need to manipulate evObj.events which is of the form `{str scopeEvent, arr handlers}`. 
+To stop the emitting and any bubbling, set `evObj.stop === true` in the handler with signature `(data, evObj)`. To do more fine-controlled stopping, you need to manipulate evObj.events which is an array consisting of objects of the form `{str scopeEvent, arr handlers}`. 
 
 Once started, the handlers for all the scopes fire in sequence without interruption unless an `emit.now` is emitted. To delay the handling, one needs to manipulate `evObj.emitter._queue` and `._waiting`. Not recommended. 
 
-    emitter.emit("text filled", anything);
-    emitter.now("urgernt event");
-    emitter.later("whenever", anything);
+__example__
+
+    emitter.emit("text filled", someData);
+    emitter.now("urgent event");
+    emitter.later("whenever", otherData);
     emitter.soon("i'll wait but not too long");
     // generic:specific gets handled then generic
     emitter.emit("generic:specific");
 
 ---
-<a name="when" />
----
-<a name="when" />
-### when(arr/str events, str ev, obj data, str timing, bool reset ) --> tracker 
+<a name="when"></a>
+### when(arr/str events, str ev, str timing, bool reset ) --> tracker 
 
-This is how to do som action after several different events have all fired. Firing order is irrelevant, but if an event fires more times than is counted and then the when is reset after some other events fire, those extra times do not get counted. 
+This is how to do some action after several different events have all fired. Firing order is irrelevant, but if an event fires more times than is counted and then the when is reset after some other events fire, those extra times do not get counted. 
 
 __arguments__
 
@@ -103,7 +111,7 @@ __example__
     emitter.when(["file read:dog.txt", "db returned:Kat"], "all data retrieved:dog.txt+Kat");
 
 ---
-<a name="on" />
+<a name="on"></a>
 ### on(str ev, Handler f, obj context) --> Handler
 
 Associates handler f with event ev for firing when ev is emitted.
@@ -119,7 +127,7 @@ __return__
 The Handler which should be used in `.off` to remove the handler, if desired. 
 
 ---
-<a name="off" />
+<a name="off"></a>
 ### off(str/array events, handler fun, bool nowhen) --> emitter
 
 This removes handlers.
@@ -145,19 +153,19 @@ __example__
     //todo. 
 
 ---
-<a name="once" />
+<a name="once"></a>
 ### once(event, handler f, int n, obj context) --> handler h
 
 This attaches the handler f to fire when event is emitted. But it tracks it to be removed after firing n times. Given its name, the default n is 1.
 
 ---
-<a name="stop" />
+<a name="stop"></a>
 ### stop(str/bool toRemove) --> emitter
 
 Removes events from the queue. 
 
 ---
-<a name="action" />
+<a name="action"></a>
 ### action(str name, handler, obj context) --> action handler
 
 This allows one to associate a string with a handler for easier naming. It should be active voice to distinguish from event strings.
@@ -176,7 +184,7 @@ __return__
 * 2, 3 arguments. Returns created handler that is now linked to action string. 
 
 ---
-<a name="scope" />
+<a name="scope"></a>
 ### scope(str ev, obj) --> scope keys/ obj / ev
 
 This manages associated data and other stuff for the scoped event ev. 
@@ -193,25 +201,25 @@ __return__
 * 2 arguments. Leads to the event string being returned after storing the object.
 
 ---
-<a name="events" />
+<a name="events"></a>
 ### events( fun/str/reg partial, bool negate) --> arr keys
 
 This returns a list of defined events that match the passed in partial condition. 
 
 ---
-<a name="handlers" />
+<a name="handlers"></a>
 ### handlers(arr events) --> obj evt:handlers
 
 Given a list of events, such as given by event listing, produce an object with those events as keys and the values as the handlers. 
 
 ---
-<a name="error" />
+<a name="error"></a>
 ### error()
 
 This is where errors can be dealt with when executing handlers. It is passed in the error object as well as the event, data, handler, context... If you terminate the flow by throwing an error, be sure to set emitter.looping to false. This is a method to be overwritten. 
 
 ---
-<a name="log" />
+<a name="log"></a>
 ### makeLog() --> fun
 
 This creates a log function. It is a convenient form, but the log property should often be overwritten. If this is not invoked, then the log is a noop for performance/memory. 
@@ -220,16 +228,38 @@ This creates a log function. It is a convenient form, but the log property shoul
 
 ### Object Types
 
-* Emitter. This module exports a single function, the constructor for this type. It is what handles managing all the events. It really should be called Dispatcher. 
-* [Handler](#handler)
-* [Tracker](#tracker)
+* [Emitter](#emitter). This module exports a single function, the constructor for this type. It is what handles managing all the events. It really should be called Dispatcher. 
+* [Handler](#handler) This is the object type that interfaces between event/emits and action/functions. 
+* [Tracker](#tracker) This is what tracks the status of when to fire `.when` events.
 
+---
+<a name="emitter"></a>
+Each instance has, in addition to the prototype methods listed below, the following public properties: 
+
+* `scopeSep` is the scope separator in the event parsing. The default is `:`. We can have multiple levels; the top level is the global event. 
+* `count` tracks the number of events emitted. 
+* `looping` tracks whether we are in the executing loop. 
+* `loopMax` is a toggle to decide when to yield to the next cycle for responsiveness. Default 1000. 
+* `timing` The default timing for `.emit` which defaults to "momentary".
+
+It also has "private" variables that are best manipulated by the methods.
+
+* `_handlers` has key:value of `event:[handler1, handler2,..]` and will fire them in that order. 
+* `_queue` consists of events to be fired in this cycle.
+* `_waiting` is the queue for events to be fired after next tick.
+* `_actions` has k:v of `action name: handler` The handler can be of type Handler or anything convertible to it. 
+*`_scopes` has k:v of `scope name: object` When an event is emitted with the given scope, the object will be passed in and only events scoped to that scope will fire. 
+
+---
+<a name="handler"></a>
 Handlers are the objects that respond to emitted events. Generally they wrap handler type objects. 
 
 ### Handler types
 
 ### Handler methods
 
+---
+<a name="tracker"></a>
 Trackers are responsible for tracking the state of a `.when` call. It is fine to set one up and ignore it. But if you need it to be a bit more dynamic, this is what you can modify. 
 ### Tracker Properties
 
