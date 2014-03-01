@@ -422,7 +422,7 @@ Does `.later` work for `.when`?
 
     emitter.when(["A", "B"], "C", "later", true);
 
-    emitter.when(["A", "B"], "D");
+    emitter.when(["A", "B"], "D", true, "soon");
 
     emitter.when(["A", "B"], "E", "momentary", true);
 
@@ -533,8 +533,6 @@ This is the test template
         s.plan(1);
 
         var emitter = new EventWhen();
-
-        console.log(emitter);
 
         var expected = _"*:expected| arrayify",
             actual = [];

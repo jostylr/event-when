@@ -7,8 +7,6 @@ test('two on and some emits', function (s) {
 
     var emitter = new EventWhen();
 
-    console.log(emitter);
-
     var expected = [
         "first fires",
         "second fires"
@@ -37,8 +35,6 @@ test('simple once test', function (s) {
     s.plan(1);
 
     var emitter = new EventWhen();
-
-    console.log(emitter);
 
     var expected = [
         "first fires",
@@ -71,8 +67,6 @@ test('turning off a handler', function (s) {
     s.plan(1);
 
     var emitter = new EventWhen();
-
-    console.log(emitter);
 
     var expected = [
         "first fires",
@@ -108,8 +102,6 @@ test('when waiting for 2 events', function (s) {
 
     var emitter = new EventWhen();
 
-    console.log(emitter);
-
     var expected = [
         "when fired"
         ],
@@ -140,8 +132,6 @@ test('checking action naming', function (s) {
 
     var emitter = new EventWhen();
 
-    console.log(emitter);
-
     var expected = [
         "first fired"
         ],
@@ -167,8 +157,6 @@ test('checking handlers and events', function (s) {
     s.plan(1);
 
     var emitter = new EventWhen();
-
-    console.log(emitter);
 
     var expected = [
         "first;fire",
@@ -214,8 +202,6 @@ test('handler with context', function (s) {
 
     var emitter = new EventWhen();
 
-    console.log(emitter);
-
     var expected = [
         "jt: hi!"
         ],
@@ -241,8 +227,6 @@ test('handler with two handles', function (s) {
     s.plan(1);
 
     var emitter = new EventWhen();
-
-    console.log(emitter);
 
     var expected = [
         "one:golden",
@@ -279,8 +263,6 @@ test('canceling', function (s) {
     s.plan(1);
 
     var emitter = new EventWhen();
-
-    console.log(emitter);
 
     var expected = [
         "emit this",
@@ -336,8 +318,6 @@ test('error checking', function (s) {
 
     var emitter = new EventWhen();
 
-    console.log(emitter);
-
     var expected = [
         "Error: Checking!",
         "Checking!\nerror event\nawesome"
@@ -379,8 +359,6 @@ test('flow testing', function (s) {
     s.plan(1);
 
     var emitter = new EventWhen();
-
-    console.log(emitter);
 
     var expected = [
         "A",
@@ -440,8 +418,6 @@ test('when with later', function (s) {
 
     var emitter = new EventWhen();
 
-    console.log(emitter);
-
     var expected = [
         "A",
         "B",
@@ -487,7 +463,7 @@ test('when with later', function (s) {
     
     emitter.when(["A", "B"], "C", "later", true);
     
-    emitter.when(["A", "B"], "D");
+    emitter.when(["A", "B"], "D", true, "soon");
     
     emitter.when(["A", "B"], "E", "momentary", true);
     
@@ -507,8 +483,6 @@ test('handler info', function (s) {
     s.plan(1);
 
     var emitter = new EventWhen();
-
-    console.log(emitter);
 
     var expected = [
         "h: fred arr: bob [a:hi, f:, h:  arr:  [a:dude, f:]]"
@@ -535,8 +509,6 @@ test('tracker testing', function (s) {
     s.plan(1);
 
     var emitter = new EventWhen();
-
-    console.log(emitter);
 
     var expected = [
         "some:5",
