@@ -90,7 +90,7 @@ __example__
 <a name="when"></a>
 ### when(arr/str events, str ev, str timing, bool reset ) --> tracker 
 
-This is how to do some action after several different events have all fired. Firing order is irrelevant, but if an event fires more times than is counted and then the when is reset after some other events fire, those extra times do not get counted. 
+This is how to do some action after several different events have all fired. Firing order is irrelevant.
 
 __arguments__
 
@@ -103,12 +103,14 @@ __return__
 
 Tracker object. This is what one can use to manipulate the sequence of events. See [Tracker type](#tracker)
 
+__note__
+
+If an event fires more times than is counted and later the when is reset, those extra times do not get counted. 
+
 __example__
 
-    //have two events trigger the calling of action compile page
-    emitter.when(["file read:dog.txt", "db returned:Kat"], "data gathered");
-    //have two events trigger the emitting of all data retrieved
-    emitter.when(["file read:dog.txt", "db returned:Kat"], "all data retrieved:dog.txt+Kat");
+    emitter.when(["file read", "db returned"], "data gathered");
+    emitter.emit("
 
 ---
 <a name="on"></a>

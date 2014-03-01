@@ -540,8 +540,20 @@
             tracker.emitter = emitter;
             tracker.ev = ev;
             tracker.data = [];
-            tracker.timing = timing || emitter.timing || "now";
-            tracker.reset = reset || false;
+            if (typeof timing === "string") {
+                tracker.timing = timing;
+                tracker.reset = reset || false;
+            } else if (typeof timing === "boolean") {
+                tracker.reset = timing;
+                if (tracker.reset) {
+                    tracker.timing = reset
+                } else {
+                    tracker.timing = emitter.timing;
+                }
+            } else {
+                tracker.timing = emitter.timing;
+                tracker.reset = reset || false;
+            }
             tracker.original = events.slice();
         
             var handler = new Handler (function (data, evObj) {

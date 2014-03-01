@@ -329,8 +329,7 @@ Emitting scoped events will count as a firing of the parent event, e.g., `.when(
         tracker.emitter = emitter;
         tracker.ev = ev;
         tracker.data = [];
-        tracker.timing = timing || emitter.timing || "now";
-        tracker.reset = reset || false;
+        _":assign timing reset"
         tracker.original = events.slice();
 
 
@@ -352,12 +351,35 @@ We return the tracker since one should use that to remove it. If you want the ha
         return tracker;
     }
 
+[assign timing reset]()
+
+Four arguments is not so good because who can remember the order? Since reset should be a string while reset should be a boolean, we can handle this.
+
+Note that we are not actually checking for correctness, just trying to make sure that properly written, but unordered, is okay. 
+
+    if (typeof timing === "string") {
+        tracker.timing = timing;
+        tracker.reset = reset || false;
+    } else if (typeof timing === "boolean") {
+        tracker.reset = timing;
+        if (tracker.reset) {
+            tracker.timing = reset
+        } else {
+            tracker.timing = emitter.timing;
+        }
+    } else {
+        tracker.timing = emitter.timing;
+        tracker.reset = reset || false;
+    }
+
+
+
 [doc]()
 
 
     ### when(arr/str events, str ev, str timing, bool reset ) --> tracker 
 
-    This is how to do some action after several different events have all fired. Firing order is irrelevant, but if an event fires more times than is counted and then the when is reset after some other events fire, those extra times do not get counted. 
+    This is how to do some action after several different events have all fired. Firing order is irrelevant.
 
     __arguments__
 
@@ -370,16 +392,18 @@ We return the tracker since one should use that to remove it. If you want the ha
 
     Tracker object. This is what one can use to manipulate the sequence of events. See [Tracker type](#tracker)
 
+    __note__
+
+    If an event fires more times than is counted and later the when is reset, those extra times do not get counted. 
+
     __example__
 
         _":example"
 
 [example]()
 
-    //have two events trigger the calling of action compile page
-    emitter.when(["file read:dog.txt", "db returned:Kat"], "data gathered");
-    //have two events trigger the emitting of all data retrieved
-    emitter.when(["file read:dog.txt", "db returned:Kat"], "all data retrieved:dog.txt+Kat");
+    emitter.when(["file read", "db returned"], "data gathered");
+    emitter.emit("
 
 
 #### Tracker 
