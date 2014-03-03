@@ -42,6 +42,7 @@ This provides a succinct introduction to the library for the readme and this fil
 
 The file structure is fairly simple. 
 
+
 * [index.js](#main "save:|jshint") This is the node module entry point and only relevant file. It is a small file.
 * [ghpages/index.js](#main "save:") This is for browser access. 
 * [README.md](#old-readme "save: |clean raw ") The standard README.
@@ -58,6 +59,7 @@ For development, you can use the bundled literate-programming easily by using `n
 ## Main
 
 This is the main structure of the module file.
+
 
     /*jshint eqnull:true*/
     /*global setTimeout, process, module, console */
@@ -96,7 +98,7 @@ We use (not)private variables:
 * `_queue` consists of events to be fired in this tick.
 * `_waiting` is the queue for events to be fired after next tick.
 * `_actions` has k:v of `action name: handler` The handler can be of type Handler or anything convertible to it. 
-*`_scopes` has k:v of `scope name: object` When an event is emitted with the given scope, the object will be passed in and only events scoped to that scope will fire. 
+* `_scopes` has k:v of `scope name: object` When an event is emitted with the given scope, the object will be passed in and only events scoped to that scope will fire. 
 * `scopeSep` is the scope separator in the event parsing. The default is `:`. We can have multiple levels; the top level is the global event. 
 * `count` tracks the number of events emitted. 
 * `looping` tracks whether we are in the executing loop. 
@@ -363,7 +365,7 @@ Note that we are not actually checking for correctness, just trying to make sure
     } else if (typeof timing === "boolean") {
         tracker.reset = timing;
         if (tracker.reset) {
-            tracker.timing = reset
+            tracker.timing = reset;
         } else {
             tracker.timing = emitter.timing;
         }
@@ -982,6 +984,7 @@ This is a simple wrapper for new Handler
 ### Off
 
 This removes handlers. The nowhen boolean, when true, will leave the when handlers on the when events. This effectively blocks those events from happening until some manual reworking on the event. Since the no argument function wipes out all handlers, period, we do not need to worry here. 
+
 
     function (events, fun, nowhen) {
 
@@ -1844,7 +1847,7 @@ We should ignore node_modules (particularly the dev ones)
 
     node_modules
     ghpages
-
+    *.swp
 
 ## npmignore
 

@@ -546,7 +546,7 @@
             } else if (typeof timing === "boolean") {
                 tracker.reset = timing;
                 if (tracker.reset) {
-                    tracker.timing = reset
+                    tracker.timing = reset;
                 } else {
                     tracker.timing = emitter.timing;
                 }
