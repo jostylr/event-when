@@ -266,64 +266,48 @@
             return this; 
         };
 
-    EvW.prototype.on = function (ev, f, context) {
-        var emitter = this,
-            handlers = emitter._handlers;
-    
-        f = new Handler(f, context ); 
-    
-        if (handlers.hasOwnProperty(ev)) {
-                handlers[ev].push(f);
-        } else {
-            handlers[ev] = [f];
-            handlers[ev].contains = f.contains;
-        }
-    
-        return f;
-    
-    };
     EvW.prototype.emit = function (ev, data, timing) {
-            var emitter = this, 
-                sep = emitter.scopeSep, 
-                scopes = {};
-        
-            timing = timing ||emitter.timing || "momentary";
-        
-            emitter.log("emit", ev, data, timing);
-        
-            var pieces = ev.split(sep);
-        
-            emitter.emitCount += 1;
-        
-            var evObj = {
-                emitter: emitter,
-                ev : ev,
-                data : data,
-                scopes : scopes, 
-                pieces : pieces,
-                count : emitter.emitCount,
-                timing : timing
-            };
-        
-            var events = evObj.events = [];
-        
-            pieces.reduce(function (prev, el) {
-                var ret = prev + (prev ? sep + el : el);            
-                scopes[ret] = emitter.scope(ret);
-                var h = emitter._handlers[ret];
-                if (h) {
-                    //unshifting does the bubbling up
-                   events.unshift({scopeEvent: ret, handlers: h.slice()});
-                }
-                return ret;
-            }, ""); 
-        
-            emitter.eventLoader(timing, evObj);
-        
-            emitter.looper();
-        
-            return emitter;
+        var emitter = this, 
+            sep = emitter.scopeSep, 
+            scopes = {};
+    
+        timing = timing ||emitter.timing || "momentary";
+    
+        emitter.log("emit", ev, data, timing);
+    
+        var pieces = ev.split(sep);
+    
+        emitter.emitCount += 1;
+    
+        var evObj = {
+            emitter: emitter,
+            ev : ev,
+            data : data,
+            scopes : scopes, 
+            pieces : pieces,
+            count : emitter.emitCount,
+            timing : timing
         };
+    
+        var events = evObj.events = [];
+    
+        pieces.reduce(function (prev, el) {
+            var ret = prev + (prev ? sep + el : el);            
+            scopes[ret] = emitter.scope(ret);
+            var h = emitter._handlers[ret];
+            if (h) {
+                //unshifting does the bubbling up
+               events.unshift({scopeEvent: ret, handlers: h.slice()});
+            }
+            return ret;
+        }, ""); 
+    
+        emitter.eventLoader(timing, evObj);
+    
+        emitter.looper();
+    
+        return emitter;
+    };
     EvW.prototype.eventLoader = function (timing, evObj) {
             var emitter = this;
         
@@ -363,6 +347,57 @@
             var emitter = this;
             emitter.emit(ev, data, "later");
             return emitter;
+        };
+    EvW.prototype.scope = function (ev, obj) {
+            var emitter = this,
+                scope;
+        
+            if (arguments.length === 0) {
+                return Object.keys(emitter._scopes);
+            }
+        
+            scope = emitter._scopes[ev];
+        
+            if (arguments.length === 1) {           
+                if (scope) {
+                    return scope;
+                } else {
+                    return null;
+                }
+            }
+            
+            if ( obj == null ) {
+                emitter.log("Deleting scope event", ev, scope);
+                delete emitter._scopes[ev];
+                return scope;
+            }
+        
+            if (emitter._scopes.hasOwnProperty(ev) ) {
+                emitter.log("Overwriting scope event", ev, obj, emitter._scopes[ev] );
+            } else {
+                emitter.log("Creating scope event", ev, obj);
+            }
+        
+            emitter._scopes[ev] = obj;
+        
+            return ev;
+        };
+    
+    EvW.prototype.on = function (ev, f, context) {
+            var emitter = this,
+                handlers = emitter._handlers;
+        
+            f = new Handler(f, context ); 
+        
+            if (handlers.hasOwnProperty(ev)) {
+                    handlers[ev].push(f);
+            } else {
+                handlers[ev] = [f];
+                handlers[ev].contains = f.contains;
+            }
+        
+            return f;
+        
         };
     EvW.prototype.off = function (events, fun, nowhen) {
         
@@ -422,45 +457,77 @@
             
             return emitter;
         };
-    EvW.prototype.stop = function (a) {
-            var queue = this._queue;
-            var waiting = this._waiting; 
-            var emitter = this;
-            var ev; 
+    EvW.prototype.once = function (ev, f, n, context) {
+            var emitter = this, 
+                handler, g, temp;
         
-            if (arguments.length === 0) {
-                while (queue.length > 0 ) {
-                    queue.pop();
-                }
-                while (waiting.length >0 ) {
-                    waiting.pop();
-                }
-                emitter.log("queue cleared of all events");
-                return emitter; 
+            handler = new Handler([f], context);
+        
+            if ( (typeof n !== "number") && (typeof context === "number") ) {
+                temp = n;
+                n = context;
+                context = temp;
             }
         
-            if (a === true) {
-                ev = queue.shift();
-                emitter.log("event cleared", ev );
-                return emitter;
-            }
+            handler.n = n || 1;
         
-            var filt = function (el) {
-                if (el[0] === a) {
-                    return false;
-                } else {
-                    return true;
+            g = function() {
+                handler.n -=1;
+                if (handler.n <= 0) {
+                    emitter.off(ev, handler);
                 }
             };
         
-            if (typeof a === "string") {
-                emitter._queue = queue.filter(filt);
-                emitter._waiting = waiting.filter(filt);
-                emitter.log("all instances of event cleared", a);
-            }
+            handler.value.unshift(g);
         
-            return emitter;
+            emitter.on(ev, handler); 
+        
+            emitter.log("assigned event times", ev, n, f, context, handler);
+        
+            return handler;
         };
+    EvW.prototype.when = function (events, ev, timing, reset) {    
+        
+            var emitter = this;
+        
+            emitter.log(".when loaded", events, ev, timing, reset);
+        
+            var tracker = new Tracker ();
+        
+            tracker.emitter = emitter;
+            tracker.ev = ev;
+            tracker.data = [];
+            if (typeof timing === "string") {
+                tracker.timing = timing;
+                tracker.reset = reset || false;
+            } else if (typeof timing === "boolean") {
+                tracker.reset = timing;
+                if (tracker.reset) {
+                    tracker.timing = reset;
+                } else {
+                    tracker.timing = emitter.timing;
+                }
+            } else {
+                tracker.timing = emitter.timing;
+                tracker.reset = reset || false;
+            }
+            tracker.original = events.slice();
+        
+            var handler = new Handler (function (data, evObj) {
+                var ev = evObj.cur[0];
+                tracker.data.push([ev, data]);
+                tracker.remove(ev);
+            });
+        
+            handler.tracker = tracker;
+        
+            tracker.handler = handler; 
+        
+            tracker.add(events);
+        
+            return tracker;
+        };
+    
     EvW.prototype.looper = function () {
             var emitter = this,
                 queue = emitter._queue,
@@ -529,79 +596,47 @@
             return emitter;
         
         };
-    EvW.prototype.when = function (events, ev, timing, reset) {    
-        
+    EvW.prototype.nextTick =  (typeof process !== "undefined" && process.nextTick) ? process.nextTick 
+            : (function (f) {setTimeout(f, 0);});
+    EvW.prototype.stop = function (a) {
+            var queue = this._queue;
+            var waiting = this._waiting; 
             var emitter = this;
+            var ev; 
         
-            emitter.log(".when loaded", events, ev, timing, reset);
-        
-            var tracker = new Tracker ();
-        
-            tracker.emitter = emitter;
-            tracker.ev = ev;
-            tracker.data = [];
-            if (typeof timing === "string") {
-                tracker.timing = timing;
-                tracker.reset = reset || false;
-            } else if (typeof timing === "boolean") {
-                tracker.reset = timing;
-                if (tracker.reset) {
-                    tracker.timing = reset;
-                } else {
-                    tracker.timing = emitter.timing;
+            if (arguments.length === 0) {
+                while (queue.length > 0 ) {
+                    queue.pop();
                 }
-            } else {
-                tracker.timing = emitter.timing;
-                tracker.reset = reset || false;
-            }
-            tracker.original = events.slice();
-        
-            var handler = new Handler (function (data, evObj) {
-                var ev = evObj.cur[0];
-                tracker.data.push([ev, data]);
-                tracker.remove(ev);
-            });
-        
-            handler.tracker = tracker;
-        
-            tracker.handler = handler; 
-        
-            tracker.add(events);
-        
-            return tracker;
-        };
-    EvW.prototype.once = function (ev, f, n, context) {
-            var emitter = this, 
-                handler, g, temp;
-        
-            handler = new Handler([f], context);
-        
-            if ( (typeof n !== "number") && (typeof context === "number") ) {
-                temp = n;
-                n = context;
-                context = temp;
+                while (waiting.length >0 ) {
+                    waiting.pop();
+                }
+                emitter.log("queue cleared of all events");
+                return emitter; 
             }
         
-            handler.n = n || 1;
+            if (a === true) {
+                ev = queue.shift();
+                emitter.log("event cleared", ev );
+                return emitter;
+            }
         
-            g = function() {
-                handler.n -=1;
-                if (handler.n <= 0) {
-                    emitter.off(ev, handler);
+            var filt = function (el) {
+                if (el[0] === a) {
+                    return false;
+                } else {
+                    return true;
                 }
             };
         
-            handler.value.unshift(g);
+            if (typeof a === "string") {
+                emitter._queue = queue.filter(filt);
+                emitter._waiting = waiting.filter(filt);
+                emitter.log("all instances of event cleared", a);
+            }
         
-            emitter.on(ev, handler); 
-        
-            emitter.log("assigned event times", ev, n, f, context, handler);
-        
-            return handler;
+            return emitter;
         };
-    
-    EvW.prototype.nextTick =  (typeof process !== "undefined" && process.nextTick) ? process.nextTick 
-            : (function (f) {setTimeout(f, 0);});
     
     EvW.prototype.log = function () {}; //noop stub
     EvW.prototype.makeLog = function () {
@@ -722,40 +757,6 @@
             emitter._actions[name] = action;
         
             return action;
-        };
-    EvW.prototype.scope = function (ev, obj) {
-            var emitter = this,
-                scope;
-        
-            if (arguments.length === 0) {
-                return Object.keys(emitter._scopes);
-            }
-        
-            scope = emitter._scopes[ev];
-        
-            if (arguments.length === 1) {           
-                if (scope) {
-                    return scope;
-                } else {
-                    return null;
-                }
-            }
-            
-            if ( obj == null ) {
-                emitter.log("Deleting scope event", ev, scope);
-                delete emitter._scopes[ev];
-                return scope;
-            }
-        
-            if (emitter._scopes.hasOwnProperty(ev) ) {
-                emitter.log("Overwriting scope event", ev, obj, emitter._scopes[ev] );
-            } else {
-                emitter.log("Creating scope event", ev, obj);
-            }
-        
-            emitter._scopes[ev] = obj;
-        
-            return ev;
         };
     EvW.prototype.makeHandler = function (value, context) {
             return new Handler(value, context);

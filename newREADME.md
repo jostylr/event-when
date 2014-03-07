@@ -2,16 +2,16 @@
 
 This is an event library, but one in which events and listeners are coordinated through a single object. The emphasis throughout is on coordinating the global flow of the program. 
 
-Most event libraries suggest making objects into emitters. This library is designed to allow you to attach the object to the event/handler/emit.
+Most event libraries suggest making objects into emitters. This library is designed to allow you to attach the object to the event/handler/emit. It also allows you to listen for events before the corresponding object exists. Of course, if you want to have various emitters, go for it. 
 
 There are several noteworthy features of this library:
 
 * When. This is the titular notion. The `.when` method allows you to specify an event to emit after various specified events have all fired. For example, if we call a database and read a file to assemble a webpage, then we can do something like 
     ```
-    emitter.when(["file parsed:jack.txt", "database returned:jack"], "all data retrieved:jack");
+    emitter.when(["file parsed:jack", "database returned:jack"], "all data retrieved:jack");
     ```
     This is why the idea of a central emitter is particularly useful to this library's intent.
-* Scope. Events can be scoped. In the above example, each of the events are scoped based on the user jack. It bubbles up from the most specific to the least specific. Each level can access the associated data at all levels. For example, we can store data at the specific jack event level while having the handler at "all data retrieved" access it. Works the other way too.
+* Scope. Events can be scoped. In the above example, each of the events are scoped based on the user jack. It bubbles up from the most specific to the least specific. Each level can access the associated data at all levels. For example, we can store data at the specific jack event level while having the handler at "all data retrieved" access it. Works the other way too. 
 * Actions. Events should be statements of fact. Actions can be used to call functions and are statements of doing. "Compile document" is an action and is a nice way to represent a function handler. "Document compiled" would be what might be emitted after the compilation is done. This is a great way to have a running log of event --> action. 
 * Stuff can be attached to events, emissions, and handlers. Emits send data, handlers have contexts, and events have scope contexts.
 
@@ -239,18 +239,18 @@ This creates a log function. It is a convenient form, but the log property shoul
 Each instance has, in addition to the prototype methods listed below, the following public properties: 
 
 * `scopeSep` is the scope separator in the event parsing. The default is `:`. We can have multiple levels; the top level is the global event. 
-* `count` tracks the number of events emitted. 
+* `count` tracks the number of events emitted. Can be used for logging/debugging. 
 * `looping` tracks whether we are in the executing loop. 
 * `loopMax` is a toggle to decide when to yield to the next cycle for responsiveness. Default 1000. 
-* `timing` The default timing for `.emit` which defaults to "momentary".
+* `timing` The default timing for `.emit` which defaults to "momentary", i.e., appending to queue. 
 
 It also has "private" variables that are best manipulated by the methods.
 
 * `_handlers` has key:value of `event:[handler1, handler2,..]` and will fire them in that order. 
-* `_queue` consists of events to be fired in this cycle.
+* `_queue` consists of events to be fired in this tick.
 * `_waiting` is the queue for events to be fired after next tick.
 * `_actions` has k:v of `action name: handler` The handler can be of type Handler or anything convertible to it. 
-*`_scopes` has k:v of `scope name: object` When an event is emitted with the given scope, the object will be passed in and only events scoped to that scope will fire. 
+* `_scopes` has k:v of `scope name: object` When an event is emitted with the given scope, the object will be passed in and is accessible to any handler reacting to an event along the scope chain.
 
 ---
 <a name="handler"></a>

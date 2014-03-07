@@ -1,1 +1,1 @@
-Do server example, fix up the escape part of the paren parser.
+Redo all examples. Writing the command parser for event when might be instructive.
