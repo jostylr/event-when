@@ -178,20 +178,29 @@ The various prototype methods on the event emitter.
 
 [doc]()
 
-    Each instance has, in addition to the prototype methods, the following public properties: 
+    Each instance has, in addition to the prototype methods, the following
+    public properties: 
 
-    * `scopeSep` is the scope separator in the event parsing. The default is `:`. We can have multiple levels; the top level is the global event. 
-    * `count` tracks the number of events emitted. Can be used for logging/debugging. 
-    * `loopMax` is a toggle to decide when to yield to the next cycle for responsiveness. Default 1000. 
-    * `timing` The default timing for `.emit` which defaults to "momentary", i.e., appending to queue. 
+    * `scopeSep` is the scope separator in the event parsing. The default is
+      `:`. We can have multiple levels; the top level is the global event. 
+    * `count` tracks the number of events emitted. Can be used for
+      logging/debugging. 
+    * `loopMax` is a toggle to decide when to yield to the next cycle for
+      responsiveness. Default 1000. 
+    * `timing` The default timing for `.emit` which defaults to "momentary",
+      i.e., appending to queue. 
 
     It also has "private" variables that are best manipulated by the methods.
 
-    * `_handlers` has key:value of `event:[handler1, handler2,..]` and will fire them in that order. 
+    * `_handlers` has key:value of `event:[handler1, handler2,..]` and will
+      fire them in that order. 
     * `_queue` consists of events to be fired in this tick.
     * `_waiting` is the queue for events to be fired after next tick.
-    * `_actions` has k:v of `action name: handler` The handler can be of type Handler or anything convertible to it. 
-    * `_scopes` has k:v of `scope name: object` When an event is emitted with the given scope, the object will be passed in and is accessible to any handler reacting to an event along the scope chain. 
+    * `_actions` has k:v of `action name: handler` The handler can be of type
+      Handler or anything convertible to it. 
+    * `_scopes` has k:v of `scope name: object` When an event is emitted with
+      the given scope, the object will be passed in and is accessible to any
+      handler reacting to an event along the scope chain. 
     * `_looping` tracks whether we are in the executing loop. 
 
 
@@ -429,7 +438,7 @@ We return the event name so that it can then be used for something else.
     * 0 arguments. Leads to the scope keys being returned. 
     * 1 arguments. Leads to specified scope's object being returned.
     * 2 arguments. Leads to the event string being returned after storing the
-      object.
+      object, overwriting if necessary.
 
 
 [example]()
@@ -455,13 +464,14 @@ array value of handler-types that will be executed in order.
         var emitter = this,
             handlers = emitter._handlers;
 
-        f = new Handler(f, context ); 
+        f = new Handler(f, context); 
 
         if (handlers.hasOwnProperty(ev)) {
                 handlers[ev].push(f);
         } else {
             handlers[ev] = [f];
-            handlers[ev].contains = f.contains;
+            // contains is for searching the handler; it is a method
+            handlers[ev].contains = Handler.prototype.contains;
         }
 
         return f;
@@ -477,19 +487,21 @@ array value of handler-types that will be executed in order.
     __arguments__
 
     * `ev` The event string on which to call handler f
-    * `f` The handler f. This can be a function, an action string, an array of handler types, or a handler itself.
-    * `context` What the this should be set to.
+    * `f` The handler f. This can be a function, an action string, an array of
+      handler types, or a handler itself.
+    * `context` What the this should be set to. Defaults to `null`.
 
     __return__
 
-    The Handler which should be used in `.off` to remove the handler, if desired. 
+    The Handler which should be used in `.off` to remove the handler, if
+    desired. 
 
 #### Off
 
 This removes handlers. The nowhen boolean, when true, will leave the when
 handlers on the when events. This effectively blocks those events from
 happening until some manual reworking on the event. Since the no argument
-function wipes out all handlers, period, we do not need to worry here. 
+function wipes out all handlers, period, we do not need to worry about nowhen.
 
 
     function (events, fun, nowhen) {
@@ -501,7 +513,7 @@ function wipes out all handlers, period, we do not need to worry here.
 
         if ( (events == null) && (fun == null) ) {
             emitter._handlers = {};
-            emitter.log("all handlers removed");
+            emitter.log("all handlers removed from all events");
             return emitter;
         }
 
@@ -509,6 +521,13 @@ function wipes out all handlers, period, we do not need to worry here.
             events = Object.keys(emitter._handlers);
         } else if (typeof events === "string") {
             events = [events];
+        } else if (typeof events === "function") {
+            events = Object.keys(emitter._handlers).filter(events);
+        } else if (events instanceof RegExp) {
+            events = Object.keys(emitter._handlers).filter(
+                function (el) {
+                    return events.test();
+            });
         }
 
         if ( typeof fun === "boolean") {
@@ -518,23 +537,22 @@ function wipes out all handlers, period, we do not need to worry here.
 
         if (fun) {
             events.forEach( function (ev) {
-                _":remove Handler"
-                emitter.log("handler for event removed", ev, fun );
+                var removed = [];
+                _":remove handler"
+                emitter.log("handler for event removed", ev, removed);
             });
             return emitter;    
         } 
 
-
         events.forEach( function (ev) {
             if (nowhen === true) {
                 delete handlers[ev];
-                emitter.log("removed handlers on event, leaving on when", ev); 
+                emitter.log("removed handlers on event ignoring when", ev); 
                 return emitter;
             } else {
                 _":remove handlers checking for when handlers"
-                emitter.log("removing handles on event", ev);
+                emitter.log("removing all handlers on event", ev);
             }            
-
         });
         
         return emitter;
@@ -542,33 +560,45 @@ function wipes out all handlers, period, we do not need to worry here.
 
 [remove handler](# "js")
 
-This will remove all handlers that are or contain the passed in f. 
+This will remove all handlers that are or contain the passed in fun. 
+
+Note that this could get messy in the case of multiple functions embedded in
+one handler; this will remove them if a single function is queued to be
+removed. Think of this more of as a partial match removal. Not sure if this is
+a good idea or not. Need to test how it interacts with .when. Proobably bad if
+several handlers with same tracker in the list. 
 
     handlers[ev] = handlers[ev].filter(function (handler) {
-        return ! handler.contains(fun);
+        if (handler.contains(fun) ) {
+            removed.push(handler);
+            return false;
+        } else {
+            return true;
+        }
     }); 
-    if ( (nowhen !== true) && fun.hasOwnProperty("tracker") )  {
-        fun.tracker._removeStr(ev);
+    if (nowhen !== true)  {
+        removed.forEach(function (el) {
+            el.removal(ev, emitter);
+        });
     }
 
 
 
 [remove handlers checking for when handlers](# "js")
 
+The main issue here is removing .when trackers.
     
     h = handlers[ev];
     while (h.length > 0) {
         f = h.pop();
-        if (f.hasOwnProperty("tracker") ) {
-            f.tracker._removeStr(ev);
-        }
+        f.removal(ev, emitter);
     }
     delete handlers[ev];
 
 
 [doc]()
 
-    ### off(str/array events, handler fun, bool nowhen) --> emitter
+    ### off(str/array/fun/reg events, handler fun, bool nowhen) --> emitter
 
     This removes handlers.
 
@@ -581,15 +611,20 @@ This will remove all handlers that are or contain the passed in f.
     * `events`. This is the event string to remove the handlers from. If
       nothing else is provided, all handlers for that event are removed. This
       could also be an array of event strings in which case it is applied to
-      each one. Or it could be null, in which case all events are searched for
+      each one. Or it could be an Array.filter function or a RegExp that
+      should match the strings whose events should have their handlers
+      trimmed. Or it could be null, in which case all events are searched for
       the removal of the given handler. 
     * `fun` This an object of type Handler. Ideally, this is the handler
       returned by `.on`. But it could also be a primitive, such as an action
       string or function.
 
-        If fun is a boolean, then it is assumed to be `nowhen` for the whole event removal. If it is null, then it is assumed all handlers of the events should be removed. 
+        If fun is a boolean, then it is assumed to be `nowhen` for the whole
+        event removal. If it is null, then it is assumed all handlers of the
+        events should be removed. 
 
-    * `nowhen` If true, then it does not remove the handler associated with the removal of a tracker handler. 
+    * `nowhen` If true, then it does not remove the handler associated with
+      the tracker handler. 
 
     __return__
 
@@ -601,7 +636,15 @@ This will remove all handlers that are or contain the passed in f.
 
 [example]()
 
-    //todo. 
+    // removes f from "full:event"
+    emitter.off("full:event", f);
+    // removes all handlers to all events with :event as last 
+    emitter.off(/\:event$/);
+    // removes all listed events
+    emitter.off(["first", "second"], f);
+    // function filter
+    emitter.off(function (ev) { return (ev === "what");}, f);
+
 
 #### Once
 
@@ -614,7 +657,8 @@ then has a function placed as the first to be invoked. When invoked, it will
 decrement the number of times and remove the handler if it is less than or
 equal to 0. That's it. No function wrapping in a function.
 
-We allow for n and context to be switched. Minimal risk of unintended consequences. 
+We allow for n and context to be switched. Minimal risk of unintended
+consequences. 
 
     function (ev, f, n, context) {
         var emitter = this, 
@@ -1175,6 +1219,7 @@ The prototype object.
     Handler.prototype.execute = _":execute"; 
     Handler.prototype.contains = _":contains";
     Handler.prototype.summarize = _":summarize";
+    Handler.prototype.removal = _":removal";
 
 
 [traverse]()
@@ -1225,6 +1270,46 @@ Cleanup. Maybe an error to deal with it at this point. Or just return nothing.
 
     }
 
+[removal]()
+
+This is to remove the tracking of a .when event in conjunction with the .off
+method.
+
+    function me (ev, emitter, value) {
+        var actions = emitter._actions;
+
+        if (typeof value === "undefined" ) {     
+            value = this.value;
+        }
+
+        if ( ( value !== null) && (value.hasOwnProperty("tracker")) ) {
+            value.tracker._removeStr(ev);
+            return ;
+        }
+
+        if (typeof value === "string") {
+            return actions[value].removal(ev, emitter);
+        }
+
+The tracker is not attached to a function, but to a Handler object. I think. 
+
+        if (typeof value === "function") {
+            return; 
+        }
+
+        if ( Array.isArray(value) ) {
+            value.forEach(function (el) {
+                return me.call({}, ev, emitter, el);
+            });
+        }
+
+
+        if ( value && value.hasOwnProperty("value") ) {
+            return me.call({}, ev, emitter, value.value); 
+        } 
+
+        return;
+    }
 
 [error]()
 

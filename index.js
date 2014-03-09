@@ -123,6 +123,38 @@
             return "unknown";
         
             };
+    Handler.prototype.removal = function me (ev, emitter, value) {
+            var actions = emitter._actions;
+        
+            if (typeof value === "undefined" ) {     
+                value = this.value;
+            }
+        
+            if ( ( value !== null) && (value.hasOwnProperty("tracker")) ) {
+                value.tracker._removeStr(ev);
+                return ;
+            }
+        
+            if (typeof value === "string") {
+                return actions[value].removal(ev, emitter);
+            }
+        
+            if (typeof value === "function") {
+                return; 
+            }
+        
+            if ( Array.isArray(value) ) {
+                value.forEach(function (el) {
+                    return me.call({}, ev, emitter, el);
+                });
+            }
+        
+            if ( value && value.hasOwnProperty("value") ) {
+                return me.call({}, ev, emitter, value.value); 
+            } 
+        
+            return;
+        };
 
     var Tracker = function () {
             this.events = {};
@@ -387,13 +419,14 @@
             var emitter = this,
                 handlers = emitter._handlers;
         
-            f = new Handler(f, context ); 
+            f = new Handler(f, context); 
         
             if (handlers.hasOwnProperty(ev)) {
                     handlers[ev].push(f);
             } else {
                 handlers[ev] = [f];
-                handlers[ev].contains = f.contains;
+                // contains is for searching the handler; it is a method
+                handlers[ev].contains = Handler.prototype.contains;
             }
         
             return f;
@@ -408,7 +441,7 @@
         
             if ( (events == null) && (fun == null) ) {
                 emitter._handlers = {};
-                emitter.log("all handlers removed");
+                emitter.log("all handlers removed from all events");
                 return emitter;
             }
         
@@ -416,6 +449,13 @@
                 events = Object.keys(emitter._handlers);
             } else if (typeof events === "string") {
                 events = [events];
+            } else if (typeof events === "function") {
+                events = Object.keys(emitter._handlers).filter(events);
+            } else if (events instanceof RegExp) {
+                events = Object.keys(emitter._handlers).filter(
+                    function (el) {
+                        return events.test();
+                });
             }
         
             if ( typeof fun === "boolean") {
@@ -425,13 +465,21 @@
         
             if (fun) {
                 events.forEach( function (ev) {
+                    var removed = [];
                     handlers[ev] = handlers[ev].filter(function (handler) {
-                        return ! handler.contains(fun);
+                        if (handler.contains(fun) ) {
+                            removed.push(handler);
+                            return false;
+                        } else {
+                            return true;
+                        }
                     }); 
-                    if ( (nowhen !== true) && fun.hasOwnProperty("tracker") )  {
-                        fun.tracker._removeStr(ev);
+                    if (nowhen !== true)  {
+                        removed.forEach(function (el) {
+                            el.removal(ev, emitter);
+                        });
                     }
-                    emitter.log("handler for event removed", ev, fun );
+                    emitter.log("handler for event removed", ev, removed);
                 });
                 return emitter;    
             } 
@@ -439,20 +487,17 @@
             events.forEach( function (ev) {
                 if (nowhen === true) {
                     delete handlers[ev];
-                    emitter.log("removed handlers on event, leaving on when", ev); 
+                    emitter.log("removed handlers on event ignoring when", ev); 
                     return emitter;
                 } else {
                     h = handlers[ev];
                     while (h.length > 0) {
                         f = h.pop();
-                        if (f.hasOwnProperty("tracker") ) {
-                            f.tracker._removeStr(ev);
-                        }
+                        f.removal(ev, emitter);
                     }
                     delete handlers[ev];
-                    emitter.log("removing handles on event", ev);
+                    emitter.log("removing all handlers on event", ev);
                 }            
-        
             });
             
             return emitter;

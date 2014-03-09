@@ -165,16 +165,18 @@ Associates handler f with event ev for firing when ev is emitted.
 __arguments__
 
 * `ev` The event string on which to call handler f
-* `f` The handler f. This can be a function, an action string, an array of handler types, or a handler itself.
-* `context` What the this should be set to.
+* `f` The handler f. This can be a function, an action string, an array of
+  handler types, or a handler itself.
+* `context` What the this should be set to. Defaults to `null`.
 
 __return__
 
-The Handler which should be used in `.off` to remove the handler, if desired. 
+The Handler which should be used in `.off` to remove the handler, if
+desired. 
 
 ---
 <a name="off"></a>
-### off(str/array events, handler fun, bool nowhen) --> emitter
+### off(str/array/fun/reg events, handler fun, bool nowhen) --> emitter
 
 This removes handlers.
 
@@ -187,15 +189,20 @@ This function behavior changes based on the number of arguments
 * `events`. This is the event string to remove the handlers from. If
   nothing else is provided, all handlers for that event are removed. This
   could also be an array of event strings in which case it is applied to
-  each one. Or it could be null, in which case all events are searched for
+  each one. Or it could be an Array.filter function or a RegExp that
+  should match the strings whose events should have their handlers
+  trimmed. Or it could be null, in which case all events are searched for
   the removal of the given handler. 
 * `fun` This an object of type Handler. Ideally, this is the handler
   returned by `.on`. But it could also be a primitive, such as an action
   string or function.
 
-    If fun is a boolean, then it is assumed to be `nowhen` for the whole event removal. If it is null, then it is assumed all handlers of the events should be removed. 
+    If fun is a boolean, then it is assumed to be `nowhen` for the whole
+    event removal. If it is null, then it is assumed all handlers of the
+    events should be removed. 
 
-* `nowhen` If true, then it does not remove the handler associated with the removal of a tracker handler. 
+* `nowhen` If true, then it does not remove the handler associated with
+  the tracker handler. 
 
 __return__
 
@@ -203,7 +210,14 @@ emitter for chaining.
 
 __example__
 
-    //todo. 
+    // removes f from "full:event"
+    emitter.off("full:event", f);
+    // removes all handlers to all events with :event as last 
+    emitter.off(/\:event$/);
+    // removes all listed events
+    emitter.off(["first", "second"], f);
+    // function filter
+    emitter.off(function (ev) { return (ev === "what");}, f);
 
 ---
 <a name="once"></a>
@@ -252,7 +266,7 @@ __return__
 * 0 arguments. Leads to the scope keys being returned. 
 * 1 arguments. Leads to specified scope's object being returned.
 * 2 arguments. Leads to the event string being returned after storing the
-  object.
+  object, overwriting if necessary.
 
 ---
 <a name="events"></a>
@@ -288,20 +302,29 @@ This creates a log function. It is a convenient form, but the log property shoul
 
 ---
 <a name="emitter"></a>
-Each instance has, in addition to the prototype methods, the following public properties: 
+Each instance has, in addition to the prototype methods, the following
+public properties: 
 
-* `scopeSep` is the scope separator in the event parsing. The default is `:`. We can have multiple levels; the top level is the global event. 
-* `count` tracks the number of events emitted. Can be used for logging/debugging. 
-* `loopMax` is a toggle to decide when to yield to the next cycle for responsiveness. Default 1000. 
-* `timing` The default timing for `.emit` which defaults to "momentary", i.e., appending to queue. 
+* `scopeSep` is the scope separator in the event parsing. The default is
+  `:`. We can have multiple levels; the top level is the global event. 
+* `count` tracks the number of events emitted. Can be used for
+  logging/debugging. 
+* `loopMax` is a toggle to decide when to yield to the next cycle for
+  responsiveness. Default 1000. 
+* `timing` The default timing for `.emit` which defaults to "momentary",
+  i.e., appending to queue. 
 
 It also has "private" variables that are best manipulated by the methods.
 
-* `_handlers` has key:value of `event:[handler1, handler2,..]` and will fire them in that order. 
+* `_handlers` has key:value of `event:[handler1, handler2,..]` and will
+  fire them in that order. 
 * `_queue` consists of events to be fired in this tick.
 * `_waiting` is the queue for events to be fired after next tick.
-* `_actions` has k:v of `action name: handler` The handler can be of type Handler or anything convertible to it. 
-* `_scopes` has k:v of `scope name: object` When an event is emitted with the given scope, the object will be passed in and is accessible to any handler reacting to an event along the scope chain. 
+* `_actions` has k:v of `action name: handler` The handler can be of type
+  Handler or anything convertible to it. 
+* `_scopes` has k:v of `scope name: object` When an event is emitted with
+  the given scope, the object will be passed in and is accessible to any
+  handler reacting to an event along the scope chain. 
 * `_looping` tracks whether we are in the executing loop. 
 
 ---

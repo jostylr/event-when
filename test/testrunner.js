@@ -71,7 +71,7 @@ test('turning off a handler', function (s) {
     var expected = [
         "first fires",
         "second fires",
-        "second fires"
+        "first fires"
         ],
         actual = [];
 
@@ -79,19 +79,21 @@ test('turning off a handler', function (s) {
         s.deepEqual(actual, expected);
     });
 
-    var h = emitter.on("first ready", function () {
-        actual.push("first fires");
-        emitter.emit("second ready");
+    var h = emitter.on("first", function () {
+        emitter.emit("second");
     });
     
-    emitter.on("first ready", function () {
+    emitter.on("first", function () {
+        actual.push("first fires");
+    });
+    
+    emitter.on("second", function () {
         actual.push("second fires");
     });
     
-    emitter.emit("first ready");
-    emitter.off("first ready", h);
-    emitter.emit("first ready");    
-    emitter.emit("second ready");
+    emitter.emit("first");
+    emitter.off("first", h);
+    emitter.emit("first");    
     
     emitter.emit("done");
 
