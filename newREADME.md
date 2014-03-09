@@ -1,27 +1,51 @@
 ## event-when  [![Build Status](https://travis-ci.org/jostylr/event-when.png)](https://travis-ci.org/jostylr/event-when)
 
-This is an event library, but one in which events and listeners are coordinated through a single object. The emphasis throughout is on coordinating the global flow of the program. 
+This is an event library, but one in which events and listeners are
+coordinated through a single object. The emphasis throughout is on
+coordinating the global flow of the program. 
 
-Most event libraries suggest making objects into emitters. This library is designed to allow you to attach the object to the event/handler/emit. It also allows you to listen for events before the corresponding object exists. Of course, if you want to have various emitters, go for it. 
+Most event libraries suggest making objects into emitters. This library is
+designed to allow you to attach the object to the event/handler/emit. It
+also allows you to listen for events before the corresponding object
+exists. Of course, if you want to have various emitters, go for it. 
 
 There are several noteworthy features of this library:
 
-* When. This is the titular notion. The `.when` method allows you to specify an event to emit after various specified events have all fired. For example, if we call a database and read a file to assemble a webpage, then we can do something like 
-    ```
-    emitter.when(["file parsed:jack", "database returned:jack"], "all data retrieved:jack");
-    ```
-    This is why the idea of a central emitter is particularly useful to this library's intent.
-* Scope. Events can be scoped. In the above example, each of the events are scoped based on the user jack. It bubbles up from the most specific to the least specific. Each level can access the associated data at all levels. For example, we can store data at the specific jack event level while having the handler at "all data retrieved" access it. Works the other way too. 
-* Actions. Events should be statements of fact. Actions can be used to call functions and are statements of doing. "Compile document" is an action and is a nice way to represent a function handler. "Document compiled" would be what might be emitted after the compilation is done. This is a great way to have a running log of event --> action. 
-* Stuff can be attached to events, emissions, and handlers. Emits send data, handlers have contexts, and events have scope contexts.
+* When. This is the titular notion. The `.when` method allows you to
+  specify an event to emit after various specified events have all fired.
+  For example, if we call a database and read a file to assemble a
+  webpage, then we can do something like 
+  ``` emitter.when(["file
+  parsed:jack", "database returned:jack"], "all data retrieved:jack"); 
+  ```
+  This is why the idea of a central emitter is particularly useful to this
+  library's intent.
+* Scope. Events can be scoped. In the above example, each of the events
+  are scoped based on the user jack. It bubbles up from the most specific
+  to the least specific. Each level can access the associated data at all
+  levels. For example, we can store data at the specific jack event level
+  while having the handler at "all data retrieved" access it. Works the
+  other way too. 
+* Actions. Events should be statements of fact. Actions can be used to
+  call functions and are statements of doing. "Compile document" is an
+  action and is a nice way to represent a function handler. "Document
+  compiled" would be what might be emitted after the compilation is done.
+  This is a great way to have a running log of event --> action. 
+* Stuff can be attached to events, emissions, and handlers. Emits send
+  data, handlers have contexts, and events have scope contexts.
 
-Please note that no particular effort at efficiency has been made. This is about making it easier to develop the flow of an application. If you need something that handles large number of events quickly, this may not be the right library. 
+Please note that no particular effort at efficiency has been made. This is
+about making it easier to develop the flow of an application. If you need
+something that handles large number of events quickly, this may not be the
+right library. 
 
 ## Using
 
-In the browser, include index.js. It will attach the constructor to EventWhen in the global space. 
+In the browser, include index.js. It will attach the constructor to
+EventWhen in the global space. 
 
-For node, use `npm install index.js` or, better, add it to the package.json file with `--save` appended. 
+For node, use `npm install index.js` or, better, add it to the
+package.json file with `--save` appended. 
 
 Then require and instantiate an emitter:
 ```
@@ -55,27 +79,47 @@ Emit the event.
 __arguments__
 
 * `ev`  A string that denotes the event. 
-* `data` Any value. It will be passed into the handler as the first argument. 
-* `timing` One of "now", "momentary", "soon", "later" implying emission first on queue, last on queue, first on next cycle, last on next cycle, respectively. "Momentary" is the default if not provided as that will preserve the order of emitting.
+* `data` Any value. It will be passed into the handler as the first
+  argument. 
+* `timing` One of "now", "momentary", "soon", "later" implying emission
+  first on queue, last on queue, first on next cycle, last on next cycle,
+  respectively. "Momentary" is the default if not provided as that will
+  preserve the order of emitting.
 
 __return__
 
-The emitter for chaining. The events may or may not be already emitted depending on the timing. 
+The emitter for chaining. The events may or may not be already emitted
+depending on the timing. 
 
 __convenience forms__ 
 
-* `.now`  Event A emits B, B fires after the emitting handler finishes, but before other handler's for A finishes. This is the function calling model.
-* `.momentary` Event A emits B, B fires after A finishes. This is more of a synchronous callback model. It is the same as `.emit` with the default setting.
-* `.soon` Event A emits B then C, both with soon, then C fires after next tick. B fires after second tick.
-* `.later` Event A emits B then C, both with later, then B fires after next tick. C fires after second tick.
+* `.now`  Event A emits B, B fires after the emitting handler finishes,
+  but before other handler's for A finishes. This is the function calling
+  model.
+* `.momentary` Event A emits B, B fires after A finishes. This is more of
+  a synchronous callback model. It is the same as `.emit` with the default
+  setting.
+* `.soon` Event A emits B then C, both with soon, then C fires after next
+  tick. B fires after second tick.
+* `.later` Event A emits B then C, both with later, then B fires after
+  next tick. C fires after second tick.
 
 __scope__ 
 
-Note that if ev contains the event separator, `:` by default, then it will be broken up into multiple events, each one being emitted. The order of emission is from the most specific to the general (bubbling up). `emitter.scopeSep` holds what to split on.
+Note that if ev contains the event separator, `:` by default, then it will
+be broken up into multiple events, each one being emitted. The order of
+emission is from the most specific to the general (bubbling up).
+`emitter.scopeSep` holds what to split on.
 
-To stop the emitting and any bubbling, set `evObj.stop === true` in the handler with signature `(data, evObj)`. To do more fine-controlled stopping, you need to manipulate evObj.events which is an array consisting of objects of the form `{str scopeEvent, arr handlers}`. 
+To stop the emitting and any bubbling, set `evObj.stop === true` in the
+handler ( handler signature is `(data, evObj)` ). To do more fine-controlled
+stopping, you need to manipulate `evObj.events` which is an array consisting
+of objects of the form `{str scopeEvent, arr handlers}`. 
 
-Once started, the handlers for all the scopes fire in sequence without interruption unless an `emit.now` is emitted. To delay the handling, one needs to manipulate `evObj.emitter._queue` and `._waiting`. Not recommended. 
+Once the event's turn on the queue occurs, the handlers for all the scopes
+fire in sequence without interruption unless an `emit.now` is emitted. To
+delay the handling, one needs to manipulate `evObj.emitter._queue` and
+`._waiting`. Not recommended. 
 
 __example__
 
@@ -138,9 +182,16 @@ __arguments__
 
 This function behavior changes based on the number of arguments
 
-* No arguments. This removes all handlers from all events. A complete reset.
-* `events`. This is the event string to remove the handlers from. If nothing else is provided, all handlers for that event are removed. This could also be an array of event strings in which case it is applied to each one. Or it could be null, in which case all events are searched for the removal of the given handler. 
-* `fun` This an object of type Handler. Ideally, this is the handler returned by `.on`. But it could also be a primitive, such as an action string or function.
+* No arguments. This removes all handlers from all events. A complete
+  reset.
+* `events`. This is the event string to remove the handlers from. If
+  nothing else is provided, all handlers for that event are removed. This
+  could also be an array of event strings in which case it is applied to
+  each one. Or it could be null, in which case all events are searched for
+  the removal of the given handler. 
+* `fun` This an object of type Handler. Ideally, this is the handler
+  returned by `.on`. But it could also be a primitive, such as an action
+  string or function.
 
     If fun is a boolean, then it is assumed to be `nowhen` for the whole event removal. If it is null, then it is assumed all handlers of the events should be removed. 
 
@@ -200,7 +251,8 @@ __return__
 
 * 0 arguments. Leads to the scope keys being returned. 
 * 1 arguments. Leads to specified scope's object being returned.
-* 2 arguments. Leads to the event string being returned after storing the object.
+* 2 arguments. Leads to the event string being returned after storing the
+  object.
 
 ---
 <a name="events"></a>
@@ -218,7 +270,7 @@ Given a list of events, such as given by event listing, produce an object with t
 <a name="error"></a>
 ### error()
 
-This is where errors can be dealt with when executing handlers. It is passed in the error object as well as the event, data, handler, context... If you terminate the flow by throwing an error, be sure to set emitter.looping to false. This is a method to be overwritten. 
+This is where errors can be dealt with when executing handlers. It is passed in the error object as well as the event, data, handler, context... If you terminate the flow by throwing an error, be sure to set `emitter._looping` to false. This is a method to be overwritten. 
 
 ---
 <a name="log"></a>
@@ -236,11 +288,10 @@ This creates a log function. It is a convenient form, but the log property shoul
 
 ---
 <a name="emitter"></a>
-Each instance has, in addition to the prototype methods listed below, the following public properties: 
+Each instance has, in addition to the prototype methods, the following public properties: 
 
 * `scopeSep` is the scope separator in the event parsing. The default is `:`. We can have multiple levels; the top level is the global event. 
 * `count` tracks the number of events emitted. Can be used for logging/debugging. 
-* `looping` tracks whether we are in the executing loop. 
 * `loopMax` is a toggle to decide when to yield to the next cycle for responsiveness. Default 1000. 
 * `timing` The default timing for `.emit` which defaults to "momentary", i.e., appending to queue. 
 
@@ -250,7 +301,8 @@ It also has "private" variables that are best manipulated by the methods.
 * `_queue` consists of events to be fired in this tick.
 * `_waiting` is the queue for events to be fired after next tick.
 * `_actions` has k:v of `action name: handler` The handler can be of type Handler or anything convertible to it. 
-* `_scopes` has k:v of `scope name: object` When an event is emitted with the given scope, the object will be passed in and is accessible to any handler reacting to an event along the scope chain.
+* `_scopes` has k:v of `scope name: object` When an event is emitted with the given scope, the object will be passed in and is accessible to any handler reacting to an event along the scope chain. 
+* `_looping` tracks whether we are in the executing loop. 
 
 ---
 <a name="handler"></a>

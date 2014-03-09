@@ -256,7 +256,7 @@
             this._actions = {};
             this._scopes = {};
             this.scopeSep = ":";
-            this.looping = false;
+            this._looping = false;
             this.loopMax = 1000;
             this.emitCount = 0;
             this.timing = "momentary";
@@ -272,8 +272,6 @@
             scopes = {};
     
         timing = timing ||emitter.timing || "momentary";
-    
-        emitter.log("emit", ev, data, timing);
     
         var pieces = ev.split(sep);
     
@@ -303,6 +301,8 @@
         }, ""); 
     
         emitter.eventLoader(timing, evObj);
+    
+        emitter.log("emit", ev, data, timing, evObj);
     
         emitter.looper();
     
@@ -367,15 +367,15 @@
             }
             
             if ( obj == null ) {
-                emitter.log("Deleting scope event", ev, scope);
+                emitter.log("deleting scope event", ev, scope);
                 delete emitter._scopes[ev];
                 return scope;
             }
         
             if (emitter._scopes.hasOwnProperty(ev) ) {
-                emitter.log("Overwriting scope event", ev, obj, emitter._scopes[ev] );
+                emitter.log("overwriting scope event", ev, obj, scope);
             } else {
-                emitter.log("Creating scope event", ev, obj);
+                emitter.log("creating scope event", ev, obj);
             }
         
             emitter._scopes[ev] = obj;
@@ -537,7 +537,7 @@
                 loop = 0, 
                 f, ev, evObj, events, cur, ind;
         
-            if (emitter.looping) {
+            if (emitter._looping) {
                 emitter.log("looping called again");
                 return;
             }
@@ -546,7 +546,7 @@
                 queue.push(waiting.shift());
             }
         
-            emitter.looping = true;
+            emitter._looping = true;
         
             while ( (queue.length) && (loop < loopMax ) ) {
                 evObj = queue[0];
@@ -584,7 +584,7 @@
                 loop += 1;
             }
         
-            emitter.looping = false;
+            emitter._looping = false;
         
             if (queue.length) {
                 emitter.log("looping hit max", loop);
@@ -763,7 +763,7 @@
         };
     EvW.prototype.error = function (e) {
             var emitter = this;
-            emitter.looping = false;
+            emitter._looping = false;
             throw Error(e);
         };
 
