@@ -134,27 +134,52 @@ __example__
 <a name="when"></a>
 ### when(arr/str events, str ev, str timing, bool reset ) --> tracker 
 
-This is how to do some action after several different events have all fired. Firing order is irrelevant.
+This is how to do some action after several different events have all
+fired. Firing order is irrelevant.
 
 __arguments__
 
-* `events` A string or an array of strings. These represent the events that need to be fired before taking the specified action. The array could also contain a numbered event which is of the form `[event, # of times]`. This will countdown the number of times the event fires before considering it done. 
-* `ev` This is the event that gets emitted after all the events have taken place. It should be an event string.
+* `events` A string or an array of strings. These represent the events
+  that need to be fired before taking the specified action. The array
+  could also contain a numbered event which is of the form `[event, # of
+  times]`. This will countdown the number of times the event fires before
+  considering it done. 
+* `ev` This is the event that gets emitted after all the events have taken
+  place. It should be an event string.
 * `timing` Emits `ev` based on the timing provided, as in `.emit`.
-* `reset` Setting this to true will cause this setup to be setup again once fired. The original events array is saved and restored. Default is false. This can also be changed after initialization by setting tracker.reset. 
+* `reset` Setting this to true will cause this setup to be setup again
+  once fired. The original events array is saved and restored. Default is
+  false. This can also be changed after initialization by setting
+  tracker.reset. 
 
 __return__
 
-Tracker object. This is what one can use to manipulate the sequence of events. See [Tracker type](#tracker)
+Tracker object. This is what one can use to manipulate the sequence of
+events. See [Tracker type](#tracker)
 
 __note__
 
-If an event fires more times than is counted and later the when is reset, those extra times do not get counted. 
+If an event fires more times than is counted and later the when is reset,
+those extra times do not get counted. 
 
 __example__
 
+    emitter.on("data gathered", function (data) {
+        data.forEach(function (el) {
+            switch (el[0]) {
+                case "file read" :
+                    // reports fileobj
+                    console.log("file", el[1]);
+                break;
+                case "db returned" : 
+                    // reports dbobj
+                    console.log("db", el[1]);
+                break;
+            }
+    });
     emitter.when(["file read", "db returned"], "data gathered");
-    emitter.emit("
+    emitter.emit("db returned", dbobj);
+    emitter.emit("file read", fileobj);
 
 ---
 <a name="on"></a>
@@ -206,7 +231,7 @@ This function behavior changes based on the number of arguments
 
 __return__
 
-emitter for chaining. 
+Emitter for chaining. 
 
 __example__
 
@@ -221,9 +246,23 @@ __example__
 
 ---
 <a name="once"></a>
-### once(event, handler f, int n, obj context) --> handler h
+### once(str event, handler f, int n, obj context) --> handler h
 
-This attaches the handler f to fire when event is emitted. But it tracks it to be removed after firing n times. Given its name, the default n is 1.
+This attaches the handler f to fire when event is emitted. But it is tracked
+to be removed after firing n times. Given its name, the default n is 1.
+
+__arguments__
+
+* event Any string. The event that is being listened for.
+* f Anything of handler type. 
+* n The number of times to fire. Should be a positive integer. 
+* context The object whose `this` f should have. 
+
+Both n and context are optional and their positioning can be either way. 
+
+__return__
+
+The handler that contains both f and the counter. 
 
 ---
 <a name="stop"></a>
@@ -235,7 +274,8 @@ Removes events from the queue.
 <a name="action"></a>
 ### action(str name, handler, obj context) --> action handler
 
-This allows one to associate a string with a handler for easier naming. It should be active voice to distinguish from event strings.
+This allows one to associate a string with a handler for easier naming. It
+should be active voice to distinguish from event strings.
 
 __arguments__
 
@@ -248,7 +288,8 @@ __return__
 * 0 arguments. Returns the whole list of defined actions.
 * 1 argument. Returns the handler associated with the action.
 * 2 arguments, second null. Deletes association action.
-* 2, 3 arguments. Returns created handler that is now linked to action string. 
+* 2, 3 arguments. Returns created handler that is now linked to action
+  string. 
 
 ---
 <a name="scope"></a>

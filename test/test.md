@@ -618,4 +618,10 @@ We define a command that takes a list of items separated by returns and makes an
 
  [heading](#heading "define: command | | now")
 
+## More tests
+
+* .off :  passing in events array, regex, function,  and removing all
+  handlers, removing without removing .when handlers, removing handlers based
+  on a function in a handler array. 
+
 

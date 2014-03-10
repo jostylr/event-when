@@ -336,7 +336,7 @@
     
         emitter.log("emit", ev, data, timing, evObj);
     
-        emitter.looper();
+        emitter.looper(ev);
     
         return emitter;
     };
@@ -428,6 +428,8 @@
                 // contains is for searching the handler; it is a method
                 handlers[ev].contains = Handler.prototype.contains;
             }
+        
+            emitter.log("on", ev, f, context); 
         
             return f;
         
@@ -527,15 +529,13 @@
         
             emitter.on(ev, handler); 
         
-            emitter.log("assigned event times", ev, n, f, context, handler);
+            emitter.log("once", ev, n, f, context, handler);
         
             return handler;
         };
     EvW.prototype.when = function (events, ev, timing, reset) {    
         
             var emitter = this;
-        
-            emitter.log(".when loaded", events, ev, timing, reset);
         
             var tracker = new Tracker ();
         
@@ -547,7 +547,7 @@
                 tracker.reset = reset || false;
             } else if (typeof timing === "boolean") {
                 tracker.reset = timing;
-                if (tracker.reset) {
+                if (typeof reset === "string") {
                     tracker.timing = reset;
                 } else {
                     tracker.timing = emitter.timing;
@@ -560,9 +560,9 @@
         
             var handler = new Handler (function (data, evObj) {
                 var ev = evObj.cur[0];
-                tracker.data.push([ev, data]);
-                tracker.remove(ev);
-            });
+                this.data.push([ev, data]);
+                this.remove(ev);
+            }, tracker);
         
             handler.tracker = tracker;
         
@@ -570,10 +570,12 @@
         
             tracker.add(events);
         
+            emitter.log("when", events, ev, timing, reset, tracker);
+        
             return tracker;
         };
     
-    EvW.prototype.looper = function () {
+    EvW.prototype.looper = function (caller) {
             var emitter = this,
                 queue = emitter._queue,
                 waiting = emitter._waiting,
@@ -583,7 +585,7 @@
                 f, ev, evObj, events, cur, ind;
         
             if (emitter._looping) {
-                emitter.log("looping called again");
+                emitter.log("looping called again", caller);
                 return;
             }
         
@@ -636,6 +638,10 @@
                 emitter.nextTick(self);
             } else if ( waiting.length ) {
                 emitter.nextTick(self);
+            }
+        
+            if (caller) {
+                emitter.log("loop ended", caller, loop);
             }
         
             return emitter;
@@ -789,14 +795,17 @@
         
             if ( (arguments.length === 2) && (handler === null) ) {
                 delete emitter._actions[name];
-                emitter.log("Removed action ", name);
+                emitter.log("Removed action", name);
                 return name;
             }
             
             var action = new Handler(handler, context); 
         
             if (emitter._actions.hasOwnProperty(name) ) {
-                emitter.log("Overwriting action ", name);
+                emitter.log("overwriting action", name, emitter._actions[name],
+                    action);
+            } else {
+                emitter.log("creating action", name, action); 
             }
         
             emitter._actions[name] = action;

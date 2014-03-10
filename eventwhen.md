@@ -258,7 +258,7 @@ we have no need for the finished string, just the intermediates.
 
         emitter.log("emit", ev, data, timing, evObj);
 
-        emitter.looper();
+        emitter.looper(ev);
 
         return emitter;
     }
@@ -474,6 +474,8 @@ array value of handler-types that will be executed in order.
             handlers[ev].contains = Handler.prototype.contains;
         }
 
+        emitter.log("on", ev, f, context); 
+
         return f;
 
     }
@@ -628,7 +630,7 @@ The main issue here is removing .when trackers.
 
     __return__
 
-    emitter for chaining. 
+    Emitter for chaining. 
 
     __example__
 
@@ -648,7 +650,7 @@ The main issue here is removing .when trackers.
 
 #### Once
 
-This method produces a wrapper around a provided function that automatically
+This method produces a wrapper around a provided handler that automatically
 removes the handler after a certain number of event firings (once is default).
 The new handler is what is returned.
 
@@ -666,11 +668,7 @@ consequences.
 
         handler = new Handler([f], context);
 
-        if ( (typeof n !== "number") && (typeof context === "number") ) {
-            temp = n;
-            n = context;
-            context = temp;
-        }
+        _":switch vars"
 
         handler.n = n || 1;
 
@@ -685,35 +683,67 @@ consequences.
 
         emitter.on(ev, handler); 
 
-        emitter.log("assigned event times", ev, n, f, context, handler);
+        emitter.log("once", ev, n, f, context, handler);
 
         return handler;
     }
 
 [doc]()
 
-    ### once(event, handler f, int n, obj context) --> handler h
+    ### once(str event, handler f, int n, obj context) --> handler h
 
-    This attaches the handler f to fire when event is emitted. But it tracks it to be removed after firing n times. Given its name, the default n is 1.
+    This attaches the handler f to fire when event is emitted. But it is tracked
+    to be removed after firing n times. Given its name, the default n is 1.
+
+    __arguments__
+
+    * event Any string. The event that is being listened for.
+    * f Anything of handler type. 
+    * n The number of times to fire. Should be a positive integer. 
+    * context The object whose `this` f should have. 
+
+    Both n and context are optional and their positioning can be either way. 
+
+    __return__
+
+    The handler that contains both f and the counter. 
+
+[switch vars]()
+
+If needed, we switch n and context
+
+    if ( (typeof n !== "number") && (typeof context === "number") ) {
+        temp = n;
+        n = context;
+        context = temp;
+    }
+
 
 #### When
 
-This is a key innovation. The idea is that once this is called, a handler is created that attaches to all the listed events and takes care of figuring when they have all called. 
+This is a key innovation. The idea is that once this is called, a handler is
+created that attaches to all the listed events and takes care of figuring when
+they have all called. 
 
-When all the events have fired, then the given event emits with a data object that is an array  of all the fired event's data, specifically the array elements are arrays of the form `[event name, data]`. 
+When all the events have fired, then the given event emits with a data object
+that is an array  of all the fired event's data, specifically the array
+elements are arrays of the form `[event name, data]`. 
 
-The return is the tracker which contains all things that might need to be accessed. It also contains the remove methods to cancel the `.when`.
+The return is the tracker which contains all things that might need to be
+accessed. It also contains the remove methods to cancel the `.when`.
 
-It has the argument of timing used to time the emitting of the event to be fired. The argument reset allows for reseting to the initial state once fired. 
+It has the argument of timing used to time the emitting of the event to be
+fired. The argument reset allows for reseting to the initial state once fired. 
 
-Emitting scoped events will count as a firing of the parent event, e.g., `.when([["button", 3], "disable")` will have `.emit("button:submit")` remove one of the button counts (unless event bubbling is stopped). But `.emit("button")` will not count for any `.when("button:submit")`. 
+Emitting scoped events will count also as a firing of the parents, e.g.,
+`.when([["button", 3], "disable")` will have `.emit("button:submit")` remove
+one of the button counts (unless event bubbling is stopped). But
+`.emit("button")` will not count for any `.when("button:submit")`. 
 
 
     function (events, ev, timing, reset) {    
 
         var emitter = this;
-
-        emitter.log(".when loaded", events, ev, timing, reset);
 
         var tracker = new Tracker ();
 
@@ -726,9 +756,9 @@ Emitting scoped events will count as a firing of the parent event, e.g., `.when(
 
         var handler = new Handler (function (data, evObj) {
             var ev = evObj.cur[0];
-            tracker.data.push([ev, data]);
-            tracker.remove(ev);
-        });
+            this.data.push([ev, data]);
+            this.remove(ev);
+        }, tracker);
 
         handler.tracker = tracker;
 
@@ -736,24 +766,29 @@ Emitting scoped events will count as a firing of the parent event, e.g., `.when(
 
         tracker.add(events);
 
+        emitter.log("when", events, ev, timing, reset, tracker);
 
-We return the tracker since one should use that to remove it. If you want the handler itself, it is in tracker.handler. It just seems more natural this way since the manipulations use tracker. 
+We return the tracker since one should use that to remove it. If you want the
+handler itself, it is in tracker.handler. It just seems more natural this way
+since the manipulations use tracker. 
 
         return tracker;
     }
 
 [assign timing reset]()
 
-Four arguments is not so good because who can remember the order? Since reset should be a string while reset should be a boolean, we can handle this.
+Four arguments is not so good because who can remember the order? Since timing
+should be a string while reset should be a boolean, we can handle this.
 
-Note that we are not actually checking for correctness, just trying to make sure that properly written, but unordered, is okay. 
+Note that we are not actually checking for correctness, just trying to make
+sure that properly written, but unordered, is okay. 
 
     if (typeof timing === "string") {
         tracker.timing = timing;
         tracker.reset = reset || false;
     } else if (typeof timing === "boolean") {
         tracker.reset = timing;
-        if (tracker.reset) {
+        if (typeof reset === "string") {
             tracker.timing = reset;
         } else {
             tracker.timing = emitter.timing;
@@ -770,22 +805,33 @@ Note that we are not actually checking for correctness, just trying to make sure
 
     ### when(arr/str events, str ev, str timing, bool reset ) --> tracker 
 
-    This is how to do some action after several different events have all fired. Firing order is irrelevant.
+    This is how to do some action after several different events have all
+    fired. Firing order is irrelevant.
 
     __arguments__
 
-    * `events` A string or an array of strings. These represent the events that need to be fired before taking the specified action. The array could also contain a numbered event which is of the form `[event, # of times]`. This will countdown the number of times the event fires before considering it done. 
-    * `ev` This is the event that gets emitted after all the events have taken place. It should be an event string.
+    * `events` A string or an array of strings. These represent the events
+      that need to be fired before taking the specified action. The array
+      could also contain a numbered event which is of the form `[event, # of
+      times]`. This will countdown the number of times the event fires before
+      considering it done. 
+    * `ev` This is the event that gets emitted after all the events have taken
+      place. It should be an event string.
     * `timing` Emits `ev` based on the timing provided, as in `.emit`.
-    * `reset` Setting this to true will cause this setup to be setup again once fired. The original events array is saved and restored. Default is false. This can also be changed after initialization by setting tracker.reset. 
+    * `reset` Setting this to true will cause this setup to be setup again
+      once fired. The original events array is saved and restored. Default is
+      false. This can also be changed after initialization by setting
+      tracker.reset. 
 
     __return__
 
-    Tracker object. This is what one can use to manipulate the sequence of events. See [Tracker type](#tracker)
+    Tracker object. This is what one can use to manipulate the sequence of
+    events. See [Tracker type](#tracker)
 
     __note__
 
-    If an event fires more times than is counted and later the when is reset, those extra times do not get counted. 
+    If an event fires more times than is counted and later the when is reset,
+    those extra times do not get counted. 
 
     __example__
 
@@ -793,17 +839,35 @@ Note that we are not actually checking for correctness, just trying to make sure
 
 [example]()
 
+    emitter.on("data gathered", function (data) {
+        data.forEach(function (el) {
+            switch (el[0]) {
+                case "file read" :
+                    // reports fileobj
+                    console.log("file", el[1]);
+                break;
+                case "db returned" : 
+                    // reports dbobj
+                    console.log("db", el[1]);
+                break;
+            }
+    });
     emitter.when(["file read", "db returned"], "data gathered");
-    emitter.emit("
-
+    emitter.emit("db returned", dbobj);
+    emitter.emit("file read", fileobj);
+    
+    
 
 #### Action
 
-This is for storing Handler type objects under a name string, generally some active description of what is supposed to take place. The Handler type can be anything that converts to Handler. 
+This is for storing Handler type objects under a name string, generally some
+active description of what is supposed to take place. The Handler type can be
+anything that converts to Handler. 
 
 If just one argument is provided, then the handler is returned. 
 
-If two arguments are provided, but the second is null, then this is a signal to delete the action. 
+If two arguments are provided, but the second is null, then this is a signal
+to delete the action. 
 
 
     function (name, handler, context) {
@@ -819,14 +883,17 @@ If two arguments are provided, but the second is null, then this is a signal to 
 
         if ( (arguments.length === 2) && (handler === null) ) {
             delete emitter._actions[name];
-            emitter.log("Removed action ", name);
+            emitter.log("Removed action", name);
             return name;
         }
         
         var action = new Handler(handler, context); 
 
         if (emitter._actions.hasOwnProperty(name) ) {
-            emitter.log("Overwriting action ", name);
+            emitter.log("overwriting action", name, emitter._actions[name],
+                action);
+        } else {
+            emitter.log("creating action", name, action); 
         }
 
         emitter._actions[name] = action;
@@ -840,7 +907,8 @@ We return the name so that one can define an action and then use it.
 
     ### action(str name, handler, obj context) --> action handler
 
-    This allows one to associate a string with a handler for easier naming. It should be active voice to distinguish from event strings.
+    This allows one to associate a string with a handler for easier naming. It
+    should be active voice to distinguish from event strings.
 
     __arguments__
 
@@ -853,22 +921,30 @@ We return the name so that one can define an action and then use it.
     * 0 arguments. Returns the whole list of defined actions.
     * 1 argument. Returns the handler associated with the action.
     * 2 arguments, second null. Deletes association action.
-    * 2, 3 arguments. Returns created handler that is now linked to action string. 
+    * 2, 3 arguments. Returns created handler that is now linked to action
+      string. 
 
 #### Looper
 
-This implements the looping over the queue. It is designed to avoid recursive stack calls. To do this, we keep track of whether we are looping or not in the emitter.looping variable. This should only get called if that flag is false. 
+This implements the looping over the queue. It is designed to avoid recursive
+stack calls. To do this, we keep track of whether we are looping or not in the
+emitter._looping variable. This should only get called if that flag is false. 
 
-For example, A is emittted and stats the loop. A emits B which then sees that the loop is active and does not call the loop. B does get queued and after the first handler of A finishes, the queue is consulted again. 
+For example, A is emittted and stats the loop. A emits B which then sees that
+the loop is active and does not call the loop. B does get queued and after the
+first handler of A finishes, the queue is consulted again.  This continues
+progress through the queue. We use either setTimeout (browser) or nextTick
+(node) to allow for other stuff to happen in between each 1000 calls.
 
-This continues progress through the queue. We use either setTimeout (browser) or nextTick (node) to allow for other stuff to happen in between each 1000 calls.
+As looper is called without context, we have bound it function to the
+emitter instance. 
 
-As this is called without context, we have bound the resume function to the emitter instance. 
+For the `.soon`, `.later` commands, we use a waiting queue. As soon as next
+tick is called, it unloads the first one onto the queue, regardless of whether
+there is something else there. This ensures that we make progress through the
+queue.
 
-For the `.soon`, `.later` commands, we use a waiting queue. As soon as next tick is called, it unloads the first one onto the queue, regardless of whether there is something else there. This ensures that we make progress through the queue. Well, assuming there is a next tick. 
-
-
-    function () {
+    function (caller) {
         var emitter = this,
             queue = emitter._queue,
             waiting = emitter._waiting,
@@ -879,7 +955,7 @@ For the `.soon`, `.later` commands, we use a waiting queue. As soon as next tick
 
 
         if (emitter._looping) {
-            emitter.log("looping called again");
+            emitter.log("looping called again", caller);
             return;
         }
 
@@ -902,6 +978,10 @@ For the `.soon`, `.later` commands, we use a waiting queue. As soon as next tick
             emitter.nextTick(self);
         } else if ( waiting.length ) {
             emitter.nextTick(self);
+        }
+
+        if (caller) {
+            emitter.log("loop ended", caller, loop);
         }
 
         return emitter;
