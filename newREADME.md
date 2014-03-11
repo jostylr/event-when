@@ -266,9 +266,37 @@ The handler that contains both f and the counter.
 
 ---
 <a name="stop"></a>
-### stop(str/bool toRemove) --> emitter
+### stop(arr/bool/fun/reg/str toRemove) --> emitter
 
-Removes events from the queue. 
+This is a general purpose maintainer of the queue/waiting lists. It will
+remove the events that match the first argument in some appropriate way.
+
+__arguments__
+
+* No argument. Removes all queued events.
+* String. If the event matches string, then it is removed from queue. This
+  is an exact full match; scope is not considered.
+* Array. If the event string matches any string in array, it gets removed.
+* RegExp. If the event string matches the regex, the event gets removed.
+  Scope can be dealt with in this way.
+* Function. The function gets the element under consideration and the
+  array. If it returns a truthy value, then the event gets removed. Could
+  be used in sneaky ways. 
+    
+__returns__
+
+Emitter for chaining.
+
+__example__
+
+    // stop crazy from acting
+    emitter.stop("crazy");
+    // stop all events
+    emitter.stop();
+    // stop next event on queue
+    emitter.stop(true);
+    // stop all events with button in title
+    emitter.stop(/^button/);
 
 ---
 <a name="action"></a>

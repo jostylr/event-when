@@ -131,7 +131,9 @@ passed in without context via nextTick or analog.
 
         this._handlers = {};
         this._queue = [];
+        this._queue.name = "queue";
         this._waiting = [];
+        this._waiting.name = "waiting";
         this._actions = {};
         this._scopes = {};
         this.scopeSep = ":";
@@ -1015,9 +1017,9 @@ This is to execute a single handler on the event queue.
     f = cur.handlers.shift();
     if (f) {
         evObj.cur = [ev, f];
-        emitter.log("firing", ev, evObj);
+        emitter.log("firing", ev, f, evObj);
         f.execute(evObj.data, evObj);
-        emitter.log("fired", ev, evObj);
+        emitter.log("fired", ev, f, evObj);
         _":deal with stopping"
 
     }
@@ -1025,9 +1027,12 @@ This is to execute a single handler on the event queue.
 
 [deal with stopping]()
 
-If f modifies the passed in second argument to include stop:true, then the event emission stops. This includes the current remaining handlers for that scope's events as well as all remaining bubbling up levels. 
+If f modifies the passed in second argument to include stop:true, then the
+event emission stops. This includes the current remaining handlers for that
+scope's events as well as all remaining bubbling up levels. 
 
-We remove the event from the queue. Since the queue may have changed, we find it carefully.
+We remove the event from the queue. Since the queue may have changed, we find
+it carefully.
 
     if ( evObj.stop === true ) {
         emitter.log("emission stopped", ev, evObj);
@@ -1049,59 +1054,113 @@ The cede control function -- node vs browser.
 
 #### Stop
 
-Clear queued up events. Each element of the queue is an array of the [event name, data, [ handler,  ... ]]
-
-* No args removes all events
-* string arg  removes the event string
-* true arg  removes the next element. 
-
----
+Clear queued up events. 
 
     function (a) {
-        var queue = this._queue;
-        var waiting = this._waiting; 
-        var emitter = this;
-        var ev; 
+        var queue = this._queue,
+            waiting = this._waiting,
+            emitter = this,
+            ev, tw, tq; 
 
         if (arguments.length === 0) {
-            while (queue.length > 0 ) {
-                queue.pop();
-            }
-            while (waiting.length >0 ) {
-                waiting.pop();
-            }
-            emitter.log("queue cleared of all events");
+            tw = queue.splice(0, queue.length);
+            tq = waiting.splice(0, waiting.length);
+            emitter.log("queue cleared of all events", tw, tq);
             return emitter; 
         }
 
         if (a === true) {
             ev = queue.shift();
-            emitter.log("event cleared", ev );
+            emitter.log("event cleared", ev);
             return emitter;
         }
-
-        var filt = function (el) {
-            if (el[0] === a) {
-                return false;
-            } else {
-                return true;
-            }
-        };
-
-        if (typeof a === "string") {
-            emitter._queue = queue.filter(filt);
-            emitter._waiting = waiting.filter(filt);
-            emitter.log("all instances of event cleared", a);
-        }
-
+        
+        _":splice queue waiting"
         return emitter;
     }
 
+[splice queue waiting]()
+
+This should handle the various cases of string/array of strings/function in
+determining whether an event should be removed. 
+ 
+    
+    var filt, temp=[];
+
+    if (typeof a = "string") {
+        filt = function (el, ind, arr) {
+            if (el[0] === a) {
+                temp.push(arr.splice(ind, 1));
+            }
+        };
+    } else if ( Array.isArray(a) ) {
+        filt = function (el, ind, arr) {
+            if (a.indexOf(el[0]) !== -1) {
+                temp.push(arr.splice(ind, 1));
+            }
+        };
+    } else if (a instanceof RegExp) {
+        filt = function (el, ind, arr) {
+            if ( a.test(el[0]) ) {
+                temp.push(arr.splice(ind, 1));
+            }
+        };
+    } else if (typeof a === "function") {
+        filt = function (el, ind, arr) {
+            if (a(el[0], el[1], arr)) {
+                temp.push(arr.splice(ind, 1));
+            }
+        };
+    } else {
+        return emitter;
+    }
+
+    queue.forEach(filt);
+    tq = temp.splice(0, temp.length);
+    waiting.forEach(filt);
+    tw = temp.splice(0, temp.length);
+    emitter.log("some events stopped", a, tq, tw);
+
+
+
 [doc]() 
 
-    ### stop(str/bool toRemove) --> emitter
+    ### stop(arr/bool/fun/reg/str toRemove) --> emitter
 
-    Removes events from the queue. 
+    This is a general purpose maintainer of the queue/waiting lists. It will
+    remove the events that match the first argument in some appropriate way.
+
+    __arguments__
+
+    * No argument. Removes all queued events.
+    * String. If the event matches string, then it is removed from queue. This
+      is an exact full match; scope is not considered.
+    * Array. If the event string matches any string in array, it gets removed.
+    * RegExp. If the event string matches the regex, the event gets removed.
+      Scope can be dealt with in this way.
+    * Function. The function gets the element under consideration and the
+      array. If it returns a truthy value, then the event gets removed. Could
+      be used in sneaky ways. 
+        
+    __returns__
+
+    Emitter for chaining.
+
+    __example__
+
+        _":example"
+
+[example]()
+    
+    // stop crazy from acting
+    emitter.stop("crazy");
+    // stop all events
+    emitter.stop();
+    // stop next event on queue
+    emitter.stop(true);
+    // stop all events with button in title
+    emitter.stop(/^button/);
+    
 
 #### Error
 

@@ -284,7 +284,9 @@
         
             this._handlers = {};
             this._queue = [];
+            this._queue.name = "queue";
             this._waiting = [];
+            this._waiting.name = "waiting";
             this._actions = {};
             this._scopes = {};
             this.scopeSep = ":";
@@ -615,9 +617,9 @@
                 f = cur.handlers.shift();
                 if (f) {
                     evObj.cur = [ev, f];
-                    emitter.log("firing", ev, evObj);
+                    emitter.log("firing", ev, f, evObj);
                     f.execute(evObj.data, evObj);
-                    emitter.log("fired", ev, evObj);
+                    emitter.log("fired", ev, f, evObj);
                     if ( evObj.stop === true ) {
                         emitter.log("emission stopped", ev, evObj);
                         ind = queue.indexOf(evObj);
@@ -650,42 +652,59 @@
     EvW.prototype.nextTick =  (typeof process !== "undefined" && process.nextTick) ? process.nextTick 
             : (function (f) {setTimeout(f, 0);});
     EvW.prototype.stop = function (a) {
-            var queue = this._queue;
-            var waiting = this._waiting; 
-            var emitter = this;
-            var ev; 
+            var queue = this._queue,
+                waiting = this._waiting,
+                emitter = this,
+                ev, tw, tq; 
         
             if (arguments.length === 0) {
-                while (queue.length > 0 ) {
-                    queue.pop();
-                }
-                while (waiting.length >0 ) {
-                    waiting.pop();
-                }
-                emitter.log("queue cleared of all events");
+                tw = queue.splice(0, queue.length);
+                tq = waiting.splice(0, waiting.length);
+                emitter.log("queue cleared of all events", tw, tq);
                 return emitter; 
             }
         
             if (a === true) {
                 ev = queue.shift();
-                emitter.log("event cleared", ev );
+                emitter.log("event cleared", ev);
                 return emitter;
             }
-        
-            var filt = function (el) {
-                if (el[0] === a) {
-                    return false;
-                } else {
-                    return true;
-                }
-            };
-        
-            if (typeof a === "string") {
-                emitter._queue = queue.filter(filt);
-                emitter._waiting = waiting.filter(filt);
-                emitter.log("all instances of event cleared", a);
+            
+            var filt, temp=[];
+            
+            if (typeof a = "string") {
+                filt = function (el, ind, arr) {
+                    if (el[0] === a) {
+                        temp.push(arr.splice(ind, 1));
+                    }
+                };
+            } else if ( Array.isArray(a) ) {
+                filt = function (el, ind, arr) {
+                    if (a.indexOf(el[0]) !== -1) {
+                        temp.push(arr.splice(ind, 1));
+                    }
+                };
+            } else if (a instanceof RegExp) {
+                filt = function (el, ind, arr) {
+                    if ( a.test(el[0]) ) {
+                        temp.push(arr.splice(ind, 1));
+                    }
+                };
+            } else if (typeof a === "function") {
+                filt = function (el, ind, arr) {
+                    if (a(el[0], el[1], arr)) {
+                        temp.push(arr.splice(ind, 1));
+                    }
+                };
+            } else {
+                return emitter;
             }
-        
+            
+            queue.forEach(filt);
+            tq = temp.splice(0, temp.length);
+            waiting.forEach(filt);
+            tw = temp.splice(0, temp.length);
+            emitter.log("some events stopped", a, tq, tw);
             return emitter;
         };
     
