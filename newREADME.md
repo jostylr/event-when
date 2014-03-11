@@ -339,9 +339,42 @@ __return__
 
 ---
 <a name="events"></a>
-### events( fun/str/reg partial, bool negate) --> arr keys
+### events( arr/fun/reg/str partial, bool negate) --> arr keys
 
-This returns a list of defined events that match the passed in partial condition. 
+This returns a list of defined events that match the passed in partial
+condition. 
+
+__arguments__
+
+The behavior depends on the nature of the first argument:
+
+* String. Any event with the argument as a substring will match.
+* RegExp. Any event matching the regex will, well, match.
+* Function. The function should accept event strings and return true if
+  matched. 
+* Array. Any events that match a string in the passed in array will be
+  returned. 
+
+The second argument negates the match conditions. 
+
+__returns__
+
+The event strings with handlers attached that match the passed in
+criteria.
+
+__example__
+
+    // will match events gre, great, green...
+    emitter.events("gre");
+    // will match events ending with :bob
+    emitter.events(/\:bob$/);
+    // will match if only great. Could also pass in ["great"] instead.
+    emitter.events(function (ev) {
+        return ev === "great";
+    });
+    // grab events from emitter2 and match those in emitter1
+    keys = emitter2.events();
+    emitter1.events(keys);
 
 ---
 <a name="handlers"></a>
@@ -353,7 +386,27 @@ Given a list of events, such as given by event listing, produce an object with t
 <a name="error"></a>
 ### error()
 
-This is where errors can be dealt with when executing handlers. It is passed in the error object as well as the event, data, handler, context... If you terminate the flow by throwing an error, be sure to set `emitter._looping` to false. This is a method to be overwritten. 
+This is where errors can be dealt with when executing handlers. It is
+passed in the error object as well as the handler value, emit data, event
+object, and executing context. The current full handler can be found in
+the second entry of the cur array in the event object. 
+
+If you terminate the flow by throwing an error, be sure to set
+`emitter._looping` to false. 
+
+This is a method to be overwritten, not called. 
+
+__example__
+
+    emitter.error = function (e, handler, data, evObj, context) {
+        console.log("Found error: " + e + 
+        " while executing " + handler + 
+        " with data " + data + 
+        " in executing the event " + evObj.cur[0] + 
+        " with context " + context);
+        emitter._looping = false;
+        throw Error(e);
+    };
 
 ---
 <a name="log"></a>

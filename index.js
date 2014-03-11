@@ -458,7 +458,7 @@
             } else if (events instanceof RegExp) {
                 events = Object.keys(emitter._handlers).filter(
                     function (el) {
-                        return events.test();
+                        return events.test(el);
                 });
             }
         
@@ -672,7 +672,7 @@
             
             var filt, temp=[];
             
-            if (typeof a = "string") {
+            if (typeof a === "string") {
                 filt = function (el, ind, arr) {
                     if (el[0] === a) {
                         temp.push(arr.splice(ind, 1));
@@ -754,29 +754,48 @@
             var emitter = this, 
                 handlers = emitter._handlers,
                 keys = Object.keys(handlers), 
-                regex; 
+                filt;
+        
+                
+            var wrap = function (f) {
+                    return function () {
+                        return ! (f.apply(this, Array.prototype.slice.call(arguments)));
+                    };
+                };
         
             if (typeof partial === "function") {
-                return keys.filter(partial);
+                filt = (negate ? wrap(partial) : partial);
+                return keys.filter( filt );
+            } else if (partial instanceof RegExp) {
+                filt = (function (el) {
+                    if (partial.test(el)) {
+                        return true;
+                    } else {
+                        return false;
+                    }
+                }); 
+                filt = (negate ? wrap(filt) : filt);
+                return keys.filter( filt );
             } else if (typeof partial === "string") {
-                regex = new RegExp(partial);
-                if (negate !== true) {
-                    return keys.filter(function (el) {
-                        if (regex.test(el)) {
-                            return true;
-                        } else {
-                            return false;
-                        }
-                    });
-                } else {
-                    return keys.filter(function (el) {
-                        if (regex.test(el)) {
-                            return false;
-                        } else {
-                            return true;
-                        }
-                    });
-                }
+                filt = (function (el) {
+                    if (el.indexOf(partial) !== -1) {
+                        return true;
+                    } else {
+                        return false;
+                    }
+                }); 
+                filt = (negate ? wrap(filt) : filt);
+                return keys.filter( filt );
+            } else if (Array.isArray(partial)) {
+                filt = (function (el) {
+                    if (partial.indexOf(el) !== -1 ) {
+                        return true;
+                    } else {
+                        return false;
+                    }
+                });
+                filt = (negate ? wrap(filt) : filt);
+                return keys.filter( filt );
             } else {
                 return keys;
             }
@@ -834,9 +853,10 @@
     EvW.prototype.makeHandler = function (value, context) {
             return new Handler(value, context);
         };
-    EvW.prototype.error = function (e) {
+    EvW.prototype.error = function (e, handler, data, evObj, context) {
             var emitter = this;
             emitter._looping = false;
+            emitter.log("error raised", e, handler, data, evObj, context);
             throw Error(e);
         };
 

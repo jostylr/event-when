@@ -626,4 +626,5 @@ We define a command that takes a list of items separated by returns and makes an
 * .looper : Have an emit that signals over a 1000 loops and then have another
   and see that it gets in the middle. 
 * .stop : All the new different types: string, array, regex, function, number
+* .events : Check different possibilities. 
 

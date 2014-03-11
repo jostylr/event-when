@@ -530,7 +530,7 @@ function wipes out all handlers, period, we do not need to worry about nowhen.
         } else if (events instanceof RegExp) {
             events = Object.keys(emitter._handlers).filter(
                 function (el) {
-                    return events.test();
+                    return events.test(el);
             });
         }
 
@@ -1087,7 +1087,7 @@ determining whether an event should be removed.
     
     var filt, temp=[];
 
-    if (typeof a = "string") {
+    if (typeof a === "string") {
         filt = function (el, ind, arr) {
             if (el[0] === a) {
                 temp.push(arr.splice(ind, 1));
@@ -1164,17 +1164,21 @@ determining whether an event should be removed.
 
 #### Error
 
-All handlers are encapsulated in a try..catch. This allows for easy error handling from controlling the emitter.error method. It is passed in the error object, event string, handler, and the place in the handler's array which caused the problem. 
+All handler execution are encapsulated in a try..catch. This allows for easy error
+handling from controlling the emitter.error method. It is passed in the error
+object, the handler value, emit data, event object, and the executing context. 
 
-What is done here is a default and suitable for development. In production, one might want to think whether throwing an error is a good thing or not. 
+What is done here is a default and suitable for development. In production,
+one might want to think whether throwing an error is a good thing or not. 
 
-// e, value, data, evObj, context
+Since we are throwing an error, we need to make sure emitter.looping is set to
+false so that if the error is handled and path resumes, we still get a flow of
+the emitter. 
 
-Since we are throwing an error, we need to make sure emitter.looping is set to false so that if the error is handled and path resumes, we still get a flow of the emitter. 
-
-    function (e) {
+    function (e, handler, data, evObj, context) {
         var emitter = this;
         emitter._looping = false;
+        emitter.log("error raised", e, handler, data, evObj, context);
         throw Error(e);
     }
 
@@ -1182,7 +1186,31 @@ Since we are throwing an error, we need to make sure emitter.looping is set to f
 
     ### error()
 
-    This is where errors can be dealt with when executing handlers. It is passed in the error object as well as the event, data, handler, context... If you terminate the flow by throwing an error, be sure to set `emitter._looping` to false. This is a method to be overwritten. 
+    This is where errors can be dealt with when executing handlers. It is
+    passed in the error object as well as the handler value, emit data, event
+    object, and executing context. The current full handler can be found in
+    the second entry of the cur array in the event object. 
+
+    If you terminate the flow by throwing an error, be sure to set
+    `emitter._looping` to false. 
+    
+    This is a method to be overwritten, not called. 
+
+    __example__
+
+        _":example"
+
+[example]()
+
+    emitter.error = function (e, handler, data, evObj, context) {
+        console.log("Found error: " + e + 
+        " while executing " + handler + 
+        " with data " + data + 
+        " in executing the event " + evObj.cur[0] + 
+        " with context " + context);
+        emitter._looping = false;
+        throw Error(e);
+    };
 
 
 ####  MakeLog
@@ -1244,9 +1272,13 @@ Logs everything, storing the result in the function itself under the name log. T
 
 #### Events
 
-This allows us to see what events have handlers and the number of handlers they have. 
+This allows us to see what events have handlers and the number of handlers
+they have. 
 
-We can pass in a function as first argument that should return true/false when fed an event string to indicate include/exclude. Alternatively, we can pass in a string that will be used as a regex to determine that. Given a string, we can include a negate boolean which will negate the match semantics. 
+We can pass in a function as first argument that should return true/false when
+fed an event string to indicate include/exclude. Alternatively, we can pass in
+a string that will be used as a regex to determine that. Given a string, we
+can include a negate boolean which will negate the match semantics. 
 
 If nothing is passed in, then we return all the events that have handlers.
 
@@ -1254,40 +1286,104 @@ If nothing is passed in, then we return all the events that have handlers.
         var emitter = this, 
             handlers = emitter._handlers,
             keys = Object.keys(handlers), 
-            regex; 
+            filt;
+
+            
+        var wrap = _":wrap";
 
         if (typeof partial === "function") {
-            return keys.filter(partial);
+            filt = (negate ? wrap(partial) : partial);
+            return keys.filter( filt );
+        } else if (partial instanceof RegExp) {
+            filt = (function (el) {
+                if (partial.test(el)) {
+                    return true;
+                } else {
+                    return false;
+                }
+            }); 
+            filt = (negate ? wrap(filt) : filt);
+            return keys.filter( filt );
         } else if (typeof partial === "string") {
-            regex = new RegExp(partial);
-            if (negate !== true) {
-                return keys.filter(function (el) {
-                    if (regex.test(el)) {
-                        return true;
-                    } else {
-                        return false;
-                    }
-                });
-            } else {
-                return keys.filter(function (el) {
-                    if (regex.test(el)) {
-                        return false;
-                    } else {
-                        return true;
-                    }
-                });
-            }
+            filt = (function (el) {
+                if (el.indexOf(partial) !== -1) {
+                    return true;
+                } else {
+                    return false;
+                }
+            }); 
+            filt = (negate ? wrap(filt) : filt);
+            return keys.filter( filt );
+        } else if (Array.isArray(partial)) {
+            filt = (function (el) {
+                if (partial.indexOf(el) !== -1 ) {
+                    return true;
+                } else {
+                    return false;
+                }
+            });
+            filt = (negate ? wrap(filt) : filt);
+            return keys.filter( filt );
         } else {
             return keys;
         }
 
     }
 
+[wrap]()
+
+This wraps a boolean returning function and negates it. This is handy for
+negating the filter effect.
+
+    function (f) {
+        return function () {
+            return ! (f.apply(this, Array.prototype.slice.call(arguments)));
+        };
+    }
+
+
 [doc]()
 
-    ### events( fun/str/reg partial, bool negate) --> arr keys
+    ### events( arr/fun/reg/str partial, bool negate) --> arr keys
 
-    This returns a list of defined events that match the passed in partial condition. 
+    This returns a list of defined events that match the passed in partial
+    condition. 
+
+    __arguments__
+    
+    The behavior depends on the nature of the first argument:
+
+    * String. Any event with the argument as a substring will match.
+    * RegExp. Any event matching the regex will, well, match.
+    * Function. The function should accept event strings and return true if
+      matched. 
+    * Array. Any events that match a string in the passed in array will be
+      returned. 
+
+    The second argument negates the match conditions. 
+
+    __returns__
+
+    The event strings with handlers attached that match the passed in
+    criteria.
+
+    __example__
+
+        _":example"
+
+[example]()
+
+    // will match events gre, great, green...
+    emitter.events("gre");
+    // will match events ending with :bob
+    emitter.events(/\:bob$/);
+    // will match if only great. Could also pass in ["great"] instead.
+    emitter.events(function (ev) {
+        return ev === "great";
+    });
+    // grab events from emitter2 and match those in emitter1
+    keys = emitter2.events();
+    emitter1.events(keys);
 
 #### Handlers
 
