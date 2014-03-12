@@ -378,9 +378,23 @@ __example__
 
 ---
 <a name="handlers"></a>
-### handlers(arr events) --> obj evt:handlers
+### handlers(arr/fun/reg/str events, bool empty) --> obj evt:handlers
 
-Given a list of events, such as given by event listing, produce an object with those events as keys and the values as the handlers. 
+Get listing of handlers per event.
+
+__arguments__
+
+* `events`. Array of events of interest.
+* `events`. If function, reg, or string, then events are genertaed by
+  events method.
+* `events. Other including undefined. The events array used is that of all
+  events,
+* `empty`. If true, it includes undefined events with handlers of null
+  type.
+
+__return__
+
+Object with keys of events and values of arrays of Handlers.
 
 ---
 <a name="error"></a>
@@ -418,9 +432,13 @@ This creates a log function. It is a convenient form, but the log property shoul
 
 ### Object Types
 
-* [Emitter](#emitter). This module exports a single function, the constructor for this type. It is what handles managing all the events. It really should be called Dispatcher. 
-* [Handler](#handler) This is the object type that interfaces between event/emits and action/functions. 
-* [Tracker](#tracker) This is what tracks the status of when to fire `.when` events.
+* [Emitter](#emitter). This module exports a single function, the
+  constructor for this type. It is what handles managing all the events.
+  It really should be called Dispatcher. 
+* [Handler](#handler) This is the object type that interfaces between
+  event/emits and action/functions. 
+* [Tracker](#tracker) This is what tracks the status of when to fire
+  `.when` events.
 
 ---
 <a name="emitter"></a>
@@ -451,11 +469,7 @@ It also has "private" variables that are best manipulated by the methods.
 
 ---
 <a name="handler"></a>
-Handlers are the objects that respond to emitted events. Generally they wrap handler type objects. 
-
-### Handler types
-
-### Handler methods
+_"handler:doc"
 
 ---
 <a name="tracker"></a>

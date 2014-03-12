@@ -5,9 +5,14 @@
     var empty = {};
 
     var Handler = function (value, context) {
-            if ( (value instanceof Handler) && 
-                 (arguments.length === 1) ) {
+            if (value instanceof Handler) { 
+                 if (typeof context === "undefined") {
                     return value;
+                 } else {
+                    this.value = value.value;
+                    this.context = context;
+                    return this;
+                 }
             }
         
             var handler = this;
@@ -71,9 +76,8 @@
             if (this === val) {
                 return true;
             }
-            
             value = value || this.value;
-        
+                
             if (value === val) {
                 return true;
             } 
@@ -127,7 +131,7 @@
             var actions = emitter._actions;
         
             if (typeof value === "undefined" ) {     
-                value = this.value;
+                value = this;
             }
         
             if ( ( value !== null) && (value.hasOwnProperty("tracker")) ) {
@@ -439,7 +443,7 @@
     EvW.prototype.off = function (events, fun, nowhen) {
         
             var emitter = this;
-        
+            
             var handlers = emitter._handlers;
             var h, f;
         
@@ -801,21 +805,24 @@
             }
         
         };
-    EvW.prototype.handlers = function (events) {
-            if (!events) {
-                events = this.events();
-            }
+    EvW.prototype.handlers = function (events, empty) {
             var emitter = this, 
                 handlers = emitter._handlers, 
-                i, n=events.length, event, 
                 ret = {}; 
         
-            for (i= 0; i < n; i +=1) {
-                event = events[i];
+            if (!Array.isArray(events)) {
+                events = this.events(events);
+            }
+        
+            events.forEach(function (event) {
                 if ( handlers.hasOwnProperty(event) ) {
                     ret[event] = handlers[event].slice();
+                } else {
+                    if (empty) {
+                        ret[event] = null;
+                    }
                 }
-            }
+            });
         
             return ret;
         
