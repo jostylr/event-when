@@ -1525,63 +1525,6 @@ The prototype object.
     <a name="contains"></a>
     _"contains:doc"
 
-#### Traverse
-
-This is a generic skeleton to copy in making traversals through the handler objects. 
-
-I tried to make it into a stand-alone walker, but it just made everything more
-complicated. This is largely setup with the idea of using return values in
-each if. If not, you can do else ifs. 
-
-    function me (val, value) {
-
-This can be called as a method, in which case this should have a value.
-Depending on the setup, you may want to assign `value` to `this` instead of to
-`this.value`. Just depends.
-
-        if (typeof value === "undefined" ) {     
-            value = this.value;
-        }
-
-Any intial work can be done here.
-
-
-A string denotes an action
-
-       if (typeof value === "string") {
-
-        }
-
-        if (typeof value === "function") {
-        }
-
-
-We use the empty object to make sure that we do not accidentally get the
-global object with this (would happen if el is undefined).
-
-        var ret;
-        if ( Array.isArray(value) ) {
-            ret = value.map(function (el) {
-                return me.call({}, val, el);
-            });
-
-do something with ret
-
-        }
-
-Dealing with it being a handler. Note that value.value is probably what is
-going to be used. So you could also decide to if value.value is defined, then
-call me with that, instead of using it as a method. 
-
-        if ( value && typeof value.METHODNAME === "function" ) {
-
-        } 
-
-Cleanup. Maybe an error to deal with it at this point. Or just return nothing. 
-
-
-    }
-
 #### Removal
 
 This is to remove the tracking of a .when event in conjunction with the .off
