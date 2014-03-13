@@ -1435,23 +1435,22 @@ those events as keys and the values as the handlers.
     
 ### Handler
 
-
 This is where we define handlers.
 
 The idea is that we will encapsulate all handlers into a handler object. When
 a function or something else is passed into .on and the others, it will be
 converted into a handler object and that object gets returned. If a handler
-object is passed in, then it gets attached.
+object is passed in, then it may get wrapped or it may not.
 
-This is a constructor and it should return `this`. Whatever value is passed in
-will get wrapped in a handler. 
+This is a constructor and it should return `this` in most cases. 
 
-If it is a handler with no new context, then it gets returned as is.
+If the passed in is a handler with no new context, then it gets returned as is.
 Otherwise, we take the handler's value and use it as the value but give it a
 new context.
 
 A handler can have a context. The closest context to an executing handler will
-be used.  
+be used. This is why if it is a handler, we need to grab the value and attach
+it to the new handler with its own context. 
 
     function (value, context) {
         if (value instanceof Handler) { 
@@ -1480,13 +1479,51 @@ The prototype object.
   contained in the handler. 
 * execute Executes the handler
 * summarize Goes level by level summarizing the structure of the handler
-
+* removal Removes any of the handler bits that are attached to .when trackers.
 
 ---
     Handler.prototype.execute = _"execute"; 
     Handler.prototype.contains = _"contains";
     Handler.prototype.summarize = _"summarize";
     Handler.prototype.removal = _"removal";
+
+[doc]()
+
+    Handlers are the objects that respond to emitted events. Generally they
+    wrap handler type objects. 
+
+    ### Handler types
+
+    * function  `context -> f(data, evObj)` This is the foundation as
+      functions are the ones that execute.  They are called with parameters
+      `data` that can be passed into the emit call and `evObj` which has a
+      variety of properties. See <a href="#evObj>evObj</a>.
+    * string.  This is an action string. When executed, it will look up the
+      action associated with that string and execute that handler. If no such
+      action exists, that gets logged and nothing else happens.
+    * handler. Handlers can contain handlers.
+    * array of handler types. Each one gets executed. This is how `.once`
+      works.
+
+    ### Handler methods
+   
+   These are largely internally used, but they can be used externally.
+
+    ---
+    <a name="summarize"></a>
+    _"summarize:doc"
+    
+    ---
+    <a name="execute"></a>
+    _"execute:doc"
+    
+    ---
+    <a name="removal"></a>
+    _"removal:doc"
+
+    ---
+    <a name="contains"></a>
+    _"contains:doc"
 
 #### Traverse
 
@@ -1499,12 +1536,14 @@ each if. If not, you can do else ifs.
     function me (val, value) {
 
 This can be called as a method, in which case this should have a value.
+Depending on the setup, you may want to assign `value` to `this` instead of to
+`this.value`. Just depends.
 
-        if (typeof value === "undefined ) {     
+        if (typeof value === "undefined" ) {     
             value = this.value;
         }
 
-Any intial work can be done here. A short circuit for the contains method is put here. 
+Any intial work can be done here.
 
 
 A string denotes an action
@@ -1517,17 +1556,22 @@ A string denotes an action
         }
 
 
-We use the empty object to make sure that we do not accidentally get the global object with this (would happen if el is undefined).
+We use the empty object to make sure that we do not accidentally get the
+global object with this (would happen if el is undefined).
 
         var ret;
         if ( Array.isArray(value) ) {
             ret = value.map(function (el) {
                 return me.call({}, val, el);
             });
+
 do something with ret
+
         }
 
-Dealing with it being a handler. Note that value.value is probably what is going to be used. So you could also decide to if value.value is defined, then call me with that, instead of using it as a method. 
+Dealing with it being a handler. Note that value.value is probably what is
+going to be used. So you could also decide to if value.value is defined, then
+call me with that, instead of using it as a method. 
 
         if ( value && typeof value.METHODNAME === "function" ) {
 
@@ -1727,13 +1771,6 @@ This is a simple wrapper for new Handler
         return new Handler(value, context);
     }
 
-[doc]()
-
-    Handlers are the objects that respond to emitted events. Generally they wrap handler type objects. 
-
-    ### Handler types
-
-    ### Handler methods
 
 ### Tracker
 

@@ -469,7 +469,40 @@ It also has "private" variables that are best manipulated by the methods.
 
 ---
 <a name="handler"></a>
-_"handler:doc"
+Handlers are the objects that respond to emitted events. Generally they
+wrap handler type objects. 
+
+### Handler types
+
+* function  `context -> f(data, evObj)` This is the foundation as
+  functions are the ones that execute.  They are called with parameters
+  `data` that can be passed into the emit call and `evObj` which has a
+  variety of properties. See <a href="#evObj>evObj</a>.
+* string.  This is an action string. When executed, it will look up the
+  action associated with that string and execute that handler. If no such
+  action exists, that gets logged and nothing else happens.
+* handler. Handlers can contain handlers.
+* array of handler types. Each one gets executed. This is how `.once`
+  works.
+
+### Handler methods
+   
+
+---
+<a name="summarize"></a>
+_"summarize:doc"
+
+---
+<a name="execute"></a>
+_"execute:doc"
+
+---
+<a name="removal"></a>
+_"removal:doc"
+
+---
+<a name="contains"></a>
+_"contains:doc"
 
 ---
 <a name="tracker"></a>
