@@ -72,24 +72,22 @@
     
         return;
     }; 
-    Handler.prototype.contains = function me (val, value) {
-            if (this === val) {
+    Handler.prototype.contains = function me (target, htype) {
+        
+            if ( (htype === target) || (this === target) ) {
                 return true;
             }
-            value = value || this.value;
-                
-            if (value === val) {
-                return true;
-            } 
         
-            if ( Array.isArray(value) ) {
-                return value.some(function (el) {
-                    return me.call(empty, val, el);
+            htype = htype || this;
+                   
+            if ( Array.isArray(htype) ) {
+                return htype.some(function (el) {
+                    return me.call(empty, target, el);
                 });
             }
         
-            if ( value && typeof value.contains === "function" ) {
-                return value.contains(val);
+            if ( htype.hasOwnProperty("value")) {
+                return me.call(empty, target, htype.value);
             } 
         
             return false;
@@ -127,35 +125,39 @@
             return "unknown";
         
             };
-    Handler.prototype.removal = function me (ev, emitter, value) {
+    Handler.prototype.removal = function me (ev, emitter, htype) {
             var actions = emitter._actions;
+            
+            htype = htype || this;
         
-            if (typeof value === "undefined" ) {     
-                value = this;
-            }
-        
-            if ( ( value !== null) && (value.hasOwnProperty("tracker")) ) {
-                value.tracker._removeStr(ev);
+            if ( htype.hasOwnProperty("tracker") ) {
+                htype.tracker._removeStr(ev);
+                emitter.log("untracked", ev, htype.tracker, htype);
                 return ;
             }
         
-            if (typeof value === "string") {
-                return actions[value].removal(ev, emitter);
+            if (typeof htype === "string") {
+                actions[htype].removal(ev, emitter);
+                return;
             }
         
-            if (typeof value === "function") {
+            if (typeof htype === "function") {
                 return; 
             }
         
-            if ( Array.isArray(value) ) {
-                value.forEach(function (el) {
-                    return me.call({}, ev, emitter, el);
+            if ( Array.isArray(htype) ) {
+                htype.forEach(function (el) {
+                    me.call(empty, ev, emitter, el);
+                    return;
                 });
             }
         
-            if ( value && value.hasOwnProperty("value") ) {
-                return me.call({}, ev, emitter, value.value); 
+            if ( htype.hasOwnProperty("value") ) {
+                me.call(empty, ev, emitter, htype.value); 
+                return;
             } 
+        
+            emitter.log("unreachable reached", "removal", ev, htype);
         
             return;
         };

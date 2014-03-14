@@ -1,15 +1,9 @@
-# Event-when tests
+# Test files
 
 This is a set of tests for this library to pass. 
 
-It produces just a single test file:  [testrunner.js](#testrunner "save: |jshint")
 
-
-## Tests
-
-These are the tests
-
-### two on and some emits
+## two on and some emits
 
 This tests the basic emit--on functions
 
@@ -34,7 +28,7 @@ This tests the basic emit--on functions
     emitter.emit("first ready");
 
 
-### simple once test
+## simple once test
 
 This tests that the once removes itself. We do a case with no number and one with 2 attached. 
 
@@ -64,7 +58,7 @@ This tests that the once removes itself. We do a case with no number and one wit
     emitter.emit("second ready");
     emitter.emit("done");
 
-### turning off a handler
+## turning off a handler
 
 
 This tests that we can remove handlers.
@@ -74,31 +68,28 @@ This tests that we can remove handlers.
 
     first fires
     second fires
-    first fires
+    second fires
     
 
 [code]()    
 
-    var h = emitter.on("first", function () {
-        emitter.emit("second");
-    });
-
-    emitter.on("first", function () {
+    var h = emitter.on("first ready", function () {
         actual.push("first fires");
+        emitter.emit("second ready");
     });
 
-
-    emitter.on("second", function () {
+    emitter.on("first ready", function () {
         actual.push("second fires");
     });
 
-    emitter.emit("first");
-    emitter.off("first", h);
-    emitter.emit("first");    
+    emitter.emit("first ready");
+    emitter.off("first ready", h);
+    emitter.emit("first ready");    
+    emitter.emit("second ready");
 
     emitter.emit("done");
 
-### when waiting for 2 events
+## when waiting for 2 events
 
 Testing the when capabilities.
 
@@ -125,7 +116,7 @@ Testing the when capabilities.
 
     emitter.emit("done");
 
-### checking action naming
+## checking action naming
 
 Testing actions.
 
@@ -147,7 +138,7 @@ Testing actions.
     emitter.emit("done");
 
 
-### Handler with context
+## Handler with context
 
 Want to emitting data and handler context
 
@@ -169,7 +160,7 @@ Want to emitting data and handler context
 
     emitter.emit("done");
 
-### Handler with two handles
+## Handler with two handles
 
 Let's have a function that acts and then an event that emits saying it acted. 
 
@@ -199,7 +190,7 @@ Let's have a function that acts and then an event that emits saying it acted.
 
     emitter.emit("done");
 
-### checking handlers and events
+## checking handlers and events
 
 This is testing .events(). 
 
@@ -239,7 +230,7 @@ This is testing .events().
     emitter.emit("done");
 
 
-### Canceling
+## Canceling
 
 Can we remove handlers or stop events? 
 
@@ -292,7 +283,7 @@ Can we remove handlers or stop events?
 
     emitter.emit("done");
 
-### Error checking
+## Error checking
 
 Let's throw an error.
 
@@ -331,7 +322,7 @@ Let's throw an error.
 
     emitter.emit("done");
 
-### Flow testing
+## Flow testing
 
 Does `.later` work? 
 
@@ -385,7 +376,7 @@ Does `.later` work?
     emitter.emit("B");
 
 
-### when with later
+## when with later
 
 Does `.later` work for `.when`? 
 
@@ -445,7 +436,7 @@ Does `.later` work for `.when`?
     emitter.later("A");
     emitter.emit("B");
 
-### Handler info
+## Handler info
 
 This tests the summarize of handlers. 
 
@@ -465,7 +456,7 @@ This tests the summarize of handlers.
 
     emitter.emit("done");
 
-### Tracker testing
+## Tracker testing
 
 [expected]()
 
@@ -525,7 +516,63 @@ This tests the summarize of handlers.
 
     emitter.emit("done");
 
-# Testrunner
+## Done
+
+This is a snippet that should be placed at the end of each async function. 
+
+    emitter.on("done", function () {
+        s.deepEqual(actual, expected);
+    });
+
+
+## Test Template
+
+This is the test template
+
+    test('_"*:expected|heading"', function (s) {
+        s.plan(1);
+
+        var emitter = new EventWhen();
+
+        var expected = _"*:expected| arrayify",
+            actual = [];
+
+        _"done"
+
+        _"*:code"
+
+    })
+
+## Arrayify
+
+We define a command that takes a list of items separated by returns and makes an array out of them. The strings are trimmed and empty lines are ignored. This should allow for some whitespace formatting. 
+
+    function (code) {
+        var lines = code.split("\n");
+        return '[\n"' + lines.filter(function (el) {
+            if (el.length > 0) {
+                return true;
+            } else {
+                return false;
+            }
+        }).map(function (el) {
+            return el.trim();
+        }).join('",\n"') + '"\n]';
+    }
+
+ [arrayify](#arrayify "define: command | | now")
+
+
+## Heading
+
+    function () {
+        return this.hblock.heading.split("*")[0]; 
+    }
+
+ [heading](#heading "define: command | | now")
+
+
+## [testrunner.js](#testrunner.js "save: |jshint")
 
     /*global require*/
     var EventWhen = require('../index.js'),
@@ -558,73 +605,3 @@ This tests the summarize of handlers.
     _"handler info*test template";    
 
     _"tracker testing*test template";    
-
-## Test Template
-
-This is the test template
-
-    test('_"*:expected|heading"', function (s) {
-        s.plan(1);
-
-        var emitter = new EventWhen();
-
-        var expected = _"*:expected| arrayify",
-            actual = [];
-
-        _"done"
-
-        _"*:code"
-
-    })
-
-## Done
-
-This is a snippet that should be placed at the end of each async function. 
-
-    emitter.on("done", function () {
-        s.deepEqual(actual, expected);
-    });
-
-
-# Commands
-
-These are custom lit pro commands.
-
-## Arrayify
-
-We define a command that takes a list of items separated by returns and makes an array out of them. The strings are trimmed and empty lines are ignored. This should allow for some whitespace formatting. 
-
-    function (code) {
-        var lines = code.split("\n");
-        return '[\n"' + lines.filter(function (el) {
-            if (el.length > 0) {
-                return true;
-            } else {
-                return false;
-            }
-        }).map(function (el) {
-            return el.trim();
-        }).join('",\n"') + '"\n]';
-    }
-
- [arrayify](#arrayify "define: command | | now")
-
-
-## Heading
-
-    function () {
-        return this.hblock.heading.split("*")[0]; 
-    }
-
- [heading](#heading "define: command | | now")
-
-## More tests
-
-* .off :  passing in events array, regex, function,  and removing all
-  handlers, removing without removing .when handlers, removing handlers based
-  on a function in a handler array. 
-* .looper : Have an emit that signals over a 1000 loops and then have another
-  and see that it gets in the middle. 
-* .stop : All the new different types: string, array, regex, function, number
-* .events : Check different possibilities. 
-

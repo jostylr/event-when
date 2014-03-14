@@ -1,3 +1,5 @@
 test
 examples
 *.md
+watcher.js
+mon.sh

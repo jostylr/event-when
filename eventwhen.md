@@ -175,7 +175,7 @@ The various prototype methods on the event emitter.
     EvW.prototype.events = _"events";
     EvW.prototype.handlers = _"handlers";
     EvW.prototype.action = _"action";
-    EvW.prototype.makeHandler = _"make";
+    EvW.prototype.makeHandler = _"make handler";
     EvW.prototype.error = _"error";
 
 [doc]()
@@ -1530,93 +1530,142 @@ The prototype object.
 This is to remove the tracking of a .when event in conjunction with the .off
 method.
 
-    function me (ev, emitter, value) {
+    function me (ev, emitter, htype) {
         var actions = emitter._actions;
+        
+        htype = htype || this;
 
-        if (typeof value === "undefined" ) {     
-            value = this;
-        }
-
-        if ( ( value !== null) && (value.hasOwnProperty("tracker")) ) {
-            value.tracker._removeStr(ev);
+        if ( htype.hasOwnProperty("tracker") ) {
+            htype.tracker._removeStr(ev);
+            emitter.log("untracked", ev, htype.tracker, htype);
             return ;
         }
 
-        if (typeof value === "string") {
-            return actions[value].removal(ev, emitter);
+        if (typeof htype === "string") {
+            actions[htype].removal(ev, emitter);
+            return;
         }
 
-The tracker is not attached to a function, but to a Handler object. I think. 
+The tracker is not attached to a function, but to a Handler object.
 
-        if (typeof value === "function") {
+        if (typeof htype === "function") {
             return; 
         }
 
-        if ( Array.isArray(value) ) {
-            value.forEach(function (el) {
-                return me.call({}, ev, emitter, el);
+        if ( Array.isArray(htype) ) {
+            htype.forEach(function (el) {
+                me.call(empty, ev, emitter, el);
+                return;
             });
         }
 
 
-        if ( value && value.hasOwnProperty("value") ) {
-            return me.call({}, ev, emitter, value.value); 
+        if ( htype.hasOwnProperty("value") ) {
+            me.call(empty, ev, emitter, htype.value); 
+            return;
         } 
+
+        emitter.log("unreachable reached", "removal", ev, htype);
 
         return;
     }
 
+[doc]() 
+
+    #### removal(ev, emitter) --> 
+
+    This removes the handlers from .when trackers. Used by .off.
+
+    __arguments__
+
+    * `this` This is called in the context of the handler.
+    * `ev` The event string to remove from the .when tracker.
+    * `emitter` The emitter object is passed in for actions and log ability.
+    
+    __return__
+
+    Nothing.
+
+    __example__
+
+        handler.removal("whened", emitter); 
 
 #### Contains
 
-This will search for the given possible value to determine if the Handler contains it. 
+This will search for the given possible target to determine if the Handler
+contains it. 
 
-If there is no value as second argument, it is assumed to be called as a method of a Handler and uses its value. 
+This is used as a method of proper Handler types, but we can't call it as a
+method in general because strings become objectified if they are called in
+context. 
 
-The first if will says that the handler contains itself.
 
-    function me (val, value) {
-        if (this === val) {
+    function me (target, htype) {
+
+        if ( (htype === target) || (this === target) ) {
             return true;
         }
-        value = value || this.value;
-            
-        if (value === val) {
-            return true;
-        } 
 
-        if ( Array.isArray(value) ) {
-            return value.some(function (el) {
-                return me.call(empty, val, el);
+        htype = htype || this;
+               
+        if ( Array.isArray(htype) ) {
+            return htype.some(function (el) {
+                return me.call(empty, target, el);
             });
         }
 
-        if ( value && typeof value.contains === "function" ) {
-            return value.contains(val);
+        if ( htype.hasOwnProperty("value")) {
+            return me.call(empty, target, htype.value);
         } 
 
         return false;
 
     }
 
+[doc]() 
+
+    #### contains(target, htype) --> bool
+
+    This checks to see whether target is contained in the handler type at some
+    point.
+    
+    __arguments__
+
+    * `target` Anything of handler type that is to be matched.
+    * `htype` Anything of handler type. This is the current level. If `htype` is
+      not provided (typically the case in external calling), then the `this`
+      becomes `htype`. 
+
+    __return__ 
+    
+    It returns true if found; false otherwise.
+
+    __example__
+
+        handler.contains(f);
+        handler.contains("act");
 
 #### Execute
 
-Here we handler executing a handler. We could have a variety of values here.
+Here we handle executing a handler. We could have a variety of values here.
 
 * string. This should be an action. We lookup the action and use the function. 
-* function. Classic. It gets executed.
-* handler. This is an object of type handler and how we will always start. We iterate through handlers to find executable types.
-* [possible handler types...]. The array form gets executed in order, be it functions, actions, or Handlers. The array can contain Handler objects that are then handled. 
+* function. Classic. It gets called.
+* handler. This is an object of type handler and how we will always start. We
+  iterate through handlers to find executable types.
+* [possible handler types...]. The array form gets executed in order, be it
+  functions, actions, or Handlers. The array can contain Handler objects that
+  are then handled. 
 
+We pass in data, event object, and context; the value is for internal calling,
+for the most part. 
 
+All of the handlers are encapsulated in a try...catch that then calls the
+emitter's .error method (which can be overwritten). The default will rethrow
+the error with more information. The error is likely to be called multiple
+times if throwing is kept being done. Maybe should think about that.  
 
-That and args are mainly for passing in when calling a handler from a handler. If a handler already has these bound, it will use the bound ones. 
-
-We pass in data, emitter, args, event string into the handler functions. This order was chosen in likelihood of use. The event string is needed for the .when handler to do its job. 
-
-All of the handlers are encapsulated in a try...catch that then calls the emitter's .error method (which can be overwritten). The default will rethrow the error with more information. 
-
+evObj.stop is the flag to set to stop execution. 
 
     function me (data, evObj, context, value) {
         if (evObj.stop) {
@@ -1668,9 +1717,35 @@ All of the handlers are encapsulated in a try...catch that then calls the emitte
         return;
     }
 
+[doc]()
+
+    #### execute(data, evObj, context, value) --> 
+
+    This executes the handler. 
+
+    __arguments__
+
+    * `data`, `evObj` get passed into the functions as first and second
+      arguments. This is generated by the emit. 
+    * `context` The object to call the function as `this`. value.context takes
+      precedence and this.context takes next precedence. 
+    * `value` This is largely internally used. 
+
+    __return__
+
+    Nothing. 
+
+    __example__
+
+        handler = new Handler(function () {console.log(this.name, data);},
+            {name: "test"});
+        handler.execute("cool", {emitter:emitter});
+
+
 #### Summarize
 
-This tries to report the structure of the handlers. We use the property name "name" for the tag to return for any given level.
+This tries to report the structure of the handlers. We use the property name
+"name" for the tag to return for any given level.
 
     function me (value) {
         var ret, lead;
@@ -1705,8 +1780,28 @@ This tries to report the structure of the handlers. We use the property name "na
 
         }
 
+[doc]()
 
-#### Make
+    #### summarize(value) --> str
+
+    This takes a handler and summarizes its structure. To give a meaningful
+    string to handlers for a summarize, one can add `.name` properties to any
+    of the value types except action strings which are their own "name". 
+
+    __arguments__
+
+     * `value` or `this` is to be of handler type and is what is being
+      summarized. 
+
+    __return__
+
+    The summary string.
+
+    __example__
+
+        handler.summarize();
+
+#### Make Handler
 
 This is a simple wrapper for new Handler
 
@@ -1714,10 +1809,25 @@ This is a simple wrapper for new Handler
         return new Handler(value, context);
     }
 
+[doc]()
+
+    ### makeHandler(value, context) --> handler
+
+    Create a handler. 
+
+    __arguments__
+
+    * `value` The handler type to wrap.
+    * `context` What the `this` should be for calling the handler.
+
+    __example__
+
+        emitter.makeHandler(f, obj);
 
 ### Tracker
 
-The tracker object is used to track all the data and what events are available. Controlling it controls the queue of the when emit. 
+The tracker object is used to track all the data and what events are
+available. Controlling it controls the queue of the when emit. 
 
     function () {
         this.events = {};
@@ -1738,7 +1848,10 @@ THe various prototype methods for the tracker object.
 
 [doc]()
 
-    Trackers are responsible for tracking the state of a `.when` call. It is fine to set one up and ignore it. But if you need it to be a bit more dynamic, this is what you can modify. 
+    Trackers are responsible for tracking the state of a `.when` call. It is
+    fine to set one up and ignore it. But if you need it to be a bit more
+    dynamic, this is what you can modify. 
+    
     ### Tracker Properties
 
     These are the instance properties
@@ -1762,45 +1875,28 @@ THe various prototype methods for the tracker object.
  
     <a name="tracker-add" />
     #### add(arr/str events) 
-
-    Add events to tracking list.
-
-    __arguments__
-
-    This is the same form as the `events` option of `.when`. It can be a string or an array of [strings / array of [string, number] ]. A string is interpreted as an event to be tracked; a number indicates how many times (additional times) to wait for.
-
-    You can use this to add a number of wait times to an existing event.
-
+ 
+    _"add:doc"
+   
     <a name="tracker-remove" />
     #### remove(arr/str events)
 
-    Removes event from tracking list. 
-
-    ```
-    t.remove("neat");
-    t.remove(["neat", "some"]);
-    t.remove([["some", 4]]);
-    ```
-
-    __arguments__
-
-    Same as add events, except the numbers represent subtraction of the counting. 
-
+    _"remove:doc"
 
     <a name="tracker-go" />
     #### go()
 
-    Checks to see whether tracking list is empty; if so, the waiting event is emitted. No arguments. This is automatically called by the other methods/event changes. 
+    _"remove go:doc"
 
     <a name="tracker-cancel" />
     #### cancel()
 
-    Cancel the tracking and abort with no event emitted. No arguments.
+    _"cancel:doc"
 
     <a name="tracker-reinitialize" />
     #### reinitialize()
 
-    Reinitializes the tracker. The existing waiting events get cleared and replaced with the original events array. No arguments. 
+    _"reintialize:doc"
 
 [example]()
 
@@ -1875,6 +1971,18 @@ We can add events on to the tracker. We allow it to be an array of events passed
         return tracker;
     }
 
+[doc]()
+
+    Add events to tracking list.
+
+    __arguments__
+
+    This is the same form as the `events` option of `.when`. It can be a
+    string or an array of [strings / array of [string, number] ]. A string is
+    interpreted as an event to be tracked; a number indicates how many times
+    (additional times) to wait for.
+
+    You can use this to add a number of wait times to an existing event.
 
 #### Remove
 
@@ -1917,7 +2025,21 @@ Note the `true` for the .off command is to make sure the `.remove` is not called
         tracker.go();
         return tracker;
     }
-    
+
+[doc]()
+
+    Removes event from tracking list. 
+
+    ```
+    t.remove("neat");
+    t.remove(["neat", "some"]);
+    t.remove([["some", 4]]);
+    ```
+
+    __arguments__
+
+    Same as add events, except the numbers represent subtraction of the counting. 
+
 #### Remove string
 
 This is mainly for use with the `.off` method where the handler has already been removed from the event. This takes in just a string and removes the event entirely from the events object. It then runs `go` to see if emit time is ready.
@@ -1928,29 +2050,6 @@ This is mainly for use with the `.off` method where the handler has already been
         delete tracker.events[ev];
 
         tracker.go();
-        return tracker;
-    }
-
-
-#### Cancel
-
-This cancels the .when, removing the handler from all remaining events and clearing the data. 
-
-    function () {
-        var tracker = this, 
-            emitter = tracker.emitter,
-            handler = tracker.handler,
-             keys;
-        
-        emitter.log("canceling tracker", tracker);
-
-        keys = Object.keys(tracker.events);
-
-        keys.forEach(function (event) {
-            emitter.off(event, handler);
-        });
-
-        tracker.data = [];
         return tracker;
     }
 
@@ -1978,9 +2077,44 @@ If reset is true, then we add those events before firing off the next round.
         return tracker;
     }
 
+
+[doc]()
+
+    Checks to see whether tracking list is empty; if so, the waiting event is
+    emitted. No arguments. This is automatically called by the other
+    methods/event changes. 
+
+#### Cancel
+
+This cancels the .when, removing the handler from all remaining events and clearing the data. 
+
+    function () {
+        var tracker = this, 
+            emitter = tracker.emitter,
+            handler = tracker.handler,
+             keys;
+        
+        emitter.log("canceling tracker", tracker);
+
+        keys = Object.keys(tracker.events);
+
+        keys.forEach(function (event) {
+            emitter.off(event, handler);
+        });
+
+        tracker.data = [];
+        return tracker;
+    }
+
+[doc]()
+
+
+    Cancel the tracking and abort with no event emitted. No arguments.
+
 #### Reinitialize
 
-This returns the events to the original version. I would call it reset except that is a flag to call this. 
+This returns the events to the original version. I would call it reset except
+that is a flag to call this. 
 
 We first cancel everything to clear it out and then we attach the new stuff.
 
@@ -1993,6 +2127,24 @@ We first cancel everything to clear it out and then we attach the new stuff.
         return tracker;
     }
 
+[doc]()
+
+    #### reinitialize() --> tracker
+
+    Reinitializes the tracker. The existing waiting events get cleared and
+    replaced with the original events array. 
+    
+    __arguments__
+    
+    None.
+
+    __return__
+
+    Tracker for chaining.
+
+    __example__
+
+        tracker.reinitialize();
 
 ### Logs 
 
@@ -2032,6 +2184,7 @@ The readme for this. A lot of the pieces come from the doc sections.
     * [handlers](#handlers)
     * [error](#error)
     * [makeLog](#log)
+    * [makeHandler](#makehandler)
 
     ---
     <a name="emit"></a>
@@ -2080,6 +2233,11 @@ The readme for this. A lot of the pieces come from the doc sections.
     ---
     <a name="log"></a>
     _"makelog:doc"
+    
+    ---
+    <a name="makehandler"></a>
+    _"make handler:doc"
+
 
     ### Object Types
 
@@ -2390,6 +2548,8 @@ We should ignore test, examples, and .md files
     test
     examples
     *.md
+    watcher.js
+    mon.sh
 
 ## Travis
 
