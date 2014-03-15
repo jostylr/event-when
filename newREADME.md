@@ -15,7 +15,8 @@ There are several noteworthy features of this library:
   specify an event to emit after various specified events have all fired.
   For example, if we call a database and read a file to assemble a
   webpage, then we can do something like 
-  ``` emitter.when(["file
+  ``` 
+  emitter.when(["file
   parsed:jack", "database returned:jack"], "all data retrieved:jack"); 
   ```
   This is why the idea of a central emitter is particularly useful to this
@@ -39,7 +40,7 @@ about making it easier to develop the flow of an application. If you need
 something that handles large number of events quickly, this may not be the
 right library. 
 
-## Using
+### Using
 
 In the browser, include index.js. It will attach the constructor to
 EventWhen in the global space. 
@@ -52,6 +53,16 @@ Then require and instantiate an emitter:
 var EventWhen = require('event-when');
 emitter = new EventWhen();
 ```
+
+### Object Types
+
+* [Emitter](#emitter). This module exports a single function, the
+  constructor for this type. It is what handles managing all the events.
+  It could also be called Dispatcher. 
+* [Handler](#handler) This is the object type that interfaces between
+  event/emits and action/functions. 
+* [Tracker](#tracker) This is what tracks the status of when to fire
+  `.when` events.
 
 ### Method specification
 
@@ -193,12 +204,26 @@ __arguments__
 * `ev` The event string on which to call handler f
 * `f` The handler f. This can be a function, an action string, an array of
   handler types, or a handler itself.
-* `context` What the this should be set to. Defaults to `null`.
+* `context` What the `this` should be set to when invoking f. Defaults to
+  `null`.
 
 __return__
 
 The Handler which should be used in `.off` to remove the handler, if
-desired. 
+desired.
+
+__f__
+
+Ultimately handlers execute functions. These functions will be passed in
+the data from the emit and an [event object](#evobj). It will be called in
+the passed in context
+
+__example__
+
+    var record = {};
+    emitter.on("json received", function(data) {
+       this.json = JSON.parse(data);
+    }, record);
 
 ---
 <a name="off"></a>
@@ -446,18 +471,9 @@ __example__
 
     emitter.makeHandler(f, obj);
 
-### Object Types
-
-* [Emitter](#emitter). This module exports a single function, the
-  constructor for this type. It is what handles managing all the events.
-  It really should be called Dispatcher. 
-* [Handler](#handler) This is the object type that interfaces between
-  event/emits and action/functions. 
-* [Tracker](#tracker) This is what tracks the status of when to fire
-  `.when` events.
-
----
 <a name="emitter"></a>
+### Emitter Instance Properties
+
 Each instance has, in addition to the prototype methods, the following
 public properties: 
 
@@ -485,6 +501,7 @@ It also has "private" variables that are best manipulated by the methods.
 
 ---
 <a name="handler"></a>
+### Handler
 Handlers are the objects that respond to emitted events. Generally they
 wrap handler type objects. 
 
@@ -493,7 +510,7 @@ wrap handler type objects.
 * function  `context -> f(data, evObj)` This is the foundation as
   functions are the ones that execute.  They are called with parameters
   `data` that can be passed into the emit call and `evObj` which has a
-  variety of properties. See <a href="#evObj>evObj</a>.
+  variety of properties. See <a href="#evObj">evObj</a>.
 * string.  This is an action string. When executed, it will look up the
   action associated with that string and execute that handler. If no such
   action exists, that gets logged and nothing else happens.
@@ -503,6 +520,12 @@ wrap handler type objects.
 
 ### Handler methods
    
+These are largely internally used, but they can be used externally.
+
+* [summarize](#summarize)
+* [execute](#execute)
+* [removal](#removal)
+* [contains](#contains)
 
 ---
 <a name="summarize"></a>
@@ -593,6 +616,7 @@ __example__
     handler.contains("act");
 
 ---
+### Tracker
 <a name="tracker"></a>
 Trackers are responsible for tracking the state of a `.when` call. It is
 fine to set one up and ignore it. But if you need it to be a bit more
@@ -602,8 +626,11 @@ dynamic, this is what you can modify.
 
 These are the instance properties
 
-* `events` The list of currently active events/counts that are being tracked. To manipulate, use the tracker methods below.
-* `ev` The action that will be taken when all events have fired. It will emit the data from all the events in the form of an array of arrays: `[[event emitted, data], ...]`
+* `events` The list of currently active events/counts that are being
+  tracked. To manipulate, use the tracker methods below.
+* `ev` The action that will be taken when all events have fired. It will
+  emit the data from all the events in the form of an array of arrays:
+  `[[event emitted, data], ...]`
 * `timing` This dictates how the action is queued. 
 * `reset` This dictates whether to reset the events after firing. 
 * `original` The original events for use by reset/reinitialize.
@@ -651,7 +678,9 @@ Same as add events, except the numbers represent subtraction of the counting.
 <a name="tracker-go" />
 #### go()
 
-_"remove go:doc"
+Checks to see whether tracking list is empty; if so, the waiting event is
+emitted. No arguments. This is automatically called by the other
+methods/event changes. 
 
 <a name="tracker-cancel" />
 #### cancel()
@@ -661,4 +690,46 @@ Cancel the tracking and abort with no event emitted. No arguments.
 <a name="tracker-reinitialize" />
 #### reinitialize()
 
-_"reintialize:doc"
+#### reinitialize() --> tracker
+
+Reinitializes the tracker. The existing waiting events get cleared and
+replaced with the original events array. 
+
+__arguments__
+
+None.
+
+__return__
+
+Tracker for chaining.
+
+__example__
+
+    tracker.reinitialize();
+
+___
+### Event Object
+<a name="#evobj"></a>
+Each emitted event calls the listener with the first argument as the data
+(second argument of the emit call) and second argument as an event
+object. The event object consists of the following properties: 
+
+* `emitter` This is the emitter itself allowing one full access to
+  emitting, oning, offing, whatever.
+* `ev` This is the full event string that has been emitted.
+* `data` This is the data object that is passed into the emit. It is the
+  same as the first argument given to the callback function. 
+* `scopes` This is an object whose keys are the scope event strings and
+  whose values are the objects stored under that scope. 
+* `pieces` This is the result of splitting `ev` on the scope separator.
+* `count` This is the value of the counter for which emit this was. 
+* `timing` What the timing of the emit was.
+* `events` This is an array that contains objects of the form
+  `{scopeEvent, handlers}` where `scopeEvent` is the scoped event and
+  handlers is the array of handlers to be fired. This is a copy of the
+  handlers attached to the scope event.
+* `cur` This is changed after each handler handling. It is an array of
+  `[scopeEvent, handler]` It represents the current event and handler
+  being executed. 
+* `stop` This is not set, but if set to true, this will halt any further
+  handlers from firing from this event object's events.
