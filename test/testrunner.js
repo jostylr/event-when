@@ -118,6 +118,7 @@ test('when waiting for 2 events', function (s) {
     });
     
     emitter.emit("first ready");
+    
     emitter.emit("first ready");
     emitter.emit("second ready");
     emitter.emit("first ready");    
@@ -267,8 +268,7 @@ test('canceling', function (s) {
     var expected = [
         "emit this",
         "emit that 1",
-        "emit that 2",
-        "seen because the handler array is not stopped"
+        "emit that 2"
         ],
         actual = [];
 
@@ -299,7 +299,7 @@ test('canceling', function (s) {
             actual.push("emit that 2");
             evObj.emitter.stop(true);
         }, function () {
-            actual.push("seen because the handler array is not stopped");
+            actual.push("not seen because the handler array is stopped");
     }]);
     
     emitter.on("stopping test", [function () {
@@ -571,4 +571,53 @@ test('tracker testing', function (s) {
     
     emitter.emit("done");
 
+});    
+
+test("stop", function (t) {
+    t.plan(10);
+    var noop = function () {};
+    var run = function (stopper) {
+        var emitter = new EventWhen();
+        emitter.on("start", function () {
+            emitter.emit("one:bob");
+            emitter.emit("two:bob");
+            emitter.emit("three:jane");
+            emitter.emit("four");
+            emitter.stop.apply(emitter, stopper[0]);
+            var evs = emitter._queue.map(function(el) {
+                return el.ev;
+            });
+            t.deepEquals(evs, stopper[1], stopper[2]);
+        });
+        emitter.on("one:bob", noop);
+        emitter.on("two:bob", [noop, noop]);
+        emitter.on("three:jane", noop);
+        emitter.on("four", noop);
+        emitter.emit("start");
+    }; 
+    
+    var scopes = function (ev, el, ind, arr) {
+        if (el.pieces.length >1) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    var stops = [
+    [ [], [], "no args" ],
+    [ [true], ["one:bob", "two:bob", "three:jane", "four"], "true"],
+    [ ["bob"],  ["start", "three:jane", "four"], "str bob" ],
+    [ ["bob", true], ["one:bob", "two:bob"], "neg str bob" ],
+    [ [/^t/], ["start", "one:bob",  "four"], "reg start t"],
+    [ [/^t/, true], ["two:bob", "three:jane"], "neg reg start t"],
+    [ [["two:bob", "three:jane"]], ["start", "one:bob",  "four"], "arr"],
+    [ [["two:bob", "three:jane"], true], ["two:bob", "three:jane"], 
+    "not arr"],
+    [ [scopes], ["start", "four"], "function"],
+    [ [scopes, true], ["one:bob", "two:bob", "three:jane"], 
+    "neg function"]
+    ];
+
+    stops.forEach(run);
 });

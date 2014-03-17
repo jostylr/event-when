@@ -1106,21 +1106,22 @@ The cede control function -- node vs browser.
 
 Clear queued up events. 
 
-    function (a) {
+    function (a, neg) {
         var queue = this._queue,
             waiting = this._waiting,
             emitter = this,
-            ev, tw, tq; 
+            ev, rw, rq; 
 
         if (arguments.length === 0) {
-            tw = queue.splice(0, queue.length);
-            tq = waiting.splice(0, waiting.length);
-            emitter.log("queue cleared of all events", tw, tq);
+            rq = queue.splice(0, queue.length);
+            rw = waiting.splice(0, waiting.length);
+            emitter.log("queue cleared of all events", rw, rq);
             return emitter; 
         }
 
         if (a === true) {
             ev = queue.shift();
+            ev.stop = true;
             emitter.log("event cleared", ev);
             return emitter;
         }
@@ -1134,55 +1135,37 @@ Clear queued up events.
 This should handle the various cases of string/array of strings/function in
 determining whether an event should be removed. 
  
+The queues consist of event objects.
+
+We filter both queue and waiting, storing the ones we wish to keep. After
+going through it, we then use splice to insert the array of ones to keep (in
+temp) and remove all of the old elements. I do not about this being efficient,
+but it should work. 
     
     var filt, f, temp=[];
 
-    f = filter(a);
+    f = filter(a, neg);
     filt = function (el, ind, arr) {
-        if ( f(el[0], el[1], arr) ) {
-            temp.push( arr.splice(ind, 1) ); 
+        if ( f(el.ev, el, ind, arr) ) {
+            el.stop = true;
+        } else {
+            temp.push(el);
         }
     }
-
-    if (typeof a === "string") {
-        filt = function (el, ind, arr) {
-            if (el[0] === a) {
-                temp.push(arr.splice(ind, 1));
-            }
-        };
-    } else if ( Array.isArray(a) ) {
-        filt = function (el, ind, arr) {
-            if (a.indexOf(el[0]) !== -1) {
-                temp.push(arr.splice(ind, 1));
-            }
-        };
-    } else if (a instanceof RegExp) {
-        filt = function (el, ind, arr) {
-            if ( a.test(el[0]) ) {
-                temp.push(arr.splice(ind, 1));
-            }
-        };
-    } else if (typeof a === "function") {
-        filt = function (el, ind, arr) {
-            if (a(el[0], el[1], arr)) {
-                temp.push(arr.splice(ind, 1));
-            }
-        };
-    } else {
-        return emitter;
-    }
-
     queue.forEach(filt);
-    tq = temp.splice(0, temp.length);
+    temp.unshift(0, queue.length);
+    rq = queue.splice.apply(queue, temp);
+    temp.splice(0, temp.length);
     waiting.forEach(filt);
-    tw = temp.splice(0, temp.length);
-    emitter.log("some events stopped", a, tq, tw);
+    temp.unshift(0, waiting.length);
+    rw = waiting.splice.apply(waiting, temp);
+    emitter.log("some events stopped", a, rq, rw);
 
 
 
 [doc]() 
 
-    ### stop(arr/bool/fun/reg/str toRemove) --> emitter
+    ### stop(filter toRemove, bool) --> emitter
 
     This is a general purpose maintainer of the queue/waiting lists. It will
     remove the events that match the first argument in some appropriate way.
@@ -1190,9 +1173,12 @@ determining whether an event should be removed.
     __arguments__
 
     * No argument. Removes all queued events.
-    * String. If the event matches string, then it is removed from queue. This
+    * `toRemove` as boolean true. Current event on queue gets removed, any
+      active handler is stopped.  
+    * `toRemove` Any [filter](#filter) type. If an event matches, it is
+      removed. String. If the event matches string, then it is removed from queue. This
       is an exact full match; scope is not considered.
-    * Array. If the event string matches any string in array, it gets removed.
+    * Array. If the event string exactly matches any string in array, it gets removed.
     * RegExp. If the event string matches the regex, the event gets removed.
       Scope can be dealt with in this way.
     * Function. The function gets the element under consideration and the
@@ -2255,11 +2241,11 @@ second boolean argument for negating.
            
            if (negate) {
                 return function (el) {
-                    return el.indexOf(condition) !== -1;  
+                    return el.indexOf(condition) === -1;  
                 };
             } else {
                 return function (el) {
-                    return el.indexOf(condition) === -1;  
+                    return el.indexOf(condition) !== -1;  
                 }; 
             }
 
@@ -2267,11 +2253,11 @@ second boolean argument for negating.
            
             if (negate) {
                 return function (el) {
-                    return condition.indexOf(el) !== -1;
+                    return condition.indexOf(el) === -1;
                 };
             } else {
                 return function (el) {
-                    return condition.indexOf(el) === -1;
+                   return condition.indexOf(el) !== -1;
                 };
             }
 
@@ -2279,11 +2265,11 @@ second boolean argument for negating.
 
             if (negate) {
                 return function (el) {
-                    return partial.test(el) !== -1;
+                    return !condition.test(el);
                 };
             } else {
                 return function (el) {
-                    return partial.test(el) === -1;
+                    return condition.test(el);
                 };
             }
 

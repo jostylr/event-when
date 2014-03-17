@@ -109,6 +109,7 @@ Testing the when capabilities.
     });
 
     emitter.emit("first ready");
+
     emitter.emit("first ready");
     emitter.emit("second ready");
     emitter.emit("first ready");    
@@ -240,7 +241,6 @@ Can we remove handlers or stop events?
     emit this
     emit that 1
     emit that 2
-    seen because the handler array is not stopped
 
 
 [code]()
@@ -270,7 +270,7 @@ Can we remove handlers or stop events?
             actual.push("emit that 2");
             evObj.emitter.stop(true);
         }, function () {
-            actual.push("seen because the handler array is not stopped");
+            actual.push("not seen because the handler array is stopped");
     }]);
 
     emitter.on("stopping test", [function () {
@@ -605,3 +605,66 @@ We define a command that takes a list of items separated by returns and makes an
     _"handler info*test template";    
 
     _"tracker testing*test template";    
+
+    _"stop"
+
+## stop 
+
+We want to test all the possibilities of the stop method: 
+
+* no args, clearing all events.
+* true, clears current event.
+* string, partial match clears event. 
+* reg, match clears event
+* array, exact matches clears event
+* function, true return value clears event
+* neg as second argument negates all filter types
+
+    test("stop", function (t) {
+        t.plan(10);
+        var noop = function () {};
+        var run = function (stopper) {
+            var emitter = new EventWhen();
+            emitter.on("start", function () {
+                emitter.emit("one:bob");
+                emitter.emit("two:bob");
+                emitter.emit("three:jane");
+                emitter.emit("four");
+                emitter.stop.apply(emitter, stopper[0]);
+                var evs = emitter._queue.map(function(el) {
+                    return el.ev;
+                });
+                t.deepEquals(evs, stopper[1], stopper[2]);
+            });
+            emitter.on("one:bob", noop);
+            emitter.on("two:bob", [noop, noop]);
+            emitter.on("three:jane", noop);
+            emitter.on("four", noop);
+            emitter.emit("start");
+        }; 
+        
+        var scopes = function (ev, el, ind, arr) {
+            if (el.pieces.length >1) {
+                return true;
+            } else {
+                return false;
+            }
+        }
+
+        var stops = [
+        [ [], [], "no args" ],
+        [ [true], ["one:bob", "two:bob", "three:jane", "four"], "true"],
+        [ ["bob"],  ["start", "three:jane", "four"], "str bob" ],
+        [ ["bob", true], ["one:bob", "two:bob"], "neg str bob" ],
+        [ [/^t/], ["start", "one:bob",  "four"], "reg start t"],
+        [ [/^t/, true], ["two:bob", "three:jane"], "neg reg start t"],
+        [ [["two:bob", "three:jane"]], ["start", "one:bob",  "four"], "arr"],
+        [ [["two:bob", "three:jane"], true], ["two:bob", "three:jane"], 
+        "not arr"],
+        [ [scopes], ["start", "four"], "function"],
+        [ [scopes, true], ["one:bob", "two:bob", "three:jane"], 
+        "neg function"]
+        ];
+
+        stops.forEach(run);
+    });

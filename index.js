@@ -10,11 +10,11 @@
                
                if (negate) {
                     return function (el) {
-                        return el.indexOf(condition) !== -1;  
+                        return el.indexOf(condition) === -1;  
                     };
                 } else {
                     return function (el) {
-                        return el.indexOf(condition) === -1;  
+                        return el.indexOf(condition) !== -1;  
                     }; 
                 }
         
@@ -22,11 +22,11 @@
                
                 if (negate) {
                     return function (el) {
-                        return condition.indexOf(el) !== -1;
+                        return condition.indexOf(el) === -1;
                     };
                 } else {
                     return function (el) {
-                        return condition.indexOf(el) === -1;
+                       return condition.indexOf(el) !== -1;
                     };
                 }
         
@@ -34,11 +34,11 @@
         
                 if (negate) {
                     return function (el) {
-                        return partial.test(el) !== -1;
+                        return !condition.test(el);
                     };
                 } else {
                     return function (el) {
-                        return partial.test(el) === -1;
+                        return condition.test(el);
                     };
                 }
         
@@ -722,67 +722,44 @@
         };
     EvW.prototype.nextTick =  (typeof process !== "undefined" && process.nextTick) ? process.nextTick 
             : (function (f) {setTimeout(f, 0);});
-    EvW.prototype.stop = function (a) {
+    EvW.prototype.stop = function (a, neg) {
             var queue = this._queue,
                 waiting = this._waiting,
                 emitter = this,
-                ev, tw, tq; 
+                ev, rw, rq; 
         
             if (arguments.length === 0) {
-                tw = queue.splice(0, queue.length);
-                tq = waiting.splice(0, waiting.length);
-                emitter.log("queue cleared of all events", tw, tq);
+                rq = queue.splice(0, queue.length);
+                rw = waiting.splice(0, waiting.length);
+                emitter.log("queue cleared of all events", rw, rq);
                 return emitter; 
             }
         
             if (a === true) {
                 ev = queue.shift();
+                ev.stop = true;
                 emitter.log("event cleared", ev);
                 return emitter;
             }
             
             var filt, f, temp=[];
             
-            f = filter(a);
+            f = filter(a, neg);
             filt = function (el, ind, arr) {
-                if ( f(el[0], el[1], arr) ) {
-                    temp.push( arr.splice(ind, 1) ); 
+                if ( f(el.ev, el, ind, arr) ) {
+                    el.stop = true;
+                } else {
+                    temp.push(el);
                 }
             }
-            
-            if (typeof a === "string") {
-                filt = function (el, ind, arr) {
-                    if (el[0] === a) {
-                        temp.push(arr.splice(ind, 1));
-                    }
-                };
-            } else if ( Array.isArray(a) ) {
-                filt = function (el, ind, arr) {
-                    if (a.indexOf(el[0]) !== -1) {
-                        temp.push(arr.splice(ind, 1));
-                    }
-                };
-            } else if (a instanceof RegExp) {
-                filt = function (el, ind, arr) {
-                    if ( a.test(el[0]) ) {
-                        temp.push(arr.splice(ind, 1));
-                    }
-                };
-            } else if (typeof a === "function") {
-                filt = function (el, ind, arr) {
-                    if (a(el[0], el[1], arr)) {
-                        temp.push(arr.splice(ind, 1));
-                    }
-                };
-            } else {
-                return emitter;
-            }
-            
             queue.forEach(filt);
-            tq = temp.splice(0, temp.length);
+            temp.unshift(0, queue.length);
+            rq = queue.splice.apply(queue, temp);
+            temp.splice(0, temp.length);
             waiting.forEach(filt);
-            tw = temp.splice(0, temp.length);
-            emitter.log("some events stopped", a, tq, tw);
+            temp.unshift(0, waiting.length);
+            rw = waiting.splice.apply(waiting, temp);
+            emitter.log("some events stopped", a, rq, rw);
             return emitter;
         };
     
