@@ -4,6 +4,71 @@
 ;(function () {
     var empty = {};
 
+    var filter = function (condition, negate) {
+            
+            if (typeof condition === "string") {
+               
+               if (negate) {
+                    return function (el) {
+                        return el.indexOf(condition) !== -1;  
+                    };
+                } else {
+                    return function (el) {
+                        return el.indexOf(condition) === -1;  
+                    }; 
+                }
+        
+            } else if ( Array.isArray(condition) ) {
+               
+                if (negate) {
+                    return function (el) {
+                        return condition.indexOf(el) !== -1;
+                    };
+                } else {
+                    return function (el) {
+                        return condition.indexOf(el) === -1;
+                    };
+                }
+        
+            } else if ( condition instanceof RegExp ) {
+        
+                if (negate) {
+                    return function (el) {
+                        return partial.test(el) !== -1;
+                    };
+                } else {
+                    return function (el) {
+                        return partial.test(el) === -1;
+                    };
+                }
+        
+            } else if ( typeof condition === "function" ) {
+                
+                if (negate) {
+                    return function () {
+                        var self = this;
+                        return ! condition.apply(self, arguments);  
+                    };
+                } else {
+                    return condition;
+                }
+        
+            } else {
+        
+                if (negate) {
+                    return function () {
+                        return false;
+                    };
+                } else {
+                    return function () {
+                        return true;
+                    };
+                }
+        
+            }
+        
+        };
+
     var Handler = function (value, context) {
             if (value instanceof Handler) { 
                  if (typeof context === "undefined") {
@@ -676,7 +741,14 @@
                 return emitter;
             }
             
-            var filt, temp=[];
+            var filt, f, temp=[];
+            
+            f = filter(a);
+            filt = function (el, ind, arr) {
+                if ( f(el[0], el[1], arr) ) {
+                    temp.push( arr.splice(ind, 1) ); 
+                }
+            }
             
             if (typeof a === "string") {
                 filt = function (el, ind, arr) {

@@ -98,6 +98,8 @@ This is the main structure of the module file.
     ;(function () {
         var empty = {};
 
+        var filter = _"filter";
+
         var Handler = _"handler";
 
         _"handler:prototype"
@@ -602,6 +604,7 @@ function wipes out all handlers, period, we do not need to worry about nowhen.
         
         return emitter;
     }          
+ 
 
 [remove handler](# "js")
 
@@ -946,6 +949,12 @@ to delete the action.
 
 We return the name so that one can define an action and then use it. 
 
+[filter]()
+
+This allows for filtering of the action handlers.
+
+    filter(emitter._actions, name)
+
 [doc]() 
 
     ### action(str name, handler, obj context) --> action handler
@@ -1126,7 +1135,14 @@ This should handle the various cases of string/array of strings/function in
 determining whether an event should be removed. 
  
     
-    var filt, temp=[];
+    var filt, f, temp=[];
+
+    f = filter(a);
+    filt = function (el, ind, arr) {
+        if ( f(el[0], el[1], arr) ) {
+            temp.push( arr.splice(ind, 1) ); 
+        }
+    }
 
     if (typeof a === "string") {
         filt = function (el, ind, arr) {
@@ -1381,6 +1397,23 @@ negating the filter effect.
             return ! (f.apply(this, Array.prototype.slice.call(arguments)));
         };
     }
+
+[filter]()
+
+
+    function (partial, neg) {
+        var emitter = this, 
+            handlers = emitter._handlers,
+            keys = Object.keys(handlers), 
+            filt;
+
+            
+        var wrap = _":wrap";
+
+        return filter(handlers, {f: partial, negate : negate});
+    }
+
+
 
 
 [doc]()
@@ -2208,7 +2241,78 @@ This is where we keep track of the log statements and what to do with them.
         this.jStore("emit", arguments); 
     },
 
+### Filter
+
+This is a utility function for construction filter functions for checking
+string matches of various forms. In particular, it can accept the passing in
+of a string for substring matching, array of strings for exact matches, regex,
+null for all, and a function that does its own matching. It takes an optional
+second boolean argument for negating. 
+
+    function (condition, negate) {
+        
+        if (typeof condition === "string") {
+           
+           if (negate) {
+                return function (el) {
+                    return el.indexOf(condition) !== -1;  
+                };
+            } else {
+                return function (el) {
+                    return el.indexOf(condition) === -1;  
+                }; 
+            }
+
+        } else if ( Array.isArray(condition) ) {
+           
+            if (negate) {
+                return function (el) {
+                    return condition.indexOf(el) !== -1;
+                };
+            } else {
+                return function (el) {
+                    return condition.indexOf(el) === -1;
+                };
+            }
+
+        } else if ( condition instanceof RegExp ) {
+
+            if (negate) {
+                return function (el) {
+                    return partial.test(el) !== -1;
+                };
+            } else {
+                return function (el) {
+                    return partial.test(el) === -1;
+                };
+            }
+
+        } else if ( typeof condition === "function" ) {
+            
+            if (negate) {
+                return function () {
+                    var self = this;
+                    return ! condition.apply(self, arguments);  
+                };
+            } else {
+                return condition;
+            }
+
+        } else {
     
+            if (negate) {
+                return function () {
+                    return false;
+                };
+            } else {
+                return function () {
+                    return true;
+                };
+            }
+
+        }
+
+    }
 
 ## README
 
