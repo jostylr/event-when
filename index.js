@@ -55,16 +55,8 @@
         
             } else {
         
-                if (negate) {
-                    return function () {
-                        return false;
-                    };
-                } else {
-                    return function () {
-                        return true;
-                    };
-                }
-        
+                return function () {};
+                
             }
         
         };
@@ -462,16 +454,12 @@
             }
         
             scope = emitter._scopes[ev];
-        
-            if (arguments.length === 1) {           
-                if (scope) {
-                    return scope;
-                } else {
-                    return null;
-                }
-            }
             
-            if ( obj == null ) {
+            if (arguments.length === 1) {
+                return scope; 
+            }
+        
+            if ( obj === null ) {
                 emitter.log("deleting scope event", ev, scope);
                 delete emitter._scopes[ev];
                 return scope;
@@ -485,7 +473,25 @@
         
             emitter._scopes[ev] = obj;
         
-            return ev;
+            return emitter;
+        };
+    EvW.prototype.scopes = function (evfilt, neg) {
+        
+            var emitter = this, 
+                f, keys, ret;
+        
+            if (!evfilt) {
+                keys = Object.keys(emitter._scopes);
+            } else {
+                f = filter(evfilt, neg);
+                keys = Object.keys(emitter._scopes).filter(f);
+            }
+        
+            ret = {};
+            keys.forEach(function (el) {
+                ret[el] = emitter._scopes[el];
+            });
+            return ret;
         };
     
     EvW.prototype.on = function (ev, f, context) {

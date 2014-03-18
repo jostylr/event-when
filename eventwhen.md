@@ -163,6 +163,7 @@ The various prototype methods on the event emitter.
     EvW.prototype.soon = _"emit:convenience method| substitute(TIMING, soon)";
     EvW.prototype.later = _"emit:convenience method| substitute(TIMING, later)";
     EvW.prototype.scope = _"scope";
+    EvW.prototype.scopes = _"scopes";
     
     EvW.prototype.on = _"on";
     EvW.prototype.off = _"off";
@@ -427,16 +428,12 @@ We return the event name so that it can then be used for something else.
         }
 
         scope = emitter._scopes[ev];
-
-        if (arguments.length === 1) {           
-            if (scope) {
-                return scope;
-            } else {
-                return null;
-            }
-        }
         
-        if ( obj == null ) {
+        if (arguments.length === 1) {
+            return scope; 
+        }
+
+        if ( obj === null ) {
             emitter.log("deleting scope event", ev, scope);
             delete emitter._scopes[ev];
             return scope;
@@ -450,7 +447,7 @@ We return the event name so that it can then be used for something else.
 
         emitter._scopes[ev] = obj;
 
-        return ev;
+        return emitter;
     }
 
 [doc]()
@@ -468,8 +465,7 @@ We return the event name so that it can then be used for something else.
 
     * 0 arguments. Leads to the scope keys being returned. 
     * 1 arguments. Leads to specified scope's object being returned.
-    * 2 arguments. Leads to the event string being returned after storing the
-      object, overwriting if necessary.
+    * 2 arguments. Emitter returned for chaining.
 
 
 [example]()
@@ -482,6 +478,52 @@ We return the event name so that it can then be used for something else.
     emitter.scope("button:submit", popupWarning);
     //clears scope button:submit
     emitter.scope("button:submit", null);
+
+#### Scopes
+
+This will return an object with with key as scope, value as context. 
+
+
+    function (evfilt, neg) {
+
+        var emitter = this, 
+            f, keys, ret;
+
+        if (!evfilt) {
+            keys = Object.keys(emitter._scopes);
+        } else {
+            f = filter(evfilt, neg);
+            keys = Object.keys(emitter._scopes).filter(f);
+        }
+
+        ret = {};
+        keys.forEach(function (el) {
+            ret[el] = emitter._scopes[el];
+        });
+        return ret;
+    }
+    
+
+[doc]()
+
+    ### scopes(arr/bool/fun/reg/str filter, bool neg) --> obj
+
+    This returns an object with keys of scopes and values of their contexts. 
+
+    __arguments__
+
+    * No argument or falsy first argument. Selects all scopes for
+      returning.      
+    * `filter` Anything of [filter](#filter) type. Selects all scopes matching
+      filter. 
+    * `neg` Negates the match semantics. 
+
+    __return__
+
+    An object whose keys match the selection and values are the corresponding
+    scope's value. If the value is an object, then that object is the same
+    object and modifications on one will reflect on the other. 
+
 
 
 #### On
@@ -2286,16 +2328,8 @@ second boolean argument for negating.
 
         } else {
     
-            if (negate) {
-                return function () {
-                    return false;
-                };
-            } else {
-                return function () {
-                    return true;
-                };
-            }
-
+            return function () {};
+            
         }
 
     }
@@ -2331,6 +2365,7 @@ The readme for this. A lot of the pieces come from the doc sections.
     * [stop](#stop)
     * [action](#actions)
     * [scope](#scope)
+    * [scopes](#scopes)
     * [events](#events)
     * [handlers](#handlers)
     * [error](#error)
@@ -2368,6 +2403,10 @@ The readme for this. A lot of the pieces come from the doc sections.
     ---
     <a name="scope"></a>
     _"scope:doc"
+
+    ---
+    <a name="scopes"></a>
+    _"scopes:doc"
 
     ---
     <a name="events"></a>

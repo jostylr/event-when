@@ -574,16 +574,16 @@ test('tracker testing', function (s) {
 });    
 
 test("stop", function (t) {
-    t.plan(10);
+    t.plan(11);
     var noop = function () {};
     var run = function (stopper) {
         var emitter = new EventWhen();
         emitter.on("start", function () {
-            emitter.emit("one:bob");
-            emitter.emit("two:bob");
-            emitter.emit("three:jane");
-            emitter.emit("four");
-            emitter.stop.apply(emitter, stopper[0]);
+            emitter.emit("one:bob").
+                emit("two:bob").
+                emit("three:jane").
+                emit("four").
+                stop.apply(emitter, stopper[0]);
             var evs = emitter._queue.map(function(el) {
                 return el.ev;
             });
@@ -616,8 +616,62 @@ test("stop", function (t) {
     "not arr"],
     [ [scopes], ["start", "four"], "function"],
     [ [scopes, true], ["one:bob", "two:bob", "three:jane"], 
-    "neg function"]
+    "neg function"],
+    [ [{ar:1}], ["start", "one:bob", "two:bob", "three:jane", "four"],
+    "not known"] 
     ];
 
     stops.forEach(run);
+});
+
+test("scope", function (t) {
+    t.plan(14);
+           
+    var emitter = new EventWhen();
+
+    t.equals(emitter.scope().length, 0, "empty scope");
+    t.equals(Object.keys(emitter.scopes()).length, 0, "empty scopes");
+    
+    emitter.scope("one:bob", "neat").
+        scope("two:bob", {}).
+        scope("three:jane", "cool").
+        scope("four", {a:"this"});
+
+    t.equals(emitter.scope().length, 4, "scope loaded");
+    
+    t.deepEquals(emitter.scopes("bob"), {"one:bob" : "neat",
+    "two:bob": {}}, "substring");
+    t.deepEquals(emitter.scopes("bob", true), {"three:jane" : "cool",
+    "four": {a: "this"}}, "substring neg");
+
+    t.deepEquals(emitter.scopes(["one:bob", "bob"]), 
+    {"one:bob" : "neat"}, "array of matches");
+    t.deepEquals(emitter.scopes(["one:bob", "bob"], true),
+    {"two:bob": {}, "three:jane" : "cool",
+    "four": {a: "this"}}, "array neg");
+
+    t.deepEquals(emitter.scopes(/^o/), 
+    {"one:bob" : "neat"}, "reg");
+    t.deepEquals(emitter.scopes(/^o/, true),
+    {"two:bob": {}, "three:jane" : "cool",
+    "four": {a: "this"}}, "reg neg");
+    
+    t.deepEquals(emitter.scopes(function(el) { 
+        return el === "one:bob";
+    }), 
+    {"one:bob" : "neat"}, "fun");
+    t.deepEquals(emitter.scopes(function(el) { 
+        return el === "one:bob";
+    }, true),
+    {"two:bob": {}, "three:jane" : "cool",
+    "four": {a: "this"}}, "fun neg"); 
+  
+    emitter.scope("two:bob", null);
+
+    emitter.scope("one:bob", "diff");
+
+    t.equals(emitter.scope().length, 3, "removal");
+    t.equals(emitter.scope("one:bob"), "diff", "different");
+    t.equals(typeof emitter.scope("two:bob"), "undefined", "gone");
+
 });

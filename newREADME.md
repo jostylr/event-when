@@ -76,6 +76,7 @@ These are methods on the emitter object.
 * [stop](#stop)
 * [action](#actions)
 * [scope](#scope)
+* [scopes](#scopes)
 * [events](#events)
 * [handlers](#handlers)
 * [error](#error)
@@ -363,8 +364,27 @@ __return__
 
 * 0 arguments. Leads to the scope keys being returned. 
 * 1 arguments. Leads to specified scope's object being returned.
-* 2 arguments. Leads to the event string being returned after storing the
-  object, overwriting if necessary.
+* 2 arguments. Emitter returned for chaining.
+
+---
+<a name="scopes"></a>
+### scopes(arr/bool/fun/reg/str filter, bool neg) --> obj
+
+This returns an object with keys of scopes and values of their contexts. 
+
+__arguments__
+
+* No argument or falsy first argument. Selects all scopes for
+  returning.      
+* `filter` Anything of [filter](#filter) type. Selects all scopes matching
+  filter. 
+* `neg` Negates the match semantics. 
+
+__return__
+
+An object whose keys match the selection and values are the corresponding
+scope's value. If the value is an object, then that object is the same
+object and modifications on one will reflect on the other. 
 
 ---
 <a name="events"></a>
