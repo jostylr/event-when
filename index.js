@@ -352,6 +352,7 @@
             this._waiting.name = "waiting";
             this._actions = {};
             this._scopes = {};
+            this._monitor = [];
             this.scopeSep = ":";
             this._looping = false;
             this.loopMax = 1000;
@@ -363,7 +364,7 @@
             return this; 
         };
 
-    EvW.prototype.emit = function (ev, data, timing) {
+    EvW.prototype._emit = EvW.prototype.emit = function (ev, data, timing) {
         var emitter = this, 
             sep = emitter.scopeSep, 
             scopes = {};
@@ -405,6 +406,67 @@
     
         return emitter;
     };
+    EvW.prototype._emitWrap = function (ev, data, timing) {
+            var emitter = this, 
+                mon = emitter._monitor,
+                go = true;
+           
+            mon.forEach(function (el) {
+                var filt = el[0],
+                    fun = el[1], 
+                    temp;
+        
+                if (filt(ev)) {
+                    temp = fun(ev, data, emitter); 
+                    if (temp === "stop") {
+                        go = false;
+                    }
+                }
+            });
+        
+            if (go) {
+                emitter._emit(ev, data, timing);
+            }
+        
+            return emitter;
+        
+        };
+    EvW.prototype.monitor = function (filt, listener) {
+        
+            var emitter = this,
+                mon = emitter._monitor, 
+                temp, ret;
+        
+            if (arguments.length === 0) {
+                return mon;
+            }
+        
+            if (arguments.length === 1) {
+                temp = mon.indexOf(filt);
+                if (temp !== -1) {
+                    mon.splice(temp, 1);
+                }
+        
+                if (mon.length === 0) {
+                    emitter.emit = emitter._emit;
+                }
+                
+                return emitter;
+            
+            } 
+        
+            if (arguments.length === 2) {
+                if (Array.isArray(filt) && typeof filt[1] === "boolean") {
+                   ret = [filter(filt[0], filt[1]), listener]; 
+                } else {
+                    ret = [filter(filt), listener];
+                }
+                mon.push(ret);
+                emitter.emit = emitter._emitWrap;
+                return ret;
+            }
+        
+        };
     EvW.prototype.eventLoader = function (timing, evObj) {
             var emitter = this;
         
@@ -757,7 +819,7 @@
                 } else {
                     temp.push(el);
                 }
-            }
+            };
             queue.forEach(filt);
             temp.unshift(0, queue.length);
             rq = queue.splice.apply(queue, temp);

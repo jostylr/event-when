@@ -610,6 +610,8 @@ We define a command that takes a list of items separated by returns and makes an
 
     _"scope"
 
+    _"monitor"
+
 ## stop 
 
 We want to test all the possibilities of the stop method: 
@@ -645,13 +647,13 @@ We want to test all the possibilities of the stop method:
             emitter.emit("start");
         }; 
         
-        var scopes = function (ev, el, ind, arr) {
+        var scopes = function (ev, el) {
             if (el.pieces.length >1) {
                 return true;
             } else {
                 return false;
             }
-        }
+        };
 
         var stops = [
         [ [], [], "no args" ],
@@ -729,3 +731,51 @@ This tests the scope command in all its incarnations.
         t.equals(typeof emitter.scope("two:bob"), "undefined", "gone");
 
     });
+
+## monitor
+
+We will test the monitor function. 
+
+    test("monitor", function (t) {
+        var emitter = new EventWhen(), 
+            removed = false, 
+            bob, nbob;
+
+        t.plan(7);
+
+        bob = emitter.monitor(/bob/, function (ev, data, emitter) {
+            t.equals(ev, "catch:bob", "bob caught");
+            t.equals(data, "neat", "bob data");
+            return "stop";
+        });
+
+        nbob = emitter.monitor([/bob/, true], function (ev, data, emitter) {
+            t.equals(ev, "catch:jane", "jane caught");
+        });
+
+        emitter.on("catch:bob", function () {
+            if (removed) {
+                t.pass("removal okay");
+            } else {
+                t.fail("should have been stopped");
+            }
+        });
+
+        emitter.emit("catch:bob", "neat");
+
+        emitter.emit("catch:jane");
+
+        t.equals(emitter.monitor().length, 2);
+        emitter.monitor(bob);
+        removed = true;
+        t.equals(emitter.monitor().length, 1);
+
+        emitter.emit("catch:bob", "neat");
+        
+        emitter.monitor(nbob);
+
+        t.equals(emitter.emit, emitter._emit, "orig emit");
+
+    });
+
+

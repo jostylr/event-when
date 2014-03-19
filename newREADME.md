@@ -304,9 +304,10 @@ __arguments__
 * `toRemove` as boolean true. Current event on queue gets removed, any
   active handler is stopped.  
 * `toRemove` Any [filter](#filter) type. If an event matches, it is
-  removed. String. If the event matches string, then it is removed from queue. This
-  is an exact full match; scope is not considered.
-* Array. If the event string exactly matches any string in array, it gets removed.
+  removed. String. If the event matches string, then it is removed from
+  queue. This is an exact full match; scope is not considered.
+* Array. If the event string exactly matches any string in array, it gets
+  removed.
 * RegExp. If the event string matches the regex, the event gets removed.
   Scope can be dealt with in this way.
 * Function. The function gets the element under consideration and the
@@ -756,3 +757,20 @@ object. The event object consists of the following properties:
   being executed. 
 * `stop` This is not set, but if set to true, this will halt any further
   handlers from firing from this event object's events.
+
+___
+### Filter Type
+<a name="#filter"></a>
+Several of the methods accept something of filter type. This could be a
+string, an array of strings, a regex, or a function. All of them are being
+used to filter strings based on matching. Most of the methods also allow
+for a negation boolean that will reverse the matching results. 
+
+* String. These will match as a substring of the being tested string. So
+  if "bob" is the filter object, it will match any string containing "bob". 
+* Array of strings. If the string is in the array, it will match. This is
+  an exact match. So if we have ["bob", "jane"], then this will match
+  "bob" or "jane" and no other strings.
+* Regex. If the string matches the regex, it matches. So /bob/ will match
+  any string containing bob. 
+* Function. If the function returns true, then it matches. 

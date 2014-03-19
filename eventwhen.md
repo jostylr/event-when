@@ -139,6 +139,7 @@ passed in without context via nextTick or analog.
         this._waiting.name = "waiting";
         this._actions = {};
         this._scopes = {};
+        this._monitor = [];
         this.scopeSep = ":";
         this._looping = false;
         this.loopMax = 1000;
@@ -156,7 +157,9 @@ The various prototype methods on the event emitter.
 
     
     
-    EvW.prototype.emit = _"emit";
+    EvW.prototype._emit = EvW.prototype.emit = _"emit";
+    EvW.prototype._emitWrap = _"monitor:wrapper";
+    EvW.prototype.monitor = _"monitor";
     EvW.prototype.eventLoader = _"event loader";
     EvW.prototype.now = _"emit:convenience method| substitute(TIMING, now)";
     EvW.prototype.momentary = _"emit:convenience method| substitute(TIMING, momentary)";
@@ -398,6 +401,131 @@ This loads the event object in the appropriate queue.
                 emitter._queue.unshift(evObj);
         }
     }
+
+#### Monitor
+
+Sometimes we may want to intercept/stop/inspect emit events. To do this, we
+provide the monitor method that takes in a filter and a handler function. The
+first assignment activates the wrapping and the passed in handler will be
+activated whenever the filter matches. 
+
+In the constructor, we add _monitor which contains `[filter function,
+listener]` types. 
+
+If you need to do something after the event finishes executing, you can
+attach a custom handler using once to the event. The listener fires
+immediately, regardless of the timer.
+
+If you wish to stop the event, the listener should return "stop".
+
+
+    function (filt, listener) {
+
+        var emitter = this,
+            mon = emitter._monitor, 
+            temp, ret;
+
+
+        if (arguments.length === 0) {
+            return mon;
+        }
+
+        if (arguments.length === 1) {
+            _":remove listener"
+
+            if (mon.length === 0) {
+                emitter.emit = emitter._emit;
+            }
+            
+            return emitter;
+        
+        } 
+
+        if (arguments.length === 2) {
+            if (Array.isArray(filt) && typeof filt[1] === "boolean") {
+               ret = [filter(filt[0], filt[1]), listener]; 
+            } else {
+                ret = [filter(filt), listener];
+            }
+            mon.push(ret);
+            emitter.emit = emitter._emitWrap;
+            return ret;
+        }
+
+
+    }
+
+[remove listener]()
+
+This removes a listener. It should be an exact match to what is in the array. 
+
+    temp = mon.indexOf(filt);
+    if (temp !== -1) {
+        mon.splice(temp, 1);
+    }
+
+[wrapper]() 
+
+This is the wrapper around the normal emit event function that fires instead
+when there are monitors around. 
+
+    function (ev, data, timing) {
+        var emitter = this, 
+            mon = emitter._monitor,
+            go = true;
+       
+        mon.forEach(function (el) {
+            var filt = el[0],
+                fun = el[1], 
+                temp;
+
+            if (filt(ev)) {
+                temp = fun(ev, data, emitter); 
+                if (temp === "stop") {
+                    go = false;
+                }
+            }
+        });
+
+        if (go) {
+            emitter._emit(ev, data, timing);
+        }
+
+        return emitter;
+
+    }
+
+
+[doc]()
+
+    ### monitor(listener arr/filter, listener)
+
+    If you want to react to events on a more coarse grain level, then you can
+    use the monitor method. 
+
+    __arguments__
+
+    * no args. returns array of active listeners.
+    * `filter` Of filter type. Any event that matches the filter will be
+      monitored. If an array of [filter, true] is passed in, that the filter
+      will be negated. 
+    * `listener` This is a function that will respond to the event. It will
+      receive the event being emitted, the data, and the emitter object
+      itself. It has no context other than what is bound to it using .bind. 
+    * `listener arr` If listener array is passed in as first (and only)
+      argument, then the array is removed from the relevant array. 
+
+    __returns__
+
+    Listener array of filter, function when assigning. Use this to remove the
+    monitoring.
+    
+    __example__
+
+        emitter.monitor(/bob/, function(ev, data, emitter) {
+            console.log("bob in ", ev, " with ", data);
+            emitter.emit("bob seen");
+        });
 
 
 #### Scope
@@ -1193,7 +1321,7 @@ but it should work.
         } else {
             temp.push(el);
         }
-    }
+    };
     queue.forEach(filt);
     temp.unshift(0, queue.length);
     rq = queue.splice.apply(queue, temp);
@@ -1218,9 +1346,10 @@ but it should work.
     * `toRemove` as boolean true. Current event on queue gets removed, any
       active handler is stopped.  
     * `toRemove` Any [filter](#filter) type. If an event matches, it is
-      removed. String. If the event matches string, then it is removed from queue. This
-      is an exact full match; scope is not considered.
-    * Array. If the event string exactly matches any string in array, it gets removed.
+      removed. String. If the event matches string, then it is removed from
+      queue. This is an exact full match; scope is not considered.
+    * Array. If the event string exactly matches any string in array, it gets
+      removed.
     * RegExp. If the event string matches the regex, the event gets removed.
       Scope can be dealt with in this way.
     * Function. The function gets the element under consideration and the
@@ -2334,6 +2463,25 @@ second boolean argument for negating.
 
     }
 
+[doc]()
+
+
+    Several of the methods accept something of filter type. This could be a
+    string, an array of strings, a regex, or a function. All of them are being
+    used to filter strings based on matching. Most of the methods also allow
+    for a negation boolean that will reverse the matching results. 
+
+    * String. These will match as a substring of the being tested string. So
+      if "bob" is the filter object, it will match any string containing "bob". 
+    * Array of strings. If the string is in the array, it will match. This is
+      an exact match. So if we have ["bob", "jane"], then this will match
+      "bob" or "jane" and no other strings.
+    * Regex. If the string matches the regex, it matches. So /bob/ will match
+      any string containing bob. 
+    * Function. If the function returns true, then it matches. 
+
+
+
 ## README
 
 The readme for this. A lot of the pieces come from the doc sections.
@@ -2448,6 +2596,12 @@ The readme for this. A lot of the pieces come from the doc sections.
     ### Event Object
     <a name="#evobj"></a>
     _"event object"
+
+    ___
+    ### Filter Type
+    <a name="#filter"></a>
+    _"filter:doc"
+
 
 ## old README
 
