@@ -11,29 +11,32 @@ exists. Of course, if you want to have various emitters, go for it.
 
 There are several noteworthy features of this library:
 
-* When. This is the titular notion. The `.when` method allows you to
-  specify an event to emit after various specified events have all fired.
-  For example, if we call a database and read a file to assemble a
-  webpage, then we can do something like 
+* [When](#when). This is the titular notion.  The `.when` method allows
+  you to specify an event to emit after various specified events have all
+  fired.  For example, if we call a database and read a file to assemble
+  a webpage, then we can do something like 
   ``` 
   emitter.when(["file
-  parsed:jack", "database returned:jack"], "all data retrieved:jack"); 
-  ```
-  This is why the idea of a central emitter is particularly useful to this
-  library's intent.
-* Scope. Events can be scoped. In the above example, each of the events
-  are scoped based on the user jack. It bubbles up from the most specific
-  to the least specific. Each level can access the associated data at all
-  levels. For example, we can store data at the specific jack event level
-  while having the handler at "all data retrieved" access it. Works the
-  other way too. 
-* Actions. Events should be statements of fact. Actions can be used to
-  call functions and are statements of doing. "Compile document" is an
-  action and is a nice way to represent a function handler. "Document
-  compiled" would be what might be emitted after the compilation is done.
-  This is a great way to have a running log of event --> action. 
+  parsed:jack", "database returned:jack"], "all data retrieved:jack");
+  ``` 
+  This is why the idea of a central emitter is particularly useful to
+  this library's intent.
+* [Scope](#scope). Events can be scoped. In the above example, each of
+  the events are scoped based on the user jack. It bubbles up from the
+  most specific to the least specific. Each level can access the
+  associated data at all levels. For example, we can store data at the
+  specific jack event level while having the handler at "all data
+  retrieved" access it. Works the other way too. 
+* [Actions](#action). Events should be statements of fact. Actions can be
+  used to call functions and are statements of doing. "Compile document"
+  is an action and is a nice way to represent a function handler.
+  "Document compiled" would be what might be emitted after the
+  compilation is done.  This is a great way to have a running log of
+  event --> action. 
 * Stuff can be attached to events, emissions, and handlers. Emits send
   data, handlers have contexts, and events have scope contexts.
+* [Monitor](#monitor) One can place a filter and listener to monitor all
+  emits and act appropriately. Could be great for debugging. 
 
 Please note that no particular effort at efficiency has been made. This is
 about making it easier to develop the flow of an application. If you need
@@ -42,7 +45,7 @@ right library.
 
 ### Using
 
-In the browser, include index.js. It will attach the constructor to
+In the browser, include index.js. It will store the constructor as
 EventWhen in the global space. 
 
 For node, use `npm install index.js` or, better, add it to the
@@ -69,12 +72,14 @@ emitter = new EventWhen();
 These are methods on the emitter object. 
 
 * [emit](#emit)
+* [monitor](#monitor)
 * [when](#when)
 * [on](#on)
 * [off](#off)
 * [once](#once)
 * [stop](#stop)
-* [action](#actions)
+* [action](#action)
+* [actions](#actions)
 * [scope](#scope)
 * [scopes](#scopes)
 * [events](#events)
@@ -142,6 +147,37 @@ __example__
     emitter.soon("i'll wait but not too long");
     // generic:specific gets handled then generic
     emitter.emit("generic:specific");
+
+---
+<a name="monitor"></a>
+### monitor(listener arr/filter, listener)
+
+If you want to react to events on a more coarse grain level, then you can
+use the monitor method. 
+
+__arguments__
+
+* no args. returns array of active listeners.
+* `filter` Of filter type. Any event that matches the filter will be
+  monitored. If an array of [filter, true] is passed in, that the filter
+  will be negated. 
+* `listener` This is a function that will respond to the event. It will
+  receive the event being emitted, the data, and the emitter object
+  itself. It has no context other than what is bound to it using .bind. 
+* `listener arr` If listener array is passed in as first (and only)
+  argument, then the array is removed from the relevant array. 
+
+__returns__
+
+Listener array of filter, function when assigning. Use this to remove the
+monitoring.
+
+__example__
+
+    emitter.monitor(/bob/, function(ev, data, emitter) {
+        console.log("bob in ", ev, " with ", data);
+        emitter.emit("bob seen");
+    });
 
 ---
 <a name="when"></a>
@@ -349,6 +385,26 @@ __return__
 * 2 arguments, second null. Deletes association action.
 * 2, 3 arguments. Returns created handler that is now linked to action
   string. 
+
+---
+<a name="actions"></a>
+### actions(arr/bool/fun/reg/str filter, bool neg) --> obj
+
+This returns an object with keys of actions and values of their handlers. 
+
+__arguments__
+
+* No argument or falsy first argument. Selects all actions for
+  returning.      
+* `filter` Anything of [filter](#filter) type. Selects all actions matching
+  filter. 
+* `neg` Negates the match semantics. 
+
+__return__
+
+An object whose keys match the selection and values are the corresponding
+actions's value. If the value is an object, then that object is the same
+object and modifications on one will reflect on the other. 
 
 ---
 <a name="scope"></a>

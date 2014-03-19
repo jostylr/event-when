@@ -778,4 +778,7 @@ We will test the monitor function.
 
     });
 
+## Action
 
+Here we have tests for loading and analyzing actions (not them actually
+acting).

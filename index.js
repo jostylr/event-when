@@ -976,6 +976,24 @@
         
             return action;
         };
+    EvW.prototype.actions = function (evfilt, neg) {
+        
+            var emitter = this, 
+                f, keys, ret;
+        
+            if (!evfilt) {
+                keys = Object.keys(emitter._actions);
+            } else {
+                f = filter(evfilt, neg);
+                keys = Object.keys(emitter._actions).filter(f);
+            }
+        
+            ret = {};
+            keys.forEach(function (el) {
+                ret[el] = emitter._actions[el];
+            });
+            return ret;
+        };
     EvW.prototype.makeHandler = function (value, context) {
             return new Handler(value, context);
         };
