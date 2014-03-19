@@ -438,6 +438,7 @@ If you wish to stop the event, the listener should return "stop".
             _":remove listener"
 
             if (mon.length === 0) {
+                emitter.log("restoring normal emit", filt); 
                 emitter.emit = emitter._emit;
             }
             
@@ -452,6 +453,7 @@ If you wish to stop the event, the listener should return "stop".
                 ret = [filter(filt), listener];
             }
             mon.push(ret);
+            emitter.log("wrapping emit", filt, ret);
             emitter.emit = emitter._emitWrap;
             return ret;
         }
@@ -465,7 +467,10 @@ This removes a listener. It should be an exact match to what is in the array.
 
     temp = mon.indexOf(filt);
     if (temp !== -1) {
+        emitter.log("removing wrapper", filt);
         mon.splice(temp, 1);
+    } else {
+        emitter.log("attempted removal of wrapper failed", filt);
     }
 
 [wrapper]() 
@@ -484,8 +489,10 @@ when there are monitors around.
                 temp;
 
             if (filt(ev)) {
+                emitter.log("intercepting event", ev, data, el);
                 temp = fun(ev, data, emitter); 
                 if (temp === "stop") {
+                    emitter.log("stopping event", ev, data, el);
                     go = false;
                 }
             }

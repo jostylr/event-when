@@ -417,8 +417,10 @@
                     temp;
         
                 if (filt(ev)) {
+                    emitter.log("intercepting event", ev, data, el);
                     temp = fun(ev, data, emitter); 
                     if (temp === "stop") {
+                        emitter.log("stopping event", ev, data, el);
                         go = false;
                     }
                 }
@@ -444,10 +446,14 @@
             if (arguments.length === 1) {
                 temp = mon.indexOf(filt);
                 if (temp !== -1) {
+                    emitter.log("removing wrapper", filt);
                     mon.splice(temp, 1);
+                } else {
+                    emitter.log("attempted removal of wrapper failed", filt);
                 }
         
                 if (mon.length === 0) {
+                    emitter.log("restoring normal emit", filt); 
                     emitter.emit = emitter._emit;
                 }
                 
@@ -462,6 +468,7 @@
                     ret = [filter(filt), listener];
                 }
                 mon.push(ret);
+                emitter.log("wrapping emit", filt, ret);
                 emitter.emit = emitter._emitWrap;
                 return ret;
             }
