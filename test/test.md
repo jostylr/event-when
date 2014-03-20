@@ -614,6 +614,8 @@ We define a command that takes a list of items separated by returns and makes an
     
     _"action"
 
+    _"events handlers listing"
+
 ## stop 
 
 We want to test all the possibilities of the stop method: 
@@ -815,5 +817,65 @@ acting).
         t.equals(typeof emitter.action("first"), "undefined", 
             "undefined action");
         
+
+    });
+
+## events handlers listing
+
+This will test the listing of events and handlers.
+
+    test("events handlers listing", function (t) {
+
+        t.plan(14);
+
+        var emitter = new EventWhen();
+
+        t.equals(emitter.events().length, 0, "no events");
+        var a = emitter.on("first:bob", "act 1");
+        t.equals(emitter.events().length, 1, "added event");
+        t.deepEquals(emitter.handlers(), {"first:bob" : [a]});
+
+        var b = emitter.on("bob", "act 2");
+        var c = emitter.on("second:jane", "act 3");
+        var d = emitter.on("first:bob", "act 4");
+        var e = emitter.on("first:bob", "act 5");
+
+        t.equals(emitter.events().length, 3, "three events");
+        t.deepEquals(emitter.handlers(""), {
+            "first:bob": [a, d, e],
+            "bob" : [b],
+            "second:jane" : [c]
+        });
+        t.deepEquals(emitter.events("bob").sort(), ["first:bob",
+            "bob"].sort(), "bob filter");
+        t.deepEquals(emitter.events(["bob"]), 
+            ["bob"], "exactly bob");
+
+        t.deepEquals(emitter.events("bob", true),
+        ["second:jane"], "not bob");
+        t.deepEquals(emitter.events(["bob"], true).sort(), 
+            ["first:bob", "second:jane"].sort(), "not exactly bob");
+
+        t.deepEquals(emitter.handlers(["bob", true]), {
+            "second:jane" : [c]}, "not bob handler");
+        t.deepEquals(emitter.handlers([["bob"], true]), {
+            "first:bob":[a, d, e],
+            "second:jane" : [c]
+            }, "not exactly bob");
+
+        t.deepEquals(emitter.handlers(["bob", "jane"], true), {
+            "bob":[b],
+            "jane" : null
+            }, "handlers empty arg");
+        t.deepEquals(emitter.handlers(["bob", "jane"]), {
+            "bob":[b]
+            }, "handlers no empty arg");
+
+        emitter.off("first:bob", d); 
+        emitter.off("bob");
+
+        t.deepEquals(emitter.handlers("bob"), {
+            "first:bob" : [a, e]
+        }, "handler removals");
 
     });

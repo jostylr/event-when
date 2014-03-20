@@ -194,7 +194,9 @@
             }
         
             if (typeof htype === "string") {
-                actions[htype].removal(ev, emitter);
+                if (actions.hasOwnProperty(htype) ) {
+                    actions[htype].removal(ev, emitter);
+                }
                 return;
             }
         
@@ -899,7 +901,7 @@
                 events = Object.keys(handlers);
             } else if (!Array.isArray(events)) {
                 events = emitter.events(events);
-            } else if (events[0] === true) {
+            } else if (events[1] === true) {
                 events = emitter.events(events[0], events[1]);
             }
         
