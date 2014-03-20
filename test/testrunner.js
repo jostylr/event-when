@@ -717,3 +717,36 @@ test("monitor", function (t) {
     t.equals(emitter.emit, emitter._emit, "orig emit");
 
 });
+
+test("action", function(t) {
+
+    t.plan(9);
+
+    var emitter = new EventWhen();
+    t.equals(emitter.action().length, 0, "empty action");
+    
+    var a = emitter.action("first", "h");
+    t.deepEquals(emitter.action().length, 1, "action added");
+    t.deepEquals(emitter.actions(), {"first":a}, "actions retrieved");
+    
+    var b = emitter.action("second", "j");
+    var c = emitter.action("first:second", "k");
+    t.deepEquals(emitter.actions("first"), 
+        {"first":a, "first:second":c}, 
+        "actions string");
+    t.deepEquals(emitter.actions("first", true), {"second": b}, 
+        "actions string neg");
+    
+    t.deepEquals(emitter.action("first"), a , 
+        "action retrieved");
+
+    t.deepEquals(Object.keys(emitter.actions()).length,
+        3, "action listing");
+    emitter.action("first", null);
+    t.deepEquals(Object.keys(emitter.actions()).length, 
+        2, "action removal");
+    t.equals(typeof emitter.action("first"), "undefined", 
+        "undefined action");
+    
+
+});
