@@ -670,7 +670,7 @@ We want to test all the possibilities of the stop method:
         [ [scopes], ["start", "four"], "function"],
         [ [scopes, true], ["one:bob", "two:bob", "three:jane"], 
         "neg function"],
-        [ [{ar:1}], ["start", "one:bob", "two:bob", "three:jane", "four"],
+        [ [{ar:1}], [],
         "not known"] 
         ];
 
@@ -745,13 +745,13 @@ We will test the monitor function.
 
         t.plan(7);
 
-        bob = emitter.monitor(/bob/, function (ev, data, emitter) {
+        bob = emitter.monitor(/bob/, function (ev, data) {
             t.equals(ev, "catch:bob", "bob caught");
             t.equals(data, "neat", "bob data");
             return "stop";
         });
 
-        nbob = emitter.monitor([/bob/, true], function (ev, data, emitter) {
+        nbob = emitter.monitor([/bob/, true], function (ev) {
             t.equals(ev, "catch:jane", "jane caught");
         });
 

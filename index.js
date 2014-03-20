@@ -55,7 +55,7 @@
         
             } else {
         
-                return function () {};
+                return function () {return true;};
                 
             }
         
@@ -886,58 +886,21 @@
                 keys = Object.keys(handlers), 
                 filt;
         
-                
-            var wrap = function (f) {
-                    return function () {
-                        return ! (f.apply(this, Array.prototype.slice.call(arguments)));
-                    };
-                };
+            filt = filter(partial, negate);
         
-            if (typeof partial === "function") {
-                filt = (negate ? wrap(partial) : partial);
-                return keys.filter( filt );
-            } else if (partial instanceof RegExp) {
-                filt = (function (el) {
-                    if (partial.test(el)) {
-                        return true;
-                    } else {
-                        return false;
-                    }
-                }); 
-                filt = (negate ? wrap(filt) : filt);
-                return keys.filter( filt );
-            } else if (typeof partial === "string") {
-                filt = (function (el) {
-                    if (el.indexOf(partial) !== -1) {
-                        return true;
-                    } else {
-                        return false;
-                    }
-                }); 
-                filt = (negate ? wrap(filt) : filt);
-                return keys.filter( filt );
-            } else if (Array.isArray(partial)) {
-                filt = (function (el) {
-                    if (partial.indexOf(el) !== -1 ) {
-                        return true;
-                    } else {
-                        return false;
-                    }
-                });
-                filt = (negate ? wrap(filt) : filt);
-                return keys.filter( filt );
-            } else {
-                return keys;
-            }
-        
+            return keys.filter(filt);
         };
     EvW.prototype.handlers = function (events, empty) {
             var emitter = this, 
                 handlers = emitter._handlers, 
                 ret = {}; 
         
-            if (!Array.isArray(events)) {
-                events = this.events(events);
+            if (!events) {
+                events = Object.keys(handlers);
+            } else if (!Array.isArray(events)) {
+                events = emitter.events(events);
+            } else if (events[0] === true) {
+                events = emitter.events(events[0], events[1]);
             }
         
             events.forEach(function (event) {

@@ -329,7 +329,7 @@ The handler that contains both f and the counter.
 
 ---
 <a name="stop"></a>
-### stop(filter toRemove, bool) --> emitter
+### stop(filter toRemove, bool neg) --> emitter
 
 This is a general purpose maintainer of the queue/waiting lists. It will
 remove the events that match the first argument in some appropriate way.
@@ -340,15 +340,8 @@ __arguments__
 * `toRemove` as boolean true. Current event on queue gets removed, any
   active handler is stopped.  
 * `toRemove` Any [filter](#filter) type. If an event matches, it is
-  removed. String. If the event matches string, then it is removed from
-  queue. This is an exact full match; scope is not considered.
-* Array. If the event string exactly matches any string in array, it gets
-  removed.
-* RegExp. If the event string matches the regex, the event gets removed.
-  Scope can be dealt with in this way.
-* Function. The function gets the element under consideration and the
-  array. If it returns a truthy value, then the event gets removed. Could
-  be used in sneaky ways. 
+  removed. 
+* `neg`. Reverse match semantics. 
     
 __returns__
 
@@ -382,9 +375,24 @@ __return__
 
 * 0 arguments. Returns the whole list of defined actions.
 * 1 argument. Returns the handler associated with the action.
-* 2 arguments, second null. Deletes association action.
+* 2 arguments, second null. Deletes associated action.
 * 2, 3 arguments. Returns created handler that is now linked to action
   string. 
+
+__example__
+
+This example demonstrates that an action should be an action sentence
+followed by something that does that action. Here the emit event sends a
+doc string to be compiled. It does so, gets stored, and then the emitter
+emits it when all done. Note files is the context that the handler is
+called in. 
+
+    emitter.action("compile document", function (doc, evObj) {
+        var files = this;
+        var doneDoc = compile(doc);
+        files.push(doneDoc);
+        evObj.emitter.emit("document compiled", doneDoc);
+    }, files);
 
 ---
 <a name="actions"></a>
@@ -396,8 +404,8 @@ __arguments__
 
 * No argument or falsy first argument. Selects all actions for
   returning.      
-* `filter` Anything of [filter](#filter) type. Selects all actions matching
-  filter. 
+* `filter` Anything of [filter](#filter) type. Selects all actions
+  matching filter. 
 * `neg` Negates the match semantics. 
 
 __return__
@@ -405,6 +413,26 @@ __return__
 An object whose keys match the selection and values are the corresponding
 actions's value. If the value is an object, then that object is the same
 object and modifications on one will reflect on the other. 
+
+__example__
+
+The following are various ways to return all actions that contain the
+word bob. 
+ 
+    emitter.actions("bob"); 
+    emitter.actions(/bob/);
+    emitter.actions(function (str) {
+        return str.indexOf("bob") !== -1;
+    });
+
+In contrast, the following only returns the action with bob as the exact
+name.
+
+    emitter.actions(["bob"]);
+    emitter.action("bob");
+
+The first one returns an object of the form `{bob: handler}` while the
+second returns the handler. 
 
 ---
 <a name="scope"></a>
@@ -490,13 +518,16 @@ Get listing of handlers per event.
 
 __arguments__
 
-* `events`. Array of events of interest.
+* `events`. Array of events of interest. 
 * `events`. If function, reg, or string, then events are genertaed by
-  events method.
-* `events. Other including undefined. The events array used is that of all
-  events,
+  events method. Note string is a substring match; to get exact, enclose
+  string in an array. 
+* `events`. If an array of `[filter, true]`, then it reverses the filter
+  selection. 
+* `events`. Falsy. The events array used is that of all events.
 * `empty`. If true, it includes undefined events with handlers of null
-  type.
+  type. This will only happen if an array of events is passed in and
+  there are non-matching strings in that array. 
 
 __return__
 
