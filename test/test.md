@@ -616,6 +616,8 @@ We define a command that takes a list of items separated by returns and makes an
 
     _"events handlers listing"
 
+    _"decycle"
+
 ## stop 
 
 We want to test all the possibilities of the stop method: 
@@ -878,4 +880,20 @@ This will test the listing of events and handlers.
             "first:bob" : [a, e]
         }, "handler removals");
 
+    });
+
+## decycle
+
+This tests the utilty function decycle directly
+
+    test("decycle", function (t) {
+        
+        t.plan(1);
+
+        var emitter = new EventWhen();
+
+        var a = [{b:1}];
+        a[1] = a;
+        t.equals(JSON.stringify(emitter.decycle(a)),
+        '[{"b":1},{"$ref":"$"}]', "Simple cycle");
     });

@@ -103,6 +103,8 @@ This is the main structure of the module file.
 
         var filter = _"filter";
 
+        var decycle = _"cycle:main";
+
         var Handler = _"handler";
 
         _"handler:prototype"
@@ -188,6 +190,10 @@ The various prototype methods on the event emitter.
     EvW.prototype.actions = _"actions";
     EvW.prototype.makeHandler = _"make handler";
     EvW.prototype.error = _"error";
+
+    EvW.prototype.filter = filter;
+    EvW.prototype.decycle = decycle;
+
 
 [doc]()
 
@@ -290,9 +296,10 @@ we have no need for the finished string, just the intermediates.
     * `data` Any value. It will be passed into the handler as the first
       argument. 
     * `timing` One of "now", "momentary", "soon", "later" implying emission
-      first on queue, last on queue, first on next cycle, last on next cycle,
+      first on queue, last on queue, first on waiting list, last on waiting list,
       respectively. "Momentary" is the default if not provided as that will
-      preserve the order of emitting.
+      preserve the order of emitting. The waiting list is shifted once for
+      each tick (or in the browser, setTimeout).
 
     __return__
 
@@ -327,7 +334,7 @@ we have no need for the finished string, just the intermediates.
     Once the event's turn on the queue occurs, the handlers for all the scopes
     fire in sequence without interruption unless an `emit.now` is emitted. To
     delay the handling, one needs to manipulate `evObj.emitter._queue` and
-    `._waiting`. Not recommended. 
+    `._waiting`. 
 
 
     __example__
@@ -919,8 +926,9 @@ consequences.
 
     ### once(str event, handler f, int n, obj context) --> handler h
 
-    This attaches the handler f to fire when event is emitted. But it is tracked
-    to be removed after firing n times. Given its name, the default n is 1.
+    This attaches the handler f to fire when event is emitted. But it is
+    tracked to be removed after firing n times. Given its name, the default n
+    is 1.
 
     __arguments__
 
@@ -2509,7 +2517,138 @@ second boolean argument for negating.
       any string containing bob. 
     * Function. If the function returns true, then it matches. 
 
+### Cycle
 
+This is a modified form  of Crockford's JSON 
+[cycle.js](https://github.com/douglascrockford/JSON-js/blob/master/cycle.js)
+It was released as public domain, 2013-02-19 with no warranty.
+
+My main modification involves catching functions and replacing them with an
+object of the form `{$fun:label}` where the label is found in the function
+_label property. If no label is found, then the function is ignored. If an
+object has a label, then that is returned and the object is not recursed.
+Useful for support objects placed in an object, such as emitter in evObj.
+
+I am only interested in this for logging purposes. I am therefore ignoring the
+recycler part (for now). If I wanted to reinstantiate it, I would want to also
+think about how to resurrect functions. 
+
+Make a deep copy of an object or array, assuring that there is at most
+one instance of each object or array in the resulting structure. The
+duplicate references (which might be forming cycles) are replaced with
+an object of the form `{$ref: PATH}`
+where the PATH is a JSONPath string that locates the first occurance.
+So,
+
+<pre>
+var a = [];
+a[0] = a;
+return JSON.stringify(JSON.decycle(a));
+</pre>
+
+produces the string `[{"$ref":"$"}]`.
+
+JSONPath is used to locate the unique object. $ indicates the top level of
+the object or array. [NUMBER] or [STRING] indicates a child member or
+property.
+
+[main]()
+
+    function (obj) {
+
+        var objects = [],   // Keep a reference to each unique object or array
+            paths = [],     // Keep the path to each unique object or array
+            ret;
+
+        ret = (_":derez")(obj, "$");
+        return ret;
+    }
+        
+[derez]()
+
+The derez recurses through the object, producing the deep copy.
+
+typeof null === 'object', so go on if this value is really an object but not
+one of the weird builtin objects.
+
+    function derez(value, path) {
+
+        var i, name, nu, temp;
+ 
+        if (typeof value === "function") {
+            if ( value.hasOwnProperty("_label") ) {
+                return {$fun:value._label};
+            } else {
+                return {$fun:null};
+            }
+        }
+
+        if ( typeof value === 'object' && value !== null &&
+            !(value instanceof Boolean) &&
+            !(value instanceof Date)    &&
+            !(value instanceof Number)  &&
+            !(value instanceof RegExp)  &&
+            !(value instanceof String) ) {
+                
+                _":descend"
+
+        }
+
+        return value;
+    }
+
+[descend]()
+
+If the value is an object or array, first check for a label. If there is a
+label, we store them as a type such as $obj or $arr. One can also use a
+custom type stored in _type which will have a $ appended in front. 
+
+If not, then look to see if we have already encountered it. If so, return a
+$ref/path object. This is a hard way, linear search that will get slower as
+the number of unique objects grows.
+
+If the object is not already known, add it to objects and associate the passed
+in path to it.
+
+Once the original reference is stored, then we duplicate it, two separate
+paths for arrays vs. other objects. Note that later uses of the object do not
+need to care about the duplicate because the path is being stored for them,
+not the copy. 
+
+    if ( value.hasOwnProperty("_label") ) {
+        if ( value.hasOwnProperty("_type") ) {
+            temp = {};
+            temp["$"+value._type] = value._label;
+            return temp;
+        } else if ( Array.isArray(value) ) {
+            return {$arr:value._label};
+        } else {
+            return {$obj:value._label};
+        }
+    }
+
+    if ( ( i = objects.indexOf(value) ) !== -1 ) {
+        return {$ref: paths[i]};
+    }
+
+    objects.push(value);
+    paths.push(path);
+
+    if ( Array.isArray(value) ) {
+        return value.map(function (el, ind) {
+            return derez(el, path + "[" + ind + "]");
+        });
+    }
+
+
+    nu = {};
+    for ( name in value ) {
+        if ( value.hasOwnProperty(name) ) {
+            nu[name] = derez(value[name],
+                path + '[' + name + ']');
+        }
+    }
+    return nu;
 
 ## README
 

@@ -61,6 +61,72 @@
         
         };
 
+    var decycle = function (obj) {
+        
+            var objects = [],   // Keep a reference to each unique object or array
+                paths = [],     // Keep the path to each unique object or array
+                ret;
+        
+            ret = (function derez(value, path) {
+                
+                    var i, name, nu, temp;
+                 
+                    if (typeof value === "function") {
+                        if ( value.hasOwnProperty("_label") ) {
+                            return {$fun:value._label};
+                        } else {
+                            return {$fun:null};
+                        }
+                    }
+                
+                    if ( typeof value === 'object' && value !== null &&
+                        !(value instanceof Boolean) &&
+                        !(value instanceof Date)    &&
+                        !(value instanceof Number)  &&
+                        !(value instanceof RegExp)  &&
+                        !(value instanceof String) ) {
+                            
+                            if ( value.hasOwnProperty("_label") ) {
+                                if ( value.hasOwnProperty("_type") ) {
+                                    temp = {};
+                                    temp["$"+value._type] = value._label;
+                                    return temp;
+                                } else if ( Array.isArray(value) ) {
+                                    return {$arr:value._label};
+                                } else {
+                                    return {$obj:value._label};
+                                }
+                            }
+                            
+                            if ( ( i = objects.indexOf(value) ) !== -1 ) {
+                                return {$ref: paths[i]};
+                            }
+                            
+                            objects.push(value);
+                            paths.push(path);
+                            
+                            if ( Array.isArray(value) ) {
+                                return value.map(function (el, ind) {
+                                    return derez(el, path + "[" + ind + "]");
+                                });
+                            }
+                            
+                            nu = {};
+                            for ( name in value ) {
+                                if ( value.hasOwnProperty(name) ) {
+                                    nu[name] = derez(value[name],
+                                        path + '[' + name + ']');
+                                }
+                            }
+                            return nu;
+                
+                    }
+                
+                    return value;
+                })(obj, "$");
+            return ret;
+        };
+
     var Handler = function (value, context) {
             if (value instanceof Handler) { 
                  if (typeof context === "undefined") {
@@ -975,6 +1041,9 @@
             emitter.log("error raised", e, handler, data, evObj, context);
             throw Error(e);
         };
+    
+    EvW.prototype.filter = filter;
+    EvW.prototype.decycle = decycle;
 
     if (module) {
         module.exports = EvW;

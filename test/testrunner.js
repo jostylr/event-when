@@ -806,3 +806,15 @@ test("events handlers listing", function (t) {
     }, "handler removals");
 
 });
+
+test("decycle", function (t) {
+    
+    t.plan(1);
+
+    var emitter = new EventWhen();
+
+    var a = [{b:1}];
+    a[1] = a;
+    t.equals(JSON.stringify(emitter.decycle(a)),
+    '[{"b":1},{"$ref":"$"}]', "Simple cycle");
+});

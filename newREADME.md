@@ -100,9 +100,10 @@ __arguments__
 * `data` Any value. It will be passed into the handler as the first
   argument. 
 * `timing` One of "now", "momentary", "soon", "later" implying emission
-  first on queue, last on queue, first on next cycle, last on next cycle,
+  first on queue, last on queue, first on waiting list, last on waiting list,
   respectively. "Momentary" is the default if not provided as that will
-  preserve the order of emitting.
+  preserve the order of emitting. The waiting list is shifted once for
+  each tick (or in the browser, setTimeout).
 
 __return__
 
@@ -137,7 +138,7 @@ of objects of the form `{str scopeEvent, arr handlers}`.
 Once the event's turn on the queue occurs, the handlers for all the scopes
 fire in sequence without interruption unless an `emit.now` is emitted. To
 delay the handling, one needs to manipulate `evObj.emitter._queue` and
-`._waiting`. Not recommended. 
+`._waiting`. 
 
 __example__
 
@@ -311,8 +312,9 @@ __example__
 <a name="once"></a>
 ### once(str event, handler f, int n, obj context) --> handler h
 
-This attaches the handler f to fire when event is emitted. But it is tracked
-to be removed after firing n times. Given its name, the default n is 1.
+This attaches the handler f to fire when event is emitted. But it is
+tracked to be removed after firing n times. Given its name, the default n
+is 1.
 
 __arguments__
 
