@@ -105,6 +105,8 @@ This is the main structure of the module file.
 
         var decycle = _"cycle:main";
 
+        var serial = _"serial";
+
         var Handler = _"handler";
 
         _"handler:prototype"
@@ -153,6 +155,8 @@ passed in without context via nextTick or analog.
 
         this.looper = this.looper.bind(this);
 
+        this._label = "emitter";
+
         return this; 
     }
 
@@ -193,6 +197,7 @@ The various prototype methods on the event emitter.
 
     EvW.prototype.filter = filter;
     EvW.prototype.decycle = decycle;
+    EvW.prototype.serial = serial;
 
 
 [doc]()
@@ -227,11 +232,11 @@ The various prototype methods on the event emitter.
 
 This function emits the events.
 
-We will load the event onto the queue or waiting list, depending on the timing
-provided. We create an object, `evObj` that will be passed around as the
-second argument into handlers. It wil contain the deconstruction of the scopes
-along with their scope objects. It also creates a copy of the handlers array
-for each of the scope levels. 
+We will load the event onto the queue or waiting list, depending on the
+timing provided. We create an object, `evObj` that will be passed around as
+the second argument into handlers. It wil contain the deconstruction of the
+scopes along with their scope objects. It also creates a copy of the
+handlers array for each of the scope levels. 
 
 When ready, we load the events and call the loop (which exits immediately if
 we are already in the loop). 
@@ -445,7 +450,7 @@ If you wish to stop the event, the listener should return "stop".
             _":remove listener"
 
             if (mon.length === 0) {
-                emitter.log("restoring normal emit", filt); 
+                emitter.log("restoring normal emit", filt.filt, filt); 
                 emitter.emit = emitter._emit;
             }
             
@@ -460,6 +465,7 @@ If you wish to stop the event, the listener should return "stop".
                 ret = [filter(filt), listener];
             }
             mon.push(ret);
+            ret.filt = filt;
             emitter.log("wrapping emit", filt, ret);
             emitter.emit = emitter._emitWrap;
             return ret;
@@ -1118,7 +1124,7 @@ to delete the action.
 
         if ( (arguments.length === 2) && (handler === null) ) {
             delete emitter._actions[name];
-            emitter.log("Removed action", name);
+            emitter.log("removed action", name);
             return name;
         }
         
@@ -1520,50 +1526,44 @@ the emitter.
     };
 
 
-####  MakeLog
+#### MakeLog
 
-This is a sample log function that could be used. To use it, simply set the instance's property log to `this.makeLog()` which generates a log function with its own log data. This will prevent garbage collection so profile it if using this with a large event system. 
-
-Logs everything, storing the result in the function itself under the name log. To print out, use .print(description) for those whose leading string is description or just .print() for full results.
+This creates a sample log function, storing simple descriptions in `_logs` and
+the full data in `_full`, both attached to the log function as properties. It
+uses the functions stored in the functions fdesc property to create the simple
+descriptions. 
 
     function () {
         var emitter = this;
-        var log = {
-            _full : [],
-            _simple : []
-        };
-        var pass = function () {
-            return Array.prototype.slice.call(arguments, 0);
-        };
-        var ret = function (description) {
-            var f; 
-            log._full.push(Array.prototype.slice.call(arguments, 0));
-            log._simple.push(description);
-            if (ret.hasOwnProperty(description) ) {
-                f = ret.description;
-            } else {
-                f = pass;
+        var s = serial;
+        var logs = [],
+            full = [], 
+            fdesc = {_"logs"};
+
+        var ret = function (desc) {
+            var args = Array.prototype.slice.call(arguments, 0);
+
+            if ( ret.fdesc.hasOwnProperty(desc) ) {
+                logs.push( fdesc[desc].apply( emitter, args.slice(1) ) );
             }
-            if (log.hasOwnProperty(description) ) {
-                log[description].push(f(arguments));
-            } else {
-                log[description] = [f(arguments)];
-            }
+
+            full.push(s(args));
         };
-        ret.data = log; 
-        ret.print = function (description) {
-            if (description) {
-                console.log(log[description]);
-            } else {
-                console.log(log._simple);
-            }
+
+        ret._logs = logs;
+        ret._full = full;
+        ret.fdesc = fdesc;
+
+        ret.full = function (filt, neg) {
+            var f = filter(filt, neg);
+            return full.filter(f); 
         };
-        ret.full = function () {
-            console.log(log._full);    
+
+        ret.logs = function (filt, neg) {
+            var f = filter(filt, neg);
+            return logs.filter(f); 
         };
-        ret.filter = function (f) {
-            console.log(log._simple.filter(f));
-        };
+
         emitter.log = ret; 
         return ret;
     }
@@ -1572,9 +1572,33 @@ Logs everything, storing the result in the function itself under the name log. T
 
     ### makeLog() --> fun
 
-    This creates a log function. It is a convenient form, but the log property should often be overwritten. If this is not invoked, then the log is a noop for performance/memory. 
+    This creates a log function. It is a convenient form, but the log
+    property should often be overwritten. If this is not invoked, then the
+    log is a noop for performance/memory. 
 
-    `emitter.log` expects a description as a first argument and then whatever else varies. 
+    `emitter.log` expects a description as a first argument and then whatever
+    else varies. 
+
+    The log has various properties/methods of interest: 
+
+    * `_logs` This is where the carefully crafted logs are stored. This
+      should be the most useful and meaningful statements for each logged
+      event. 
+    * `_full`. This is a complete dumping of all passed in data to the log,
+      including the description. 
+    * `fdesc` This is the object whose keys are the emitter.log descriptions
+      and whose values are functions that produce the log input. This is not
+      prototyped; if you delete a function, it is gone. This allows for easy
+      removal of unwanted descriptions, but...
+    * `full` This produces the logs. It arguments get passed to the fitler
+      function so strings match as substrings, regexs, arrays of exact
+      matches (probably not that useful...), general function filters, and
+      the ability to reverse the matches (maybe the array is useful for
+      that). 
+    * `logs` This acts on the logs array instead of the full array. Otherwise
+      same as the full function. 
+     
+    
 
 
 #### Events
@@ -2428,12 +2452,61 @@ We first cancel everything to clear it out and then we attach the new stuff.
 This is where we keep track of the log statements and what to do with them. 
 
 
-    // emitter.log("emitting event", ev, data, timing, evObj);
-
-    "emitting event" : function (ev, data, timing, evObj) {
-        this.push("emitting " + ev + " with timing " + timing);
-        this.jStore("emit", arguments); 
+    "emit" : function (ev, data, timing) {
+        return "Event " + s(ev) +
+            " emitted with data " + s(data) +
+            ( (timing !== emitter.timing) ? " with timing " + 
+                s(timing) : "" );
     },
+  
+    "restoring normal emit" : function (filt) {
+        return "Last monitor " + s(filt) + " removed, emit restored";
+    },
+
+    "wrapping emit" : function (filt) {
+        return "Creating monitor " + s(filt);
+    },
+
+    
+    "removing wrapper" : function (filt) {
+        return "Removing monitor " + s(filt.orig);
+    },
+
+
+"attempted removal of wrapper failed", filt);
+"intercepting event", ev, data, el);
+"stopping event", ev, data, el);
+"deleting scope event", ev, scope);
+"overwriting scope event", ev, obj, scope);
+"creating scope event", ev, obj);
+"on", ev, f, context); 
+"all handlers removed from all events");
+"handler for event removed", ev, removed);
+"removed handlers on event ignoring when", ev); 
+"removing all handlers on event", ev);
+"once", ev, n, f, context, handler);
+"when", events, ev, timing, reset, tracker);
+"removed action", name);
+"overwriting action", name, emitter._actions[name],
+"creating action", name, action); 
+"looping called again", caller);
+"looping hit max", loop);
+"loop ended", caller, loop);
+"firing", ev, f, evObj);
+"fired", ev, f, evObj);
+"emission stopped", ev, evObj);
+"queue cleared of all events", rw, rq);
+"event cleared", ev);
+"some events stopped", a, rq, rw);
+"error raised", e, handler, data, evObj, context);
+"untracked", ev, htype.tracker, htype);
+"unreachable reached", "removal", ev, htype);
+"executing action", value, evObj);
+"action not found", value, evObj);
+"executing function", value, evObj);
+"value not executable", value, evObj);
+"canceling tracker", tracker);
+
 
 ### Filter
 
@@ -2649,6 +2722,19 @@ not the copy.
         }
     }
     return nu;
+
+#### Serial
+
+This is a simple wrapper to stringify the result of the cycle using pretty
+printing too. 
+
+    function (str, spacer) {
+        
+        return JSON.stringify(decycle(str), spacer);
+    
+    }
+
+    
 
 ## README
 

@@ -572,52 +572,6 @@ We define a command that takes a list of items separated by returns and makes an
  [heading](#heading "define: command | | now")
 
 
-## [testrunner.js](#testrunner.js "save: |jshint")
-
-    /*global require*/
-    var EventWhen = require('../index.js'),
-        test = require('tape');
-
-    _"two on and some emits*test template";
-
-    _"simple once test*test template";
-
-    _"turning off a handler*test template";
-
-    _"when waiting for 2 events*test template";
-
-    _"checking action naming*test template";
-
-    _"checking handlers and events*test template";
-
-    _"handler with context*test template";
-
-    _"handler with two handles*test template";
-
-    _"canceling*test template";
-
-    _"error checking*test template";
-
-    _"flow testing*test template";
-
-    _"when with later*test template";
-
-    _"handler info*test template";    
-
-    _"tracker testing*test template";    
-
-    _"stop"
-
-    _"scope"
-
-    _"monitor"
-    
-    _"action"
-
-    _"events handlers listing"
-
-    _"decycle"
-
 ## stop 
 
 We want to test all the possibilities of the stop method: 
@@ -897,3 +851,87 @@ This tests the utilty function decycle directly
         t.equals(JSON.stringify(emitter.decycle(a)),
         '[{"b":1},{"$ref":"$"}]', "Simple cycle");
     });
+
+## log testing
+
+This will test out the various log stuff. 
+
+    test("log testing", function (t) {
+        
+        t.plan(2);
+
+        var emitter = new EventWhen();
+
+        var log = emitter.makeLog();
+
+        emitter.emit("first", "got data");
+
+        t.deepEquals(log.logs(), 
+        ['Event "first" emitted with data "got data"'], 
+        "emit event");
+
+        console.log(JSON.parse(log.full()[0]));
+        t.deepEquals(JSON.parse(log.full()[0]), 
+            [ 'emit','first', 'got data', 'momentary',
+              { emitter: { '$obj': 'emitter' },
+                ev: 'first',
+                data: 'got data',
+                scopes: {},
+                pieces: [ 'first' ],
+                count: 1,
+                timing: 'momentary',
+                events: []
+              } ],
+            "emit event full data");
+
+
+    });
+
+## [testrunner.js](#testrunner.js "save: |jshint")
+
+    /*global require*/
+    var EventWhen = require('../index.js'),
+        test = require('tape');
+
+    _"two on and some emits*test template";
+
+    _"simple once test*test template";
+
+    _"turning off a handler*test template";
+
+    _"when waiting for 2 events*test template";
+
+    _"checking action naming*test template";
+
+    _"checking handlers and events*test template";
+
+    _"handler with context*test template";
+
+    _"handler with two handles*test template";
+
+    _"canceling*test template";
+
+    _"error checking*test template";
+
+    _"flow testing*test template";
+
+    _"when with later*test template";
+
+    _"handler info*test template";    
+
+    _"tracker testing*test template";    
+
+    _"stop"
+
+    _"scope"
+
+    _"monitor"
+    
+    _"action"
+
+    _"events handlers listing"
+
+    _"decycle"
+
+    _"log testing"
+

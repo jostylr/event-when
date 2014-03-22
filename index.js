@@ -127,6 +127,12 @@
             return ret;
         };
 
+    var serial = function (str, spacer) {
+            
+            return JSON.stringify(decycle(str), spacer);
+        
+        };
+
     var Handler = function (value, context) {
             if (value instanceof Handler) { 
                  if (typeof context === "undefined") {
@@ -429,6 +435,8 @@
         
             this.looper = this.looper.bind(this);
         
+            this._label = "emitter";
+        
             return this; 
         };
 
@@ -521,7 +529,7 @@
                 }
         
                 if (mon.length === 0) {
-                    emitter.log("restoring normal emit", filt); 
+                    emitter.log("restoring normal emit", filt.filt, filt); 
                     emitter.emit = emitter._emit;
                 }
                 
@@ -536,6 +544,7 @@
                     ret = [filter(filt), listener];
                 }
                 mon.push(ret);
+                ret.filt = filt;
                 emitter.log("wrapping emit", filt, ret);
                 emitter.emit = emitter._emitWrap;
                 return ret;
@@ -909,42 +918,53 @@
     EvW.prototype.log = function () {}; //noop stub
     EvW.prototype.makeLog = function () {
             var emitter = this;
-            var log = {
-                _full : [],
-                _simple : []
-            };
-            var pass = function () {
-                return Array.prototype.slice.call(arguments, 0);
-            };
-            var ret = function (description) {
-                var f; 
-                log._full.push(Array.prototype.slice.call(arguments, 0));
-                log._simple.push(description);
-                if (ret.hasOwnProperty(description) ) {
-                    f = ret.description;
-                } else {
-                    f = pass;
+            var s = serial;
+            var logs = [],
+                full = [], 
+                fdesc = {"emit" : function (ev, data, timing) {
+                        return "Event " + s(ev) +
+                            " emitted with data " + s(data) +
+                            ( (timing !== emitter.timing) ? " with timing " + 
+                                s(timing) : "" );
+                    },
+                      
+                    "restoring normal emit" : function (filt) {
+                        return "Last monitor " + s(filt) + " removed, emit restored";
+                    },
+                    
+                    "wrapping emit" : function (filt) {
+                        return "Creating monitor " + s(filt);
+                    },
+                    
+                    
+                    "removing wrapper" : function (filt) {
+                        return "Removing monitor " + s(filt.orig);
+                    },};
+        
+            var ret = function (desc) {
+                var args = Array.prototype.slice.call(arguments, 0);
+        
+                if ( ret.fdesc.hasOwnProperty(desc) ) {
+                    logs.push( fdesc[desc].apply( emitter, args.slice(1) ) );
                 }
-                if (log.hasOwnProperty(description) ) {
-                    log[description].push(f(arguments));
-                } else {
-                    log[description] = [f(arguments)];
-                }
+        
+                full.push(s(args));
             };
-            ret.data = log; 
-            ret.print = function (description) {
-                if (description) {
-                    console.log(log[description]);
-                } else {
-                    console.log(log._simple);
-                }
+        
+            ret._logs = logs;
+            ret._full = full;
+            ret.fdesc = fdesc;
+        
+            ret.full = function (filt, neg) {
+                var f = filter(filt, neg);
+                return full.filter(f); 
             };
-            ret.full = function () {
-                console.log(log._full);    
+        
+            ret.logs = function (filt, neg) {
+                var f = filter(filt, neg);
+                return logs.filter(f); 
             };
-            ret.filter = function (f) {
-                console.log(log._simple.filter(f));
-            };
+        
             emitter.log = ret; 
             return ret;
         };
@@ -997,7 +1017,7 @@
         
             if ( (arguments.length === 2) && (handler === null) ) {
                 delete emitter._actions[name];
-                emitter.log("Removed action", name);
+                emitter.log("removed action", name);
                 return name;
             }
             
@@ -1044,6 +1064,7 @@
     
     EvW.prototype.filter = filter;
     EvW.prototype.decycle = decycle;
+    EvW.prototype.serial = serial;
 
     if (module) {
         module.exports = EvW;

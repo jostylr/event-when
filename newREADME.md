@@ -565,9 +565,32 @@ __example__
 <a name="log"></a>
 ### makeLog() --> fun
 
-This creates a log function. It is a convenient form, but the log property should often be overwritten. If this is not invoked, then the log is a noop for performance/memory. 
+This creates a log function. It is a convenient form, but the log
+property should often be overwritten. If this is not invoked, then the
+log is a noop for performance/memory. 
 
-`emitter.log` expects a description as a first argument and then whatever else varies. 
+`emitter.log` expects a description as a first argument and then whatever
+else varies. 
+
+The log has various properties/methods of interest: 
+
+* `_logs` This is where the carefully crafted logs are stored. This
+  should be the most useful and meaningful statements for each logged
+  event. 
+* `_full`. This is a complete dumping of all passed in data to the log,
+  including the description. 
+* `fdesc` This is the object whose keys are the emitter.log descriptions
+  and whose values are functions that produce the log input. This is not
+  prototyped; if you delete a function, it is gone. This allows for easy
+  removal of unwanted descriptions, but...
+* `full` This produces the logs. It arguments get passed to the fitler
+  function so strings match as substrings, regexs, arrays of exact
+  matches (probably not that useful...), general function filters, and
+  the ability to reverse the matches (maybe the array is useful for
+  that). 
+* `logs` This acts on the logs array instead of the full array. Otherwise
+  same as the full function. 
+
 
 ---
 <a name="makehandler"></a>

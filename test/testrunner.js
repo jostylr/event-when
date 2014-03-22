@@ -818,3 +818,33 @@ test("decycle", function (t) {
     t.equals(JSON.stringify(emitter.decycle(a)),
     '[{"b":1},{"$ref":"$"}]', "Simple cycle");
 });
+
+test("log testing", function (t) {
+    
+    t.plan(2);
+
+    var emitter = new EventWhen();
+
+    var log = emitter.makeLog();
+
+    emitter.emit("first", "got data");
+
+    t.deepEquals(log.logs(), 
+    ['Event "first" emitted with data "got data"'], 
+    "emit event");
+
+    console.log(JSON.parse(log.full()[0]));
+    t.deepEquals(JSON.parse(log.full()[0]), 
+        [ 'emit','first', 'got data', 'momentary',
+          { emitter: { '$obj': 'emitter' },
+            ev: 'first',
+            data: 'got data',
+            scopes: {},
+            pieces: [ 'first' ],
+            count: 1,
+            timing: 'momentary',
+            events: []
+          } ],
+        "emit event full data");
+
+});
