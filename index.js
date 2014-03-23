@@ -127,9 +127,13 @@
             return ret;
         };
 
-    var serial = function (str, spacer) {
+    var serial = function (obj) {
             
-            return JSON.stringify(decycle(str), spacer);
+            if (arguments.length > 1) {
+                obj = Array.prototype.slice.apply(arguments, 0);
+            }
+        
+            return JSON.stringify(decycle(obj));
         
         };
 
@@ -545,7 +549,7 @@
                 }
                 mon.push(ret);
                 ret.filt = filt;
-                emitter.log("wrapping emit", filt, ret);
+                emitter.log("wrapping emit", filt, listener, ret);
                 emitter.emit = emitter._emitWrap;
                 return ret;
             }
@@ -640,11 +644,11 @@
             return ret;
         };
     
-    EvW.prototype.on = function (ev, f, context) {
+    EvW.prototype.on = function (ev, proto, context) {
             var emitter = this,
                 handlers = emitter._handlers;
         
-            f = new Handler(f, context); 
+            f = new Handler(proto, context); 
         
             if (handlers.hasOwnProperty(ev)) {
                     handlers[ev].push(f);
@@ -654,7 +658,7 @@
                 handlers[ev].contains = Handler.prototype.contains;
             }
         
-            emitter.log("on", ev, f, context); 
+            emitter.log("on", ev, proto, f, context); 
         
             return f;
         
@@ -741,7 +745,13 @@
                 context = temp;
             }
         
-            handler.n = n || 1;
+            if ( n > 1) {
+                n = Math.ceil(n);
+            } else { 
+                n = 1;
+            }
+        
+            handler.n = n;
         
             g = function() {
                 handler.n -=1;
@@ -928,17 +938,91 @@
                                 s(timing) : "" );
                     },
                       
-                    "restoring normal emit" : function (filt) {
-                        return "Last monitor " + s(filt) + " removed, emit restored";
+                    "restoring normal emit" : function (filt, ret) {
+                        return "Last monitor removed, emit restored";
                     },
                     
                     "wrapping emit" : function (filt) {
-                        return "Creating monitor " + s(filt);
+                        return "Creating monitor " + s(filt, listener);
                     },
                     
                     
                     "removing wrapper" : function (filt) {
-                        return "Removing monitor " + s(filt.orig);
+                        return "Removing monitor " + s(filt.filt, filt[1]);
+                    },
+                    
+                    "attempted removal of wrapper failed": function(filt){
+                        return "Failed to find/remove monitor " + s(filt);
+                    },
+                    
+                    "intercepting event" : function ( ev, data, el){
+                        return "Intercepted event " + s(ev, data) +
+                            " with monitor " + s(filt.filt, filt[1]);
+                    },
+                    
+                    "stopping event" : function(ev, data, el) {
+                        return "Stopping event " + s(ev, data) +
+                            " because of monitor " + s(filt.filt, filt[1]);
+                    },
+                    
+                    "deleting scope event" : function (ev, scope) {
+                        return "Scope event removed " + s(ev, scope);
+                    },
+                    
+                    "overwriting scope event" : function(ev, obj, scope) {
+                        return "Changing the scope of " + s(ev) + " from " +
+                            s(scope) + " to " + s(obj);
+                    }, 
+                    
+                    "creating scope event" : function (ev, obj) {
+                        return "Event " + s(ev) + " now has a scope " + s(obj); 
+                    },
+                    
+                    "on" : function (ev, proto, f, context) {
+                        return "Attaching " + s(proto) + " to event " + s(ev) + 
+                            ( context ?  " with context " + s(context) : "" ); 
+                    },
+                    
+                    "all handlers removed from all events" : function () {
+                        return "Wiped out all handlers from all events";
+                    }, 
+                    
+                    "handler for event removed" : function (ev, removed) {
+                        return "Removed handler " + s(removed) + " from " + s(ev);
+                    },
+                    
+                    "removed handlers on event ignoring when" : function (ev) {
+                        return "Removing handlers for " + s(ev);
+                    },
+                    
+                    "removing all handlers on event" : function (ev) {
+                        return "Removing handlers for " + s(ev);
+                    },
+                    
+                    "once" : function(ev, n, proto, context) {
+                        return "Attaching " + s(proto) + " to event " + s(ev) + 
+                            "for " + s(n) + " time" + ( (n > 1) ? "s" : "" ) +   
+                            ( context ?  " with context " + s(context) : "" ); 
+                    },
+                    
+                    "when" : function (events, ev, timing, reset, tracker) {
+                        return "Will emit " + s(ev) + 
+                            " when the following have fired: " + 
+                            s(events) + 
+                            ( timing ? " with timing " + s(timing) : "" ) +
+                            ( reset ? " will reset" : "" ); 
+                    },
+                    
+                    "removed action" : function(name) {
+                        return "Removing action " + s(name);
+                    },
+                    
+                    "overwriting action" : function (name, proto) {
+                        return "Overwiting " + s(name) + " with new " + s(proto);
+                    },
+                    
+                    "creating action" : function(name, proto) {
+                        return "Creating action " + s(name) + " with new " + s(proto);
                     },};
         
             var ret = function (desc) {
@@ -1024,10 +1108,10 @@
             var action = new Handler(handler, context); 
         
             if (emitter._actions.hasOwnProperty(name) ) {
-                emitter.log("overwriting action", name, emitter._actions[name],
-                    action);
+                emitter.log("overwriting action", name, handler,
+                    emitter._actions[name], action);
             } else {
-                emitter.log("creating action", name, action); 
+                emitter.log("creating action", name, handler, action); 
             }
         
             emitter._actions[name] = action;

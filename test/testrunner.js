@@ -833,7 +833,6 @@ test("log testing", function (t) {
     ['Event "first" emitted with data "got data"'], 
     "emit event");
 
-    console.log(JSON.parse(log.full()[0]));
     t.deepEquals(JSON.parse(log.full()[0]), 
         [ 'emit','first', 'got data', 'momentary',
           { emitter: { '$obj': 'emitter' },

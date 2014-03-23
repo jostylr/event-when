@@ -1,7 +1,8 @@
 # [event-when](# "version: 0.6.0-pre| jostylr")
 
 
-This is an event library that emphasizes flow-control from a single dispatch object. 
+This is an event library that emphasizes flow-control from a single dispatch
+object. 
 
 ## Introduction
 
@@ -14,9 +15,9 @@ file.
     coordinated through a single object. The emphasis throughout is on
     coordinating the global flow of the program. 
 
-    Most event libraries suggest making objects into emitters. This library is
-    designed to allow you to attach the object to the event/handler/emit. It
-    also allows you to listen for events before the corresponding object
+    Most event libraries suggest making objects into emitters. This library
+    is designed to allow you to attach the object to the event/handler/emit.
+    It also allows you to listen for events before the corresponding object
     exists. Of course, if you want to have various emitters, go for it. 
 
     There are several noteworthy features of this library:
@@ -48,10 +49,10 @@ file.
     * [Monitor](#monitor) One can place a filter and listener to monitor all
       emits and act appropriately. Could be great for debugging. 
 
-    Please note that no particular effort at efficiency has been made. This is
-    about making it easier to develop the flow of an application. If you need
-    something that handles large number of events quickly, this may not be the
-    right library. 
+    Please note that no particular effort at efficiency has been made. This
+    is about making it easier to develop the flow of an application. If you
+    need something that handles large number of events quickly, this may not
+    be the right library. 
 
     ### Using
 
@@ -82,8 +83,8 @@ The file structure is fairly simple.
 * [TODO.md](#todo "save: | clean raw") A list of growing and shrinking items
   todo.
 * [LICENSE](#license-mit "save: | clean raw") The MIT license.
-* [.travis.yml](#travis "save:") A .travis.yml file for [Travis
-  CI](https://travis-ci.org/)
+* [.travis.yml](#travis "save:") A .travis.yml file for 
+  [Travis CI](https://travis-ci.org/)
 * [.gitignore](#gitignore "Save:") A .gitignore file
 * [.npmignore](#npmignore "Save:") A .npmignore file
 
@@ -264,8 +265,8 @@ we are already in the loop).
 
         var events = evObj.events = [];
 
-Note we use the reduce function for the construction of each scope level, but
-we have no need for the finished string, just the intermediates.
+Note we use the reduce function for the construction of each scope level,
+but we have no need for the finished string, just the intermediates.
 
         pieces.reduce(function (prev, el) {
             var ret = prev + (prev ? sep + el : el);            
@@ -301,10 +302,10 @@ we have no need for the finished string, just the intermediates.
     * `data` Any value. It will be passed into the handler as the first
       argument. 
     * `timing` One of "now", "momentary", "soon", "later" implying emission
-      first on queue, last on queue, first on waiting list, last on waiting list,
-      respectively. "Momentary" is the default if not provided as that will
-      preserve the order of emitting. The waiting list is shifted once for
-      each tick (or in the browser, setTimeout).
+      first on queue, last on queue, first on waiting list, last on waiting
+      list, respectively. "Momentary" is the default if not provided as that
+      will preserve the order of emitting. The waiting list is shifted once
+      for each tick (or in the browser, setTimeout).
 
     __return__
 
@@ -314,32 +315,33 @@ we have no need for the finished string, just the intermediates.
     __convenience forms__ 
 
     * `.now`  Event A emits B, B fires after the emitting handler finishes,
-      but before other handler's for A finishes. This is the function calling
-      model.
-    * `.momentary` Event A emits B, B fires after A finishes. This is more of
-      a synchronous callback model. It is the same as `.emit` with the default
-      setting.
-    * `.soon` Event A emits B then C, both with soon, then C fires after next
-      tick. B fires after second tick.
+      but before other handler's for A finishes. This is the function
+      calling model.
+    * `.momentary` Event A emits B, B fires after A finishes. This is more
+      of a synchronous callback model. It is the same as `.emit` with the
+      default setting.
+    * `.soon` Event A emits B then C, both with soon, then C fires after
+      next tick. B fires after second tick.
     * `.later` Event A emits B then C, both with later, then B fires after
       next tick. C fires after second tick.
 
     __scope__ 
 
-    Note that if ev contains the event separator, `:` by default, then it will
-    be broken up into multiple events, each one being emitted. The order of
-    emission is from the most specific to the general (bubbling up).
-    `emitter.scopeSep` holds what to split on.
+    Note that if ev contains the event separator, `:` by default, then it
+    will be broken up into multiple events, each one being emitted. The
+    order of emission is from the most specific to the general (bubbling
+    up).  `emitter.scopeSep` holds what to split on.
 
     To stop the emitting and any bubbling, set `evObj.stop === true` in the
-    handler ( handler signature is `(data, evObj)` ). To do more fine-controlled
-    stopping, you need to manipulate `evObj.events` which is an array consisting
-    of objects of the form `{str scopeEvent, arr handlers}`. 
+    handler ( handler signature is `(data, evObj)` ). To do more
+    fine-controlled stopping, you need to manipulate `evObj.events` which is
+    an array consisting of objects of the form `{str scopeEvent, arr
+    handlers}`. 
 
-    Once the event's turn on the queue occurs, the handlers for all the scopes
-    fire in sequence without interruption unless an `emit.now` is emitted. To
-    delay the handling, one needs to manipulate `evObj.emitter._queue` and
-    `._waiting`. 
+    Once the event's turn on the queue occurs, the handlers for all the
+    scopes fire in sequence without interruption unless an `emit.now` is
+    emitted. To delay the handling, one needs to manipulate
+    `evObj.emitter._queue` and `._waiting`. 
 
 
     __example__
@@ -466,7 +468,7 @@ If you wish to stop the event, the listener should return "stop".
             }
             mon.push(ret);
             ret.filt = filt;
-            emitter.log("wrapping emit", filt, ret);
+            emitter.log("wrapping emit", filt, listener, ret);
             emitter.emit = emitter._emitWrap;
             return ret;
         }
@@ -476,7 +478,8 @@ If you wish to stop the event, the listener should return "stop".
 
 [remove listener]()
 
-This removes a listener. It should be an exact match to what is in the array. 
+This removes a listener. It should be an exact match to what is in the
+array. 
 
     temp = mon.indexOf(filt);
     if (temp !== -1) {
@@ -685,11 +688,11 @@ Handler.  To have segments that are always in order, use a Handler with an
 array value of handler-types that will be executed in order.
 
 
-    function (ev, f, context) {
+    function (ev, proto, context) {
         var emitter = this,
             handlers = emitter._handlers;
 
-        f = new Handler(f, context); 
+        f = new Handler(proto, context); 
 
         if (handlers.hasOwnProperty(ev)) {
                 handlers[ev].push(f);
@@ -699,7 +702,7 @@ array value of handler-types that will be executed in order.
             handlers[ev].contains = Handler.prototype.contains;
         }
 
-        emitter.log("on", ev, f, context); 
+        emitter.log("on", ev, proto, f, context); 
 
         return f;
 
@@ -910,7 +913,13 @@ consequences.
 
         _":switch vars"
 
-        handler.n = n || 1;
+        if ( n > 1) {
+            n = Math.ceil(n);
+        } else { 
+            n = 1;
+        }
+
+        handler.n = n;
 
         g = function() {
             handler.n -=1;
@@ -963,18 +972,19 @@ If needed, we switch n and context
 #### When
 
 This is a key innovation. The idea is that once this is called, a handler is
-created that attaches to all the listed events and takes care of figuring when
-they have all called. 
+created that attaches to all the listed events and takes care of figuring
+when they have all called. 
 
-When all the events have fired, then the given event emits with a data object
-that is an array  of all the fired event's data, specifically the array
-elements are arrays of the form `[event name, data]`. 
+When all the events have fired, then the given event emits with a data
+object that is an array  of all the fired event's data, specifically the
+array elements are arrays of the form `[event name, data]`. 
 
 The return is the tracker which contains all things that might need to be
 accessed. It also contains the remove methods to cancel the `.when`.
 
 It has the argument of timing used to time the emitting of the event to be
-fired. The argument reset allows for reseting to the initial state once fired. 
+fired. The argument reset allows for reseting to the initial state once
+fired. 
 
 Emitting scoped events will count also as a firing of the parents, e.g.,
 `.when([["button", 3], "disable")` will have `.emit("button:submit")` remove
@@ -1009,17 +1019,18 @@ one of the button counts (unless event bubbling is stopped). But
 
         emitter.log("when", events, ev, timing, reset, tracker);
 
-We return the tracker since one should use that to remove it. If you want the
-handler itself, it is in tracker.handler. It just seems more natural this way
-since the manipulations use tracker. 
+We return the tracker since one should use that to remove it. If you want
+the handler itself, it is in tracker.handler. It just seems more natural
+this way since the manipulations use tracker. 
 
         return tracker;
     }
 
 [assign timing reset]()
 
-Four arguments is not so good because who can remember the order? Since timing
-should be a string while reset should be a boolean, we can handle this.
+Four arguments is not so good because who can remember the order? Since
+timing should be a string while reset should be a boolean, we can handle
+this.
 
 Note that we are not actually checking for correctness, just trying to make
 sure that properly written, but unordered, is okay. 
@@ -1054,14 +1065,14 @@ sure that properly written, but unordered, is okay.
     * `events` A string or an array of strings. These represent the events
       that need to be fired before taking the specified action. The array
       could also contain a numbered event which is of the form `[event, # of
-      times]`. This will countdown the number of times the event fires before
-      considering it done. 
-    * `ev` This is the event that gets emitted after all the events have taken
-      place. It should be an event string.
+      times]`. This will countdown the number of times the event fires
+      before considering it done. 
+    * `ev` This is the event that gets emitted after all the events have
+      taken place. It should be an event string.
     * `timing` Emits `ev` based on the timing provided, as in `.emit`.
     * `reset` Setting this to true will cause this setup to be setup again
-      once fired. The original events array is saved and restored. Default is
-      false. This can also be changed after initialization by setting
+      once fired. The original events array is saved and restored. Default
+      is false. This can also be changed after initialization by setting
       tracker.reset. 
 
     __return__
@@ -1071,8 +1082,8 @@ sure that properly written, but unordered, is okay.
 
     __note__
 
-    If an event fires more times than is counted and later the when is reset,
-    those extra times do not get counted. 
+    If an event fires more times than is counted and later the when is
+    reset, those extra times do not get counted. 
 
     __example__
 
@@ -1131,10 +1142,10 @@ to delete the action.
         var action = new Handler(handler, context); 
 
         if (emitter._actions.hasOwnProperty(name) ) {
-            emitter.log("overwriting action", name, emitter._actions[name],
-                action);
+            emitter.log("overwriting action", name, handler,
+                emitter._actions[name], action);
         } else {
-            emitter.log("creating action", name, action); 
+            emitter.log("creating action", name, handler, action); 
         }
 
         emitter._actions[name] = action;
@@ -2459,36 +2470,95 @@ This is where we keep track of the log statements and what to do with them.
                 s(timing) : "" );
     },
   
-    "restoring normal emit" : function (filt) {
-        return "Last monitor " + s(filt) + " removed, emit restored";
+    "restoring normal emit" : function (filt, ret) {
+        return "Last monitor removed, emit restored";
     },
 
     "wrapping emit" : function (filt) {
-        return "Creating monitor " + s(filt);
+        return "Creating monitor " + s(filt, listener);
     },
 
     
     "removing wrapper" : function (filt) {
-        return "Removing monitor " + s(filt.orig);
+        return "Removing monitor " + s(filt.filt, filt[1]);
+    },
+
+    "attempted removal of wrapper failed": function(filt){
+        return "Failed to find/remove monitor " + s(filt);
+    },
+
+    "intercepting event" : function ( ev, data, el){
+        return "Intercepted event " + s(ev, data) +
+            " with monitor " + s(filt.filt, filt[1]);
+    },
+
+    "stopping event" : function(ev, data, el) {
+        return "Stopping event " + s(ev, data) +
+            " because of monitor " + s(filt.filt, filt[1]);
+    },
+
+    "deleting scope event" : function (ev, scope) {
+        return "Scope event removed " + s(ev, scope);
+    },
+
+    "overwriting scope event" : function(ev, obj, scope) {
+        return "Changing the scope of " + s(ev) + " from " +
+            s(scope) + " to " + s(obj);
+    }, 
+
+    "creating scope event" : function (ev, obj) {
+        return "Event " + s(ev) + " now has a scope " + s(obj); 
+    },
+
+    "on" : function (ev, proto, f, context) {
+        return "Attaching " + s(proto) + " to event " + s(ev) + 
+            ( context ?  " with context " + s(context) : "" ); 
+    },
+
+    "all handlers removed from all events" : function () {
+        return "Wiped out all handlers from all events";
+    }, 
+
+    "handler for event removed" : function (ev, removed) {
+        return "Removed handler " + s(removed) + " from " + s(ev);
+    },
+
+    "removed handlers on event ignoring when" : function (ev) {
+        return "Removing handlers for " + s(ev);
+    },
+
+    "removing all handlers on event" : function (ev) {
+        return "Removing handlers for " + s(ev);
+    },
+
+    "once" : function(ev, n, proto, context) {
+        return "Attaching " + s(proto) + " to event " + s(ev) + 
+            "for " + s(n) + " time" + ( (n > 1) ? "s" : "" ) +   
+            ( context ?  " with context " + s(context) : "" ); 
     },
 
 
-"attempted removal of wrapper failed", filt);
-"intercepting event", ev, data, el);
-"stopping event", ev, data, el);
-"deleting scope event", ev, scope);
-"overwriting scope event", ev, obj, scope);
-"creating scope event", ev, obj);
-"on", ev, f, context); 
-"all handlers removed from all events");
-"handler for event removed", ev, removed);
-"removed handlers on event ignoring when", ev); 
-"removing all handlers on event", ev);
-"once", ev, n, f, context, handler);
-"when", events, ev, timing, reset, tracker);
-"removed action", name);
-"overwriting action", name, emitter._actions[name],
-"creating action", name, action); 
+    "when" : function (events, ev, timing, reset, tracker) {
+        return "Will emit " + s(ev) + 
+            " when the following have fired: " + 
+            s(events) + 
+            ( timing ? " with timing " + s(timing) : "" ) +
+            ( reset ? " will reset" : "" ); 
+    },
+    
+    "removed action" : function(name) {
+        return "Removing action " + s(name);
+    },
+    
+    "overwriting action" : function (name, proto) {
+        return "Overwiting " + s(name) + " with new " + s(proto);
+    },
+
+    "creating action" : function(name, proto) {
+        return "Creating action " + s(name) + " with new " + s(proto);
+    },
+
+
 "looping called again", caller);
 "looping hit max", loop);
 "loop ended", caller, loop);
@@ -2512,9 +2582,9 @@ This is where we keep track of the log statements and what to do with them.
 
 This is a utility function for construction filter functions for checking
 string matches of various forms. In particular, it can accept the passing in
-of a string for substring matching, array of strings for exact matches, regex,
-null for all, and a function that does its own matching. It takes an optional
-second boolean argument for negating. 
+of a string for substring matching, array of strings for exact matches,
+regex, null for all, and a function that does its own matching. It takes an
+optional second boolean argument for negating. 
 
     function (condition, negate) {
         
@@ -2577,17 +2647,18 @@ second boolean argument for negating.
 
 
     Several of the methods accept something of filter type. This could be a
-    string, an array of strings, a regex, or a function. All of them are being
-    used to filter strings based on matching. Most of the methods also allow
-    for a negation boolean that will reverse the matching results. 
+    string, an array of strings, a regex, or a function. All of them are
+    being used to filter strings based on matching. Most of the methods also
+    allow for a negation boolean that will reverse the matching results. 
 
     * String. These will match as a substring of the being tested string. So
-      if "bob" is the filter object, it will match any string containing "bob". 
-    * Array of strings. If the string is in the array, it will match. This is
-      an exact match. So if we have ["bob", "jane"], then this will match
+      if "bob" is the filter object, it will match any string containing
+      "bob". 
+    * Array of strings. If the string is in the array, it will match. This
+      is an exact match. So if we have ["bob", "jane"], then this will match
       "bob" or "jane" and no other strings.
-    * Regex. If the string matches the regex, it matches. So /bob/ will match
-      any string containing bob. 
+    * Regex. If the string matches the regex, it matches. So /bob/ will
+      match any string containing bob. 
     * Function. If the function returns true, then it matches. 
 
 ### Cycle
@@ -2725,12 +2796,16 @@ not the copy.
 
 #### Serial
 
-This is a simple wrapper to stringify the result of the cycle using pretty
-printing too. 
+This is a simple wrapper to stringify the result of the decycle. If multiple
+arguments are supplied, an arrayified version of is yielded. 
 
-    function (str, spacer) {
+    function (obj) {
         
-        return JSON.stringify(decycle(str), spacer);
+        if (arguments.length > 1) {
+            obj = Array.prototype.slice.apply(arguments, 0);
+        }
+
+        return JSON.stringify(decycle(obj));
     
     }
 

@@ -4,9 +4,9 @@ This is an event library, but one in which events and listeners are
 coordinated through a single object. The emphasis throughout is on
 coordinating the global flow of the program. 
 
-Most event libraries suggest making objects into emitters. This library is
-designed to allow you to attach the object to the event/handler/emit. It
-also allows you to listen for events before the corresponding object
+Most event libraries suggest making objects into emitters. This library
+is designed to allow you to attach the object to the event/handler/emit.
+It also allows you to listen for events before the corresponding object
 exists. Of course, if you want to have various emitters, go for it. 
 
 There are several noteworthy features of this library:
@@ -38,10 +38,10 @@ There are several noteworthy features of this library:
 * [Monitor](#monitor) One can place a filter and listener to monitor all
   emits and act appropriately. Could be great for debugging. 
 
-Please note that no particular effort at efficiency has been made. This is
-about making it easier to develop the flow of an application. If you need
-something that handles large number of events quickly, this may not be the
-right library. 
+Please note that no particular effort at efficiency has been made. This
+is about making it easier to develop the flow of an application. If you
+need something that handles large number of events quickly, this may not
+be the right library. 
 
 ### Using
 
@@ -100,10 +100,10 @@ __arguments__
 * `data` Any value. It will be passed into the handler as the first
   argument. 
 * `timing` One of "now", "momentary", "soon", "later" implying emission
-  first on queue, last on queue, first on waiting list, last on waiting list,
-  respectively. "Momentary" is the default if not provided as that will
-  preserve the order of emitting. The waiting list is shifted once for
-  each tick (or in the browser, setTimeout).
+  first on queue, last on queue, first on waiting list, last on waiting
+  list, respectively. "Momentary" is the default if not provided as that
+  will preserve the order of emitting. The waiting list is shifted once
+  for each tick (or in the browser, setTimeout).
 
 __return__
 
@@ -113,32 +113,33 @@ depending on the timing.
 __convenience forms__ 
 
 * `.now`  Event A emits B, B fires after the emitting handler finishes,
-  but before other handler's for A finishes. This is the function calling
-  model.
-* `.momentary` Event A emits B, B fires after A finishes. This is more of
-  a synchronous callback model. It is the same as `.emit` with the default
-  setting.
-* `.soon` Event A emits B then C, both with soon, then C fires after next
-  tick. B fires after second tick.
+  but before other handler's for A finishes. This is the function
+  calling model.
+* `.momentary` Event A emits B, B fires after A finishes. This is more
+  of a synchronous callback model. It is the same as `.emit` with the
+  default setting.
+* `.soon` Event A emits B then C, both with soon, then C fires after
+  next tick. B fires after second tick.
 * `.later` Event A emits B then C, both with later, then B fires after
   next tick. C fires after second tick.
 
 __scope__ 
 
-Note that if ev contains the event separator, `:` by default, then it will
-be broken up into multiple events, each one being emitted. The order of
-emission is from the most specific to the general (bubbling up).
-`emitter.scopeSep` holds what to split on.
+Note that if ev contains the event separator, `:` by default, then it
+will be broken up into multiple events, each one being emitted. The
+order of emission is from the most specific to the general (bubbling
+up).  `emitter.scopeSep` holds what to split on.
 
 To stop the emitting and any bubbling, set `evObj.stop === true` in the
-handler ( handler signature is `(data, evObj)` ). To do more fine-controlled
-stopping, you need to manipulate `evObj.events` which is an array consisting
-of objects of the form `{str scopeEvent, arr handlers}`. 
+handler ( handler signature is `(data, evObj)` ). To do more
+fine-controlled stopping, you need to manipulate `evObj.events` which is
+an array consisting of objects of the form `{str scopeEvent, arr
+handlers}`. 
 
-Once the event's turn on the queue occurs, the handlers for all the scopes
-fire in sequence without interruption unless an `emit.now` is emitted. To
-delay the handling, one needs to manipulate `evObj.emitter._queue` and
-`._waiting`. 
+Once the event's turn on the queue occurs, the handlers for all the
+scopes fire in sequence without interruption unless an `emit.now` is
+emitted. To delay the handling, one needs to manipulate
+`evObj.emitter._queue` and `._waiting`. 
 
 __example__
 
@@ -192,14 +193,14 @@ __arguments__
 * `events` A string or an array of strings. These represent the events
   that need to be fired before taking the specified action. The array
   could also contain a numbered event which is of the form `[event, # of
-  times]`. This will countdown the number of times the event fires before
-  considering it done. 
-* `ev` This is the event that gets emitted after all the events have taken
-  place. It should be an event string.
+  times]`. This will countdown the number of times the event fires
+  before considering it done. 
+* `ev` This is the event that gets emitted after all the events have
+  taken place. It should be an event string.
 * `timing` Emits `ev` based on the timing provided, as in `.emit`.
 * `reset` Setting this to true will cause this setup to be setup again
-  once fired. The original events array is saved and restored. Default is
-  false. This can also be changed after initialization by setting
+  once fired. The original events array is saved and restored. Default
+  is false. This can also be changed after initialization by setting
   tracker.reset. 
 
 __return__
@@ -209,8 +210,8 @@ events. See [Tracker type](#tracker)
 
 __note__
 
-If an event fires more times than is counted and later the when is reset,
-those extra times do not get counted. 
+If an event fires more times than is counted and later the when is
+reset, those extra times do not get counted. 
 
 __example__
 
@@ -874,15 +875,16 @@ ___
 ### Filter Type
 <a name="#filter"></a>
 Several of the methods accept something of filter type. This could be a
-string, an array of strings, a regex, or a function. All of them are being
-used to filter strings based on matching. Most of the methods also allow
-for a negation boolean that will reverse the matching results. 
+string, an array of strings, a regex, or a function. All of them are
+being used to filter strings based on matching. Most of the methods also
+allow for a negation boolean that will reverse the matching results. 
 
 * String. These will match as a substring of the being tested string. So
-  if "bob" is the filter object, it will match any string containing "bob". 
-* Array of strings. If the string is in the array, it will match. This is
-  an exact match. So if we have ["bob", "jane"], then this will match
+  if "bob" is the filter object, it will match any string containing
+  "bob". 
+* Array of strings. If the string is in the array, it will match. This
+  is an exact match. So if we have ["bob", "jane"], then this will match
   "bob" or "jane" and no other strings.
-* Regex. If the string matches the regex, it matches. So /bob/ will match
-  any string containing bob. 
+* Regex. If the string matches the regex, it matches. So /bob/ will
+  match any string containing bob. 
 * Function. If the function returns true, then it matches. 
