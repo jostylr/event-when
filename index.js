@@ -74,8 +74,10 @@
                     if (typeof value === "function") {
                         if ( value.hasOwnProperty("_label") ) {
                             return {$fun:value._label};
-                        } else {
-                            return {$fun:null};
+                        } else { 
+                            return {$fun:value.toString().
+                                replace(/\s+/g, " ").
+                                slice(0,60)};
                         }
                     }
                 
@@ -130,7 +132,7 @@
     var serial = function (obj) {
             
             if (arguments.length > 1) {
-                obj = Array.prototype.slice.apply(arguments, 0);
+                obj = Array.prototype.slice.call(arguments, 0);
             }
         
             return JSON.stringify(decycle(obj));
@@ -462,7 +464,8 @@
             scopes : scopes, 
             pieces : pieces,
             count : emitter.emitCount,
-            timing : timing
+            timing : timing,
+            unseen : true
         };
     
         var events = evObj.events = [];
@@ -648,7 +651,7 @@
             var emitter = this,
                 handlers = emitter._handlers;
         
-            f = new Handler(proto, context); 
+            var f = new Handler(proto, context); 
         
             if (handlers.hasOwnProperty(ev)) {
                     handlers[ev].push(f);
@@ -834,6 +837,16 @@
                 evObj = queue[0];
                 events = evObj.events;
                 
+                if (evObj.unseen) {
+                    emitter.log("seeing new event", evObj.ev, evObj);
+                    delete evObj.unseen;
+                    delete evObj.again;
+                } else if (evObj.again) {
+                    emitter.log("seeing event again", evObj.ev, evObj);
+                    delete evObj.again; 
+                }
+                
+                
                 if (events.length === 0) {
                     queue.shift();
                     continue;
@@ -870,6 +883,7 @@
         
             if (queue.length) {
                 emitter.log("looping hit max", loop);
+                queue[0].again = true;
                 emitter.nextTick(self);
             } else if ( waiting.length ) {
                 emitter.nextTick(self);
@@ -938,11 +952,11 @@
                                 s(timing) : "" );
                     },
                       
-                    "restoring normal emit" : function (filt, ret) {
+                    "restoring normal emit" : function () {
                         return "Last monitor removed, emit restored";
                     },
                     
-                    "wrapping emit" : function (filt) {
+                    "wrapping emit" : function (filt, listener) {
                         return "Creating monitor " + s(filt, listener);
                     },
                     
@@ -955,12 +969,12 @@
                         return "Failed to find/remove monitor " + s(filt);
                     },
                     
-                    "intercepting event" : function ( ev, data, el){
+                    "intercepting event" : function ( ev, data, filt){
                         return "Intercepted event " + s(ev, data) +
                             " with monitor " + s(filt.filt, filt[1]);
                     },
                     
-                    "stopping event" : function(ev, data, el) {
+                    "stopping event" : function(ev, data, filt) {
                         return "Stopping event " + s(ev, data) +
                             " because of monitor " + s(filt.filt, filt[1]);
                     },
@@ -1005,7 +1019,7 @@
                             ( context ?  " with context " + s(context) : "" ); 
                     },
                     
-                    "when" : function (events, ev, timing, reset, tracker) {
+                    "when" : function (events, ev, timing, reset) {
                         return "Will emit " + s(ev) + 
                             " when the following have fired: " + 
                             s(events) + 
@@ -1023,7 +1037,74 @@
                     
                     "creating action" : function(name, proto) {
                         return "Creating action " + s(name) + " with new " + s(proto);
-                    },};
+                    },
+                    
+                    "seeing new event" : function (ev) {
+                        return s(ev) + " is being handled";
+                    },
+                    
+                    "seeing event again" : function (ev) {
+                        return s(ev) + " is again being handled";
+                    },
+                    
+                    "emission stopped" : function (ev) {
+                        return "Event " + s(ev) + " emission stopped";
+                    },
+                    
+                    "queue cleared of all events" : function () {
+                        return "Currently queued events for emitting have all been removed";
+                    },
+                    
+                    "event cleared" : function (ev) {
+                        return "Event " + s(ev) + " cleared from queue";
+                    },
+                    
+                    "some events stopped" : function(a, rq, rw) {
+                        
+                        var qlist = rq.map(function (el) {
+                            return el.ev;
+                        }); 
+                    
+                        var wlist = rw.map(function (el) {
+                            return el.ev;
+                        });  
+                    
+                        return "Events stopped per filter " + s(a) + 
+                            "resulting in the elimination of " + 
+                            s(qlist) + " and " + s(wlist);
+                    },
+                    
+                    "error raised" : function(e, handler, data, evObj, context) {
+                        var err = "error " + e + "\n\n" +
+                            "event " + 
+                            ( (evObj.ev === evObj.cur[0] ) ?
+                                s(evObj.ev) :
+                                s(evObj.ev, evObj.cur[0]) ) + 
+                            "\nhandler " + s(handler) + 
+                            "\ndata " + s(data) + 
+                            "\ncontext " + s(context) + 
+                            "\nscopes " + s(evObj.scopes);
+                        return err;
+                    },
+                    
+                    "executing action" : function ( value, evObj) {
+                        return "Executing action " + s(value) +
+                            " for event " + s(evObj.cur[0]); 
+                    },
+                    
+                    "action not found" : function (value, evObj) {
+                        return "Event " + s(evObj.cur[0]) + 
+                            " requested action " + s(value) + " but action not found";
+                    },
+                    
+                    "executing function" : function (value, evObj) {
+                        return "Executing function " + s(value) + 
+                            " for event " + s(evObj.cur[0]);
+                    },
+                    
+                    "canceling tracker" : function (tracker) {
+                        return "Canceling watcher " + s(tracker);
+                    }};
         
             var ret = function (desc) {
                 var args = Array.prototype.slice.call(arguments, 0);
@@ -1142,6 +1223,17 @@
     EvW.prototype.error = function (e, handler, data, evObj, context) {
             var emitter = this;
             emitter._looping = false;
+            var s = serial;
+            var err = "error " + e + "\n\n" +
+                "event " + 
+                ( (evObj.ev === evObj.cur[0] ) ?
+                    s(evObj.ev) :
+                    s(evObj.ev, evObj.cur[0]) ) + 
+                "\nhandler " + s(handler) + 
+                "\ndata " + s(data) + 
+                "\ncontext " + s(context) + 
+                "\nscopes " + s(evObj.scopes);
+            console.log(err);
             emitter.log("error raised", e, handler, data, evObj, context);
             throw Error(e);
         };

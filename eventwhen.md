@@ -260,7 +260,8 @@ we are already in the loop).
             scopes : scopes, 
             pieces : pieces,
             count : emitter.emitCount,
-            timing : timing
+            timing : timing,
+            unseen : true
         };
 
         var events = evObj.events = [];
@@ -692,7 +693,7 @@ array value of handler-types that will be executed in order.
         var emitter = this,
             handlers = emitter._handlers;
 
-        f = new Handler(proto, context); 
+        var f = new Handler(proto, context); 
 
         if (handlers.hasOwnProperty(ev)) {
                 handlers[ev].push(f);
@@ -1279,9 +1280,9 @@ As looper is called without context, we have bound it function to the
 emitter instance. 
 
 For the `.soon`, `.later` commands, we use a waiting queue. As soon as next
-tick is called, it unloads the first one onto the queue, regardless of whether
-there is something else there. This ensures that we make progress through the
-queue.
+tick is called, it unloads the first one onto the queue, regardless of
+whether there is something else there. This ensures that we make progress
+through the queue.
 
     function (caller) {
         var emitter = this,
@@ -1314,6 +1315,7 @@ queue.
 
         if (queue.length) {
             emitter.log("looping hit max", loop);
+            queue[0].again = true;
             emitter.nextTick(self);
         } else if ( waiting.length ) {
             emitter.nextTick(self);
@@ -1332,9 +1334,22 @@ queue.
 
 This is to execute a single handler on the event queue. 
 
+!! Consider the impact of evObj.unseen and again checks on performance.
+Presumably okay, but does happen on every loop. 
     
     evObj = queue[0];
     events = evObj.events;
+
+    if (evObj.unseen) {
+        emitter.log("seeing new event", evObj.ev, evObj);
+        delete evObj.unseen;
+        delete evObj.again;
+    } else if (evObj.again) {
+        emitter.log("seeing event again", evObj.ev, evObj);
+        delete evObj.again; 
+    }
+
+    
 
     if (events.length === 0) {
         queue.shift();
@@ -1348,7 +1363,6 @@ This is to execute a single handler on the event queue.
         events.shift();
         continue;
     }
-
 
     ev = cur.scopeEvent;
     f = cur.handlers.shift();
@@ -1488,20 +1502,24 @@ but it should work.
 
 #### Error
 
-All handler execution are encapsulated in a try..catch. This allows for easy error
-handling from controlling the emitter.error method. It is passed in the error
-object, the handler value, emit data, event object, and the executing context. 
+All handler execution are encapsulated in a try..catch. This allows for easy
+error handling from controlling the emitter.error method. It is passed in
+the error object, the handler value, emit data, event object, and the
+executing context. 
 
 What is done here is a default and suitable for development. In production,
 one might want to think whether throwing an error is a good thing or not. 
 
-Since we are throwing an error, we need to make sure emitter.looping is set to
-false so that if the error is handled and path resumes, we still get a flow of
-the emitter. 
+Since we are throwing an error, we need to make sure emitter.looping is set
+to false so that if the error is handled and path resumes, we still get a
+flow of the emitter. 
 
     function (e, handler, data, evObj, context) {
         var emitter = this;
         emitter._looping = false;
+        var s = serial;
+        _"logs:error"
+        console.log(err);
         emitter.log("error raised", e, handler, data, evObj, context);
         throw Error(e);
     }
@@ -1511,9 +1529,9 @@ the emitter.
     ### error()
 
     This is where errors can be dealt with when executing handlers. It is
-    passed in the error object as well as the handler value, emit data, event
-    object, and executing context. The current full handler can be found in
-    the second entry of the cur array in the event object. 
+    passed in the error object as well as the handler value, emit data,
+    event object, and executing context. The current full handler can be
+    found in the second entry of the cur array in the event object. 
 
     If you terminate the flow by throwing an error, be sure to set
     `emitter._looping` to false. 
@@ -1527,22 +1545,17 @@ the emitter.
 [example]()
 
     emitter.error = function (e, handler, data, evObj, context) {
-        console.log("Found error: " + e + 
-        " while executing " + handler + 
-        " with data " + data + 
-        " in executing the event " + evObj.cur[0] + 
-        " with context " + context);
-        emitter._looping = false;
-        throw Error(e);
-    };
+    console.log("Found error: " + e + " while executing " + handler + " with
+    data " + data + " in executing the event " + evObj.cur[0] + " with
+    context " + context); emitter._looping = false; throw Error(e); };
 
 
 #### MakeLog
 
-This creates a sample log function, storing simple descriptions in `_logs` and
-the full data in `_full`, both attached to the log function as properties. It
-uses the functions stored in the functions fdesc property to create the simple
-descriptions. 
+This creates a sample log function, storing simple descriptions in `_logs`
+and the full data in `_full`, both attached to the log function as
+properties. It uses the functions stored in the functions fdesc property to
+create the simple descriptions. 
 
     function () {
         var emitter = this;
@@ -1587,8 +1600,8 @@ descriptions.
     property should often be overwritten. If this is not invoked, then the
     log is a noop for performance/memory. 
 
-    `emitter.log` expects a description as a first argument and then whatever
-    else varies. 
+    `emitter.log` expects a description as a first argument and then
+    whatever else varies. 
 
     The log has various properties/methods of interest: 
 
@@ -1606,21 +1619,20 @@ descriptions.
       matches (probably not that useful...), general function filters, and
       the ability to reverse the matches (maybe the array is useful for
       that). 
-    * `logs` This acts on the logs array instead of the full array. Otherwise
-      same as the full function. 
-     
-    
-
+    * `logs` This acts on the logs array instead of the full array.
+      Otherwise same as the full function. 
+      
 
 #### Events
 
 This allows us to see what events have handlers and the number of handlers
 they have. 
 
-We can pass in a function as first argument that should return true/false when
-fed an event string to indicate include/exclude. Alternatively, we can pass in
-a string that will be used as a regex to determine that. Given a string, we
-can include a negate boolean which will negate the match semantics. 
+We can pass in a function as first argument that should return true/false
+when fed an event string to indicate include/exclude. Alternatively, we can
+pass in a string that will be used as a regex to determine that. Given a
+string, we can include a negate boolean which will negate the match
+semantics. 
 
 If nothing is passed in, then we return all the events that have handlers.
 
@@ -1681,8 +1693,8 @@ If nothing is passed in, then we return all the events that have handlers.
 
 #### Handlers
 
-Given a list of events, such as given by event listing, produce an object with
-those events as keys and the values as the handlers. 
+Given a list of events, such as given by event listing, produce an object
+with those events as keys and the values as the handlers. 
 
     function (events, empty) {
         var emitter = this, 
@@ -1738,20 +1750,20 @@ those events as keys and the values as the handlers.
 
 This is where we define handlers.
 
-The idea is that we will encapsulate all handlers into a handler object. When
-a function or something else is passed into .on and the others, it will be
-converted into a handler object and that object gets returned. If a handler
-object is passed in, then it may get wrapped or it may not.
+The idea is that we will encapsulate all handlers into a handler object.
+When a function or something else is passed into .on and the others, it will
+be converted into a handler object and that object gets returned. If a
+handler object is passed in, then it may get wrapped or it may not.
 
 This is a constructor and it should return `this` in most cases. 
 
-If the passed in is a handler with no new context, then it gets returned as is.
-Otherwise, we take the handler's value and use it as the value but give it a
-new context.
+If the passed in is a handler with no new context, then it gets returned as
+is.  Otherwise, we take the handler's value and use it as the value but give
+it a new context.
 
-A handler can have a context. The closest context to an executing handler will
-be used. This is why if it is a handler, we need to grab the value and attach
-it to the new handler with its own context. 
+A handler can have a context. The closest context to an executing handler
+will be used. This is why if it is a handler, we need to grab the value and
+attach it to the new handler with its own context. 
 
     function (value, context) {
         if (value instanceof Handler) { 
@@ -1780,7 +1792,8 @@ The prototype object.
   contained in the handler. 
 * execute Executes the handler
 * summarize Goes level by level summarizing the structure of the handler
-* removal Removes any of the handler bits that are attached to .when trackers.
+* removal Removes any of the handler bits that are attached to .when
+  trackers.
 
 ---
     Handler.prototype.execute = _"execute"; 
@@ -1800,8 +1813,8 @@ The prototype object.
       `data` that can be passed into the emit call and `evObj` which has a
       variety of properties. See <a href="#evObj">evObj</a>.
     * string.  This is an action string. When executed, it will look up the
-      action associated with that string and execute that handler. If no such
-      action exists, that gets logged and nothing else happens.
+      action associated with that string and execute that handler. If no
+      such action exists, that gets logged and nothing else happens.
     * handler. Handlers can contain handlers.
     * array of handler types. Each one gets executed. This is how `.once`
       works.
@@ -1934,15 +1947,15 @@ context.
 
     #### contains(target, htype) --> bool
 
-    This checks to see whether target is contained in the handler type at some
-    point.
+    This checks to see whether target is contained in the handler type at
+    some point.
     
     __arguments__
 
     * `target` Anything of handler type that is to be matched.
-    * `htype` Anything of handler type. This is the current level. If `htype` is
-      not provided (typically the case in external calling), then the `this`
-      becomes `htype`. 
+    * `htype` Anything of handler type. This is the current level. If
+      `htype` is not provided (typically the case in external calling), then
+      the `this` becomes `htype`. 
 
     __return__ 
     
@@ -1957,16 +1970,17 @@ context.
 
 Here we handle executing a handler. We could have a variety of values here.
 
-* string. This should be an action. We lookup the action and use the function. 
+* string. This should be an action. We lookup the action and use the
+  function. 
 * function. Classic. It gets called.
-* handler. This is an object of type handler and how we will always start. We
-  iterate through handlers to find executable types.
+* handler. This is an object of type handler and how we will always start.
+  We iterate through handlers to find executable types.
 * [possible handler types...]. The array form gets executed in order, be it
-  functions, actions, or Handlers. The array can contain Handler objects that
-  are then handled. 
+  functions, actions, or Handlers. The array can contain Handler objects
+  that are then handled. 
 
-We pass in data, event object, and context; the value is for internal calling,
-for the most part. 
+We pass in data, event object, and context; the value is for internal
+calling, for the most part. 
 
 All of the handlers are encapsulated in a try...catch that then calls the
 emitter's .error method (which can be overwritten). The default will rethrow
@@ -2035,8 +2049,8 @@ evObj.stop is the flag to set to stop execution.
 
     * `data`, `evObj` get passed into the functions as first and second
       arguments. This is generated by the emit. 
-    * `context` The object to call the function as `this`. value.context takes
-      precedence and this.context takes next precedence. 
+    * `context` The object to call the function as `this`. value.context
+      takes precedence and this.context takes next precedence. 
     * `value` This is largely internally used. 
 
     __return__
@@ -2172,7 +2186,8 @@ THe various prototype methods for the tracker object.
     * `timing` This dictates how the action is queued. 
     * `reset` This dictates whether to reset the events after firing. 
     * `original` The original events for use by reset/reinitialize.
-    * `handler` This is the handler that fires when the monitored events fire.
+    * `handler` This is the handler that fires when the monitored events
+      fire.
 
     ### Tracker Methods
 
@@ -2300,7 +2315,8 @@ passed in or a bunch of strings passed in as parameters.
 
 We can remove the events.
 
-Note the `true` for the .off command is to make sure the `.remove` is not called again. Rather important. 
+Note the `true` for the .off command is to make sure the `.remove` is not
+called again. Rather important. 
 
     function (byeEvents) {
         var tracker = this,
@@ -2350,11 +2366,15 @@ Note the `true` for the .off command is to make sure the `.remove` is not called
 
     __arguments__
 
-    Same as add events, except the numbers represent subtraction of the counting. 
+    Same as add events, except the numbers represent subtraction of the
+    counting. 
 
 #### Remove string
 
-This is mainly for use with the `.off` method where the handler has already been removed from the event. This takes in just a string and removes the event entirely from the events object. It then runs `go` to see if emit time is ready.
+This is mainly for use with the `.off` method where the handler has already
+been removed from the event. This takes in just a string and removes the
+event entirely from the events object. It then runs `go` to see if emit time
+is ready.
 
     function (ev) {
         var tracker = this;
@@ -2392,13 +2412,14 @@ If reset is true, then we add those events before firing off the next round.
 
 [doc]()
 
-    Checks to see whether tracking list is empty; if so, the waiting event is
-    emitted. No arguments. This is automatically called by the other
+    Checks to see whether tracking list is empty; if so, the waiting event
+    is emitted. No arguments. This is automatically called by the other
     methods/event changes. 
 
 #### Cancel
 
-This cancels the .when, removing the handler from all remaining events and clearing the data. 
+This cancels the .when, removing the handler from all remaining events and
+clearing the data. 
 
     function () {
         var tracker = this, 
@@ -2470,11 +2491,11 @@ This is where we keep track of the log statements and what to do with them.
                 s(timing) : "" );
     },
   
-    "restoring normal emit" : function (filt, ret) {
+    "restoring normal emit" : function () {
         return "Last monitor removed, emit restored";
     },
 
-    "wrapping emit" : function (filt) {
+    "wrapping emit" : function (filt, listener) {
         return "Creating monitor " + s(filt, listener);
     },
 
@@ -2487,12 +2508,12 @@ This is where we keep track of the log statements and what to do with them.
         return "Failed to find/remove monitor " + s(filt);
     },
 
-    "intercepting event" : function ( ev, data, el){
+    "intercepting event" : function ( ev, data, filt){
         return "Intercepted event " + s(ev, data) +
             " with monitor " + s(filt.filt, filt[1]);
     },
 
-    "stopping event" : function(ev, data, el) {
+    "stopping event" : function(ev, data, filt) {
         return "Stopping event " + s(ev, data) +
             " because of monitor " + s(filt.filt, filt[1]);
     },
@@ -2538,7 +2559,7 @@ This is where we keep track of the log statements and what to do with them.
     },
 
 
-    "when" : function (events, ev, timing, reset, tracker) {
+    "when" : function (events, ev, timing, reset) {
         return "Will emit " + s(ev) + 
             " when the following have fired: " + 
             s(events) + 
@@ -2559,23 +2580,96 @@ This is where we keep track of the log statements and what to do with them.
     },
 
 
-"looping called again", caller);
+    "seeing new event" : function (ev) {
+        return s(ev) + " is being handled";
+    },
+
+    "seeing event again" : function (ev) {
+        return s(ev) + " is again being handled";
+    },
+
+    "emission stopped" : function (ev) {
+        return "Event " + s(ev) + " emission stopped";
+    },
+
+    "queue cleared of all events" : function () {
+        return "Currently queued events for emitting have all been removed";
+    },
+
+    "event cleared" : function (ev) {
+        return "Event " + s(ev) + " cleared from queue";
+    },
+
+    "some events stopped" : function(a, rq, rw) {
+        
+        var qlist = rq.map(function (el) {
+            return el.ev;
+        }); 
+
+        var wlist = rw.map(function (el) {
+            return el.ev;
+        });  
+
+        return "Events stopped per filter " + s(a) + 
+            "resulting in the elimination of " + 
+            s(qlist) + " and " + s(wlist);
+    },
+
+    "error raised" : function(e, handler, data, evObj, context) {
+        _":error"
+        return err;
+    },
+    
+    "executing action" : function ( value, evObj) {
+        return "Executing action " + s(value) +
+            " for event " + s(evObj.cur[0]); 
+    },
+
+    "action not found" : function (value, evObj) {
+        return "Event " + s(evObj.cur[0]) + 
+            " requested action " + s(value) + " but action not found";
+    },
+
+    "executing function" : function (value, evObj) {
+        return "Executing function " + s(value) + 
+            " for event " + s(evObj.cur[0]);
+    },
+
+    "canceling tracker" : function (tracker) {
+        return "Canceling watcher " + s(tracker);
+    }
+
+[error]()
+
+This code is also present in default error method with the string being
+console.logged.
+
+    var err = "error " + e + "\n\n" +
+        "event " + 
+        ( (evObj.ev === evObj.cur[0] ) ?
+            s(evObj.ev) :
+            s(evObj.ev, evObj.cur[0]) ) + 
+        "\nhandler " + s(handler) + 
+        "\ndata " + s(data) + 
+        "\ncontext " + s(context) + 
+        "\nscopes " + s(evObj.scopes);
+
+[emergency logs]() 
+
+These are the log events that are really to only be used in dire situations.
+They monitor internals and should not be that useful if everything with the
+library is going smoothly. They will be captured in the full log.
+
+"looping called again", caller;
 "looping hit max", loop);
 "loop ended", caller, loop);
 "firing", ev, f, evObj);
 "fired", ev, f, evObj);
-"emission stopped", ev, evObj);
-"queue cleared of all events", rw, rq);
-"event cleared", ev);
-"some events stopped", a, rq, rw);
-"error raised", e, handler, data, evObj, context);
-"untracked", ev, htype.tracker, htype);
-"unreachable reached", "removal", ev, htype);
-"executing action", value, evObj);
-"action not found", value, evObj);
-"executing function", value, evObj);
-"value not executable", value, evObj);
-"canceling tracker", tracker);
+"untracked" : function (ev,  htypetracker, htype) { 
+"unreachable reached" : function (removal, ev, htype) {
+"value not executable" : function (value, evObj) {
+
+
 
 
 ### Filter
@@ -2722,8 +2816,10 @@ one of the weird builtin objects.
         if (typeof value === "function") {
             if ( value.hasOwnProperty("_label") ) {
                 return {$fun:value._label};
-            } else {
-                return {$fun:null};
+            } else { 
+                return {$fun:value.toString().
+                    replace(/\s+/g, " ").
+                    slice(0,60)};
             }
         }
 
@@ -2802,7 +2898,7 @@ arguments are supplied, an arrayified version of is yielded.
     function (obj) {
         
         if (arguments.length > 1) {
-            obj = Array.prototype.slice.apply(arguments, 0);
+            obj = Array.prototype.slice.call(arguments, 0);
         }
 
         return JSON.stringify(decycle(obj));

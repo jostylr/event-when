@@ -830,7 +830,8 @@ test("log testing", function (t) {
     emitter.emit("first", "got data");
 
     t.deepEquals(log.logs(), 
-    ['Event "first" emitted with data "got data"'], 
+    ['Event "first" emitted with data "got data"', 
+     '"first" is being handled'], 
     "emit event");
 
     t.deepEquals(JSON.parse(log.full()[0]), 
@@ -842,7 +843,8 @@ test("log testing", function (t) {
             pieces: [ 'first' ],
             count: 1,
             timing: 'momentary',
-            events: []
+            events: [],
+            unseen: true
           } ],
         "emit event full data");
 
