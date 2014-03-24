@@ -15,10 +15,12 @@ file.
     coordinated through a single object. The emphasis throughout is on
     coordinating the global flow of the program. 
 
-    Most event libraries suggest making objects into emitters. This library
-    is designed to allow you to attach the object to the event/handler/emit.
-    It also allows you to listen for events before the corresponding object
-    exists. Of course, if you want to have various emitters, go for it. 
+    Most event libraries suggest making objects (such as a button) into
+    emitters. This library is based rather on the idea of coordinating the
+    global flow of the program. It is designed to allow you to attach the
+    object to the event/handler/emit.  It also allows you to listen for
+    events before the corresponding object exists. This is more like having
+    listeners on a form element responding to button clicks in the form.
 
     There are several noteworthy features of this library:
 
@@ -258,20 +260,20 @@ we are already in the loop).
             ev : ev,
             data : data,
             scopes : scopes, 
-            pieces : pieces,
             count : emitter.emitCount,
             timing : timing,
             unseen : true
         };
 
         var events = evObj.events = [];
-
+i
 Note we use the reduce function for the construction of each scope level,
 but we have no need for the finished string, just the intermediates.
 
         pieces.reduce(function (prev, el) {
             var ret = prev + (prev ? sep + el : el);            
             scopes[ret] = emitter.scope(ret);
+            scopes[el] = emitter.scope(el);
             var h = emitter._handlers[ret];
             if (h) {
                 //unshifting does the bubbling up
@@ -279,6 +281,8 @@ but we have no need for the finished string, just the intermediates.
             }
             return ret;
         }, ""); 
+
+        evObj.pieces = pieces.reverse();
 
         emitter.eventLoader(timing, evObj);
 
@@ -332,6 +336,15 @@ but we have no need for the finished string, just the intermediates.
     will be broken up into multiple events, each one being emitted. The
     order of emission is from the most specific to the general (bubbling
     up).  `emitter.scopeSep` holds what to split on.
+
+    As an example, if the event `a:b:c` is emitted, then `a:b:c` fires,
+    followed by `a:b`, followed by `a`. The scope objects available, however,
+    include that of all three of the emitted events as well as `b`, and `c`
+    separately. Thus, we can have an event `a:b` with a handler on `a` that
+    uses the scope of `b`. The name `b` can be found by accessing 
+    `base = evObj.pieces[0]` and the scope accessed from `evObj.scopes[base]`.
+    Note that `b` will not fired as a stand-alone event; it is just its scope
+    which is found that way.
 
     To stop the emitting and any bubbling, set `evObj.stop === true` in the
     handler ( handler signature is `(data, evObj)` ). To do more

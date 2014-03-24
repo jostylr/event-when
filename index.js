@@ -462,7 +462,6 @@
             ev : ev,
             data : data,
             scopes : scopes, 
-            pieces : pieces,
             count : emitter.emitCount,
             timing : timing,
             unseen : true
@@ -473,6 +472,7 @@
         pieces.reduce(function (prev, el) {
             var ret = prev + (prev ? sep + el : el);            
             scopes[ret] = emitter.scope(ret);
+            scopes[el] = emitter.scope(el);
             var h = emitter._handlers[ret];
             if (h) {
                 //unshifting does the bubbling up
@@ -480,6 +480,8 @@
             }
             return ret;
         }, ""); 
+    
+        evObj.pieces = pieces.reverse();
     
         emitter.eventLoader(timing, evObj);
     

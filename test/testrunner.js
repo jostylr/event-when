@@ -366,6 +366,7 @@ test('flow testing', function (s) {
         "I",
         "K",
         "G",
+        "check",
         "H",
         "B",
         "C",
@@ -402,8 +403,19 @@ test('flow testing', function (s) {
         emitter.later("term:E");
     });
     
+    emitter.scope("G", "check");
+    
     emitter.on("term", function (data, evObj) {
-        actual.push(evObj.pieces[1]);
+    
+        var base = evObj.pieces[0], 
+            scope = evObj.scopes[base];
+    
+        actual.push(base);
+    
+        if ( typeof scope !== "undefined") {
+            actual.push(scope);
+        }
+    
     });
     
     emitter.when([["term",8]], "done");
