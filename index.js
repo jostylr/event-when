@@ -4,6 +4,8 @@
 ;(function () {
     var empty = {};
 
+    var noop = function () {};
+
     var filter = function (condition, negate) {
             
             if (typeof condition === "string") {
@@ -240,21 +242,21 @@
             }
         
             if (typeof value === "function") {
-                return "f:" + (value.name || "");
+                return "f:" + (value._label || "" );
             }
         
             if ( Array.isArray(value) ) {
                 ret = value.map(function (el) {
                     return me.call(empty, el);
                 });
-                lead = value.name || "";
-                return "arr: " + lead + " [" + ret.join(", ") + "]";
+                lead = value._label || "";
+                return lead + "[" + ret.join(", ") + "]";
             }
         
             if ( value && typeof value.summarize === "function" ) {
                 ret = me.call(empty, value.value);
-                lead = value.name || "";
-                return "h: "+ lead + " " + ret;
+                lead = value._label || "";
+                return "h:" + lead + " " + ret;
             } 
         
             return "unknown";
@@ -313,6 +315,8 @@
             newEvents = Array.prototype.slice.call(arguments);
         } else if (! Array.isArray(newEvents) ) {
             newEvents = [newEvents];
+        } else if (typeof newEvents[1] === "number") {
+            newEvents = [newEvents];
         }
     
         newEvents.forEach(function (el) {
@@ -363,7 +367,8 @@
                 }
                 if (str && num) {
                     if (events.hasOwnProperty(str) ) {
-                        events[str] -= num;             
+                        events[str] -= num;       
+        
                         if (events[str] <= 0) {
                             delete events[str];
                             tracker.emitter.off(str, tracker.handler, true);
@@ -392,6 +397,8 @@
             if (Object.keys(events).length === 0) {
                 if (tracker.reset === true) {
                     tracker.add(tracker.original);
+                } else if (tracker.idempotent === false) {
+                    tracker.go = noop;
                 }
                 emitter.emit(ev, data, tracker.timing); 
             }
@@ -419,6 +426,9 @@
         
             tracker.cancel();
             tracker.add(tracker.original);
+            if (tracker.go === noop) {
+                delete tracker.go; //restores to prototype
+            }
             tracker.go();
             return tracker;
         };
@@ -797,10 +807,13 @@
                 tracker.reset = reset || false;
             }
             tracker.original = events.slice();
+            tracker.idempotent = false;
         
             var handler = new Handler (function (data, evObj) {
                 var ev = evObj.cur[0];
-                this.data.push([ev, data]);
+                if (typeof data !== "undefined") {
+                    this.data.push([ev, data]);
+                }
                 this.remove(ev);
             }, tracker);
         

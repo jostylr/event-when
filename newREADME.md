@@ -4,12 +4,19 @@ This is an event library, but one in which events and listeners are
 coordinated through a single object. The emphasis throughout is on
 coordinating the global flow of the program. 
 
+It addresses what I find to be the pain points of JavaScript programming:
+when does code execute and how does it have access to the objects it
+needs? Most event libraries handle the first well enough for linear
+sequences of event firing, but they fail when multiple events need to
+happen, in any order, before triggering a response. It can also require
+a lot of closures or globals to handle manipulating state from event
+calls. This library is designed to address those needs. 
+
 Most event libraries suggest making objects (such as a button) into
-emitters. This library is based rather on the idea of coordinating the
-global flow of the program. It is designed to allow you to attach the
-object to the event/handler/emit.  It also allows you to listen for
-events before the corresponding object exists. This is more like having
-listeners on a form element responding to button clicks in the form.
+emitters. This library is designed to allow you to attach the object to
+the event/handler/emit.  It also allows you to listen for events before
+the corresponding object exists. This is more like having listeners on a
+form element responding to button clicks in the form.
 
 There are several noteworthy features of this library:
 
@@ -17,10 +24,10 @@ There are several noteworthy features of this library:
   you to specify an event to emit after various specified events have all
   fired.  For example, if we call a database and read a file to assemble
   a webpage, then we can do something like 
-  ``` 
-  emitter.when(["file
-  parsed:jack", "database returned:jack"], "all data retrieved:jack");
-  ``` 
+```   
+emitter.when(["file parsed:jack", "database returned:jack"],
+    "all data retrieved:jack");
+``` 
   This is why the idea of a central emitter is particularly useful to
   this library's intent.
 * [Scope](#scope). Events can be scoped. In the above example, each of
@@ -28,13 +35,17 @@ There are several noteworthy features of this library:
   most specific to the least specific. Each level can access the
   associated data at all levels. For example, we can store data at the
   specific jack event level while having the handler at "all data
-  retrieved" access it. Works the other way too. 
+  retrieved" access it. Works the other way too. One can stash the
+  scope into scope jack and the handler for `database returned` can
+  access the name jack and its scope.  
 * [Actions](#action). Events should be statements of fact. Actions can be
   used to call functions and are statements of doing. "Compile document"
   is an action and is a nice way to represent a function handler.
   "Document compiled" would be what might be emitted after the
   compilation is done.  This is a great way to have a running log of
-  event --> action. 
+  event --> action. To implement the log, you can run `emitter.makeLog()`
+  and then when you want the event action, filter the logs with
+  `emitter.log.logs("Executing action")` for an array of such statements. 
 * Stuff can be attached to events, emissions, and handlers. Emits send
   data, handlers have contexts, and events have scope contexts.
 * [Monitor](#monitor) One can place a filter and listener to monitor all
@@ -43,7 +54,7 @@ There are several noteworthy features of this library:
 Please note that no particular effort at efficiency has been made. This
 is about making it easier to develop the flow of an application. If you
 need something that handles large number of events quickly, this may not
-be the right library. 
+be the right library. I have not profiled it yet. 
 
 ### Using
 
@@ -675,8 +686,8 @@ These are largely internally used, but they can be used externally.
 #### summarize(value) --> str
 
 This takes a handler and summarizes its structure. To give a meaningful
-string to handlers for a summarize, one can add `.name` properties to any
-of the value types except action strings which are their own "name". 
+string to handlers for a summarize, one can add `._label` properties to
+any of the value types except action strings which are their own "label". 
 
 __arguments__
 
@@ -771,14 +782,16 @@ These are the instance properties
 
 * `events` The list of currently active events/counts that are being
   tracked. To manipulate, use the tracker methods below.
-* `ev` The action that will be taken when all events have fired. It will
-  emit the data from all the events in the form of an array of arrays:
-  `[[event emitted, data], ...]`
+* `ev` The action that will be taken when all events have fired. It
+  will emit the data from all the events in the form of an array of
+  arrays: `[[event emitted, data], ...]`
 * `timing` This dictates how the action is queued. 
 * `reset` This dictates whether to reset the events after firing. 
 * `original` The original events for use by reset/reinitialize.
 * `handler` This is the handler that fires when the monitored events
   fire.
+* `idempotent` Set to true if it is safe to emit the event multiple
+  times. Default is false. 
 
 ### Tracker Methods
 

@@ -454,15 +454,15 @@ This tests the summarize of handlers.
 
 [expected]()
 
-    h: fred arr: bob [a:hi, f:, h:  arr:  [a:dude, f:]]
+    h:fred bob[a:hi, f:jack, h: [a:dude, f:]]
 
 [code]()
 
     var h = emitter.on("cool", ["hi", function() {}, emitter.makeHandler(["dude", function(){}])]);
 
-    h.name = "fred";
-    h.value[1].name = "jack";
-    h.value.name = "bob";
+    h._label = "fred";
+    h.value[1]._label = "jack";
+    h.value._label = "bob";
 
     actual.push(h.summarize());
 
@@ -493,6 +493,7 @@ This tests the summarize of handlers.
     });
 
     var t = emitter.when([["some", 5]], "great");
+    t.idempotent = true;
 
     var report = function () {
         var keys = Object.keys(t.events);
@@ -900,6 +901,65 @@ This will test out the various log stuff.
 
     });
 
+## summarize
+
+This is to test the handler method of summarize. 
+
+    test("summarize", function (t) {
+
+        t.plan(1);
+        
+        var emitter = new EventWhen();
+
+        var h1 = emitter.makeHandler("act", {n:1});
+
+        var h2 = emitter.makeHandler(h1);
+
+        h2._label = "hi";
+
+        var named = function () {"what"};
+        named._label = "bob";
+
+        var h3 = emitter.makeHandler([function () {"neat"}, h2, named]);
+
+        t.equals(h3.summarize(), "h: [f:, h:hi a:act, f:bob]", 
+            " level handler");
+
+    });
+
+## when 
+
+This is code that should break.
+
+    test("when counting", function (t) {
+        
+        t.plan(6);
+
+        var emitter = new EventWhen();
+        
+        var n = 100;
+        var c = 0;
+
+        emitter.once("go", function () {
+            c += 1;
+            emitter.emit("go");
+            if ( c % 20 === 0) {
+                t.pass("count is a multiple of 20");
+            }
+        }, n+5);
+
+        emitter.when(["go", n], "done", "now");
+
+        var time;
+
+        emitter.on("done", function () {
+            console.log(c);
+            t.equals(c, 100, "when fired correctly");
+        });
+
+        emitter.emit("go");
+    });
+
 ## [testrunner.js](#testrunner.js "save: |jshint")
 
     /*global require*/
@@ -948,3 +1008,6 @@ This will test out the various log stuff.
 
     _"log testing"
 
+    _"summarize"
+
+    _"when"

@@ -15,12 +15,19 @@ file.
     coordinated through a single object. The emphasis throughout is on
     coordinating the global flow of the program. 
 
+    It addresses what I find to be the pain points of JavaScript programming:
+    when does code execute and how does it have access to the objects it
+    needs? Most event libraries handle the first well enough for linear
+    sequences of event firing, but they fail when multiple events need to
+    happen, in any order, before triggering a response. It can also require
+    a lot of closures or globals to handle manipulating state from event
+    calls. This library is designed to address those needs. 
+
     Most event libraries suggest making objects (such as a button) into
-    emitters. This library is based rather on the idea of coordinating the
-    global flow of the program. It is designed to allow you to attach the
-    object to the event/handler/emit.  It also allows you to listen for
-    events before the corresponding object exists. This is more like having
-    listeners on a form element responding to button clicks in the form.
+    emitters. This library is designed to allow you to attach the object to
+    the event/handler/emit.  It also allows you to listen for events before
+    the corresponding object exists. This is more like having listeners on a
+    form element responding to button clicks in the form.
 
     There are several noteworthy features of this library:
 
@@ -28,10 +35,10 @@ file.
       you to specify an event to emit after various specified events have all
       fired.  For example, if we call a database and read a file to assemble
       a webpage, then we can do something like 
-      ``` 
-      emitter.when(["file
-      parsed:jack", "database returned:jack"], "all data retrieved:jack");
-      ``` 
+    ```   
+    emitter.when(["file parsed:jack", "database returned:jack"],
+        "all data retrieved:jack");
+    ``` 
       This is why the idea of a central emitter is particularly useful to
       this library's intent.
     * [Scope](#scope). Events can be scoped. In the above example, each of
@@ -39,13 +46,17 @@ file.
       most specific to the least specific. Each level can access the
       associated data at all levels. For example, we can store data at the
       specific jack event level while having the handler at "all data
-      retrieved" access it. Works the other way too. 
+      retrieved" access it. Works the other way too. One can stash the
+      scope into scope jack and the handler for `database returned` can
+      access the name jack and its scope.  
     * [Actions](#action). Events should be statements of fact. Actions can be
       used to call functions and are statements of doing. "Compile document"
       is an action and is a nice way to represent a function handler.
       "Document compiled" would be what might be emitted after the
       compilation is done.  This is a great way to have a running log of
-      event --> action. 
+      event --> action. To implement the log, you can run `emitter.makeLog()`
+      and then when you want the event action, filter the logs with
+      `emitter.log.logs("Executing action")` for an array of such statements. 
     * Stuff can be attached to events, emissions, and handlers. Emits send
       data, handlers have contexts, and events have scope contexts.
     * [Monitor](#monitor) One can place a filter and listener to monitor all
@@ -54,7 +65,7 @@ file.
     Please note that no particular effort at efficiency has been made. This
     is about making it easier to develop the flow of an application. If you
     need something that handles large number of events quickly, this may not
-    be the right library. 
+    be the right library. I have not profiled it yet. 
 
     ### Using
 
@@ -78,6 +89,8 @@ The file structure is fairly simple.
 * [index.js](#main "save:|jshint") This is the node module entry point and
   only relevant file. It is a small file.
 * [ghpages/index.js](#main "save:") This is for browser access. 
+* [benchmark.js](#benchmark "save:|jshint") This is a very simple benchmark
+  test. 
 * [README.md](#old-readme "save: |clean raw ") The standard README.
 * [newREADME.md](#readme "save: ") The standard README, new version.
 * [package.json](#npm-package "save: json  | jshint") The requisite package
@@ -103,6 +116,8 @@ This is the main structure of the module file.
 
     ;(function () {
         var empty = {};
+
+        var noop = function () {};
 
         var filter = _"filter";
 
@@ -1017,11 +1032,13 @@ one of the button counts (unless event bubbling is stopped). But
         tracker.data = [];
         _":assign timing reset"
         tracker.original = events.slice();
-
+        tracker.idempotent = false;
 
         var handler = new Handler (function (data, evObj) {
             var ev = evObj.cur[0];
-            this.data.push([ev, data]);
+            if (typeof data !== "undefined") {
+                this.data.push([ev, data]);
+            }
             this.remove(ev);
         }, tracker);
 
@@ -2094,21 +2111,21 @@ This tries to report the structure of the handlers. We use the property name
         }
 
         if (typeof value === "function") {
-            return "f:" + (value.name || "");
+            return "f:" + (value._label || "" );
         }
 
         if ( Array.isArray(value) ) {
             ret = value.map(function (el) {
                 return me.call(empty, el);
             });
-            lead = value.name || "";
-            return "arr: " + lead + " [" + ret.join(", ") + "]";
+            lead = value._label || "";
+            return lead + "[" + ret.join(", ") + "]";
         }
 
         if ( value && typeof value.summarize === "function" ) {
             ret = me.call(empty, value.value);
-            lead = value.name || "";
-            return "h: "+ lead + " " + ret;
+            lead = value._label || "";
+            return "h:" + lead + " " + ret;
         } 
 
         return "unknown";
@@ -2120,8 +2137,8 @@ This tries to report the structure of the handlers. We use the property name
     #### summarize(value) --> str
 
     This takes a handler and summarizes its structure. To give a meaningful
-    string to handlers for a summarize, one can add `.name` properties to any
-    of the value types except action strings which are their own "name". 
+    string to handlers for a summarize, one can add `._label` properties to
+    any of the value types except action strings which are their own "label". 
 
     __arguments__
 
@@ -2193,14 +2210,16 @@ THe various prototype methods for the tracker object.
 
     * `events` The list of currently active events/counts that are being
       tracked. To manipulate, use the tracker methods below.
-    * `ev` The action that will be taken when all events have fired. It will
-      emit the data from all the events in the form of an array of arrays:
-      `[[event emitted, data], ...]`
+    * `ev` The action that will be taken when all events have fired. It
+      will emit the data from all the events in the form of an array of
+      arrays: `[[event emitted, data], ...]`
     * `timing` This dictates how the action is queued. 
     * `reset` This dictates whether to reset the events after firing. 
     * `original` The original events for use by reset/reinitialize.
     * `handler` This is the handler that fires when the monitored events
       fire.
+    * `idempotent` Set to true if it is safe to emit the event multiple
+      times. Default is false. 
 
     ### Tracker Methods
 
@@ -2284,6 +2303,8 @@ passed in or a bunch of strings passed in as parameters.
             newEvents = Array.prototype.slice.call(arguments);
         } else if (! Array.isArray(newEvents) ) {
             newEvents = [newEvents];
+        } else if (typeof newEvents[1] === "number") {
+            newEvents = [newEvents];
         }
 
         newEvents.forEach(function (el) {
@@ -2355,7 +2376,8 @@ called again. Rather important.
             }
             if (str && num) {
                 if (events.hasOwnProperty(str) ) {
-                    events[str] -= num;             
+                    events[str] -= num;       
+
                     if (events[str] <= 0) {
                         delete events[str];
                         tracker.emitter.off(str, tracker.handler, true);
@@ -2416,6 +2438,8 @@ If reset is true, then we add those events before firing off the next round.
         if (Object.keys(events).length === 0) {
             if (tracker.reset === true) {
                 tracker.add(tracker.original);
+            } else if (tracker.idempotent === false) {
+                tracker.go = noop;
             }
             emitter.emit(ev, data, tracker.timing); 
         }
@@ -2459,16 +2483,22 @@ clearing the data.
 
 #### Reinitialize
 
-This returns the events to the original version. I would call it reset except
-that is a flag to call this. 
+This returns the events to the original version. I would call it reset
+except that is a flag to call this. 
 
-We first cancel everything to clear it out and then we attach the new stuff.
+We first cancel everything to clear it out and then we attach the new
+stuff.
+
+We restore tracker.go if it has been silenced. 
 
     function () {
         var tracker = this;
 
         tracker.cancel();
         tracker.add(tracker.original);
+        if (tracker.go === noop) {
+            delete tracker.go; //restores to prototype
+        }
         tracker.go();
         return tracker;
     }
@@ -3203,6 +3233,38 @@ is what the emitter.error method does. All calls to handlers have their errors
 caught and sent to the .error method. The default is to throw the error again
 with the event string and handler name added to the error. 
 
+## Benchmark
+
+Here we benchmark the basic emit, handler code. This is presumably where the
+most number of operations occurs. 
+
+    var EvW = require('./index.js');
+    var emitter = new EvW();
+
+    var n = 5e4;
+    var c = 0;
+
+    emitter.loopMax = 1e5;
+
+    emitter.once("go", function () {
+        c += 1;
+        emitter.emit("go");
+    }, n);
+
+    emitter.when(["go", n], "done");
+
+    var time;
+
+    emitter.once("done", function () {
+        var diff = process.hrtime(time);
+        console.log("count", c);
+        console.log('benchmark took ' + diff[0] + ' seconds and ' +
+            diff[1]/1e6 + ' milliseconds');
+    });
+    
+    time = process.hrtime();
+    
+    emitter.emit("go");
 
 ## TODO
 
