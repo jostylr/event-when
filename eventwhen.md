@@ -62,16 +62,13 @@ file.
     * [Monitor](#monitor) One can place a filter and listener to monitor all
       emits and act appropriately. Could be great for debugging. 
 
-    Please note that no particular effort at efficiency has been made. This
-    is about making it easier to develop the flow of an application. If you
-    need something that handles large number of events quickly, this may not
-    be the right library. Benchmarking a simple emit can be found in
-    benchmark.js.  On my MBA mid-2011, it does 5e4 emits in a half a second,
-    5e5 emits in about 4.5 seconds. 
-
-    The native node emitter seems about 25x faster on runs of a 1000 emits,
-    but it fails with a maximum stack call at about 6000 emits. Event-when has
-    no such issue.
+    Please note that no particular effort at efficiency has been made. This is
+    about making it easier to develop the flow of an application. If you need
+    something that handles large number of events quickly, this may not be the
+    right library. Benchmarking a simple emit can be found in benchmark.js.
+    On my MBA mid-2011, it does 5e4 emits in a half a second, 5e5 emits in
+    about 4.5 seconds while the native emitter does 5e5 in about a tenth of a
+    second.
 
     ### Using
 
@@ -3244,10 +3241,9 @@ with the event string and handler name added to the error.
 Here we benchmark the basic emit, handler code. This is presumably where
 the most number of operations occurs. 
 
-    var EvW = require('./index.js');
-    var emitter = new EvW();
-
     var n = process.argv[2] || 1e3;
+
+    var i, time, c;
 
     var log = function (time, count, tag) {
         var diff = process.hrtime(time);
@@ -3257,67 +3253,53 @@ the most number of operations occurs.
             diff[1]/1e6 + ' milliseconds');
     };
 
-    var second = _":second";
-
     _":first"
-    
+   
+    _":second"
+
 [first] ()
 
 
-    var c = 0;
+    var EvW = require('./index.js');
+    var emitter = new EvW();
 
-    emitter.loopMax = 1e5;
+    emitter.loopMax = 2*n;
 
-    var time;
+    c = 0;
 
     emitter.on("go", function () {
         c += 1;
-        if (c <= n) {
-            emitter.emit("go");
-        } else {
-            log(time, c, "event-when");
-
-            if (n <= 6e3) {
-                console.log("starting native");
-                second();
-            } else {
-                console.log("skipping native as call stack may be exceeded" +
-                " above 6000 trials");
-            }
-        }
     });
-
+        
     time = process.hrtime();
     
-    emitter.emit("go");
+    for (i = 0; i < n; i += 1) {
+        emitter.emit("go");
+    }
+
+    log(time, c, "event-when");
 
 [second]()
 
 Native event emitter
 
-    function () {
  
         var EE = require("events").EventEmitter; 
  
-        var emitter = new EE();
-
-        var c = 0;
-
-        var time;
+        emitter = new EE();
 
         emitter.on("go", function () {
             c += 1;
-            if (c <= n) {
-                emitter.emit("go");
-            } else {
-                log(time, c, "native");
-            }
         });
 
         time = process.hrtime();
         
-        emitter.emit("go");
-    }
+        for (i = 0; i < n; i += 1) {
+            emitter.emit("go");
+        }
+
+        log(time, c, "native");
+
 
 
 ## TODO

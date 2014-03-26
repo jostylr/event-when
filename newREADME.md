@@ -51,16 +51,13 @@ emitter.when(["file parsed:jack", "database returned:jack"],
 * [Monitor](#monitor) One can place a filter and listener to monitor all
   emits and act appropriately. Could be great for debugging. 
 
-Please note that no particular effort at efficiency has been made. This
-is about making it easier to develop the flow of an application. If you
-need something that handles large number of events quickly, this may not
-be the right library. Benchmarking a simple emit can be found in
-benchmark.js.  On my MBA mid-2011, it does 5e4 emits in a half a second,
-5e5 emits in about 4.5 seconds. 
-
-The native node emitter seems about 25x faster on runs of a 1000 emits,
-but it fails with a maximum stack call at about 6000 emits. Event-when has
-no such issue.
+Please note that no particular effort at efficiency has been made. This is
+about making it easier to develop the flow of an application. If you need
+something that handles large number of events quickly, this may not be the
+right library. Benchmarking a simple emit can be found in benchmark.js.
+On my MBA mid-2011, it does 5e4 emits in a half a second, 5e5 emits in
+about 4.5 seconds while the native emitter does 5e5 in about a tenth of a
+second.
 
 ### Using
 
