@@ -1,3 +1,5 @@
+/*global require, process, console */
+
 var n = process.argv[2] || 1e3;
 
 var i, time, c;

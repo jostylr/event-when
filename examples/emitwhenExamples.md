@@ -14,13 +14,11 @@ Let's just do a basic simple example
     emitter.makeLog();
 
 
-    f = emitter.on("test 1 on", function () {
-        console.log("test 1 starts!");
+    f = emitter.on("test 1 on", function t1s () {
         emitter.emit("test 1 finishes");
     });
 
-    emitter.on("test 1 finishes", function () {
-        console.log("test 1 finishes");
+    emitter.on("test 1 finishes", function t1f () {
         emitter.off("test 1 on", f);
         emitter.emit("test 1 on");
     });
@@ -28,14 +26,10 @@ Let's just do a basic simple example
 
     emitter.emit("test 1 on");
 
-    emitter.log.print();
-    emitter.log.filter(function (str) {
-        if (str.search("test 1") === -1) {
-            return false;
-        } else {
-            return true;
-        }
-    });
+    console.log(emitter.log.logs());
+
+    console.log("just emits now:" ); 
+    console.log(emitter.log.logs("emitted"));
 
 
 ## [when.js](#when.js "save:| jshint")
@@ -48,76 +42,39 @@ Now let's involve some when action.
     var emitter = new EventWhen();
     emitter.makeLog();
 
-    var log = [];
-
-    emitter.on("alice fires", function () {
-        log.push("alice fired");
+    emitter.on("alice", function a () {
     });
 
-    emitter.on("bob fires", function () {
-        log.push("bob fired");
+    emitter.on("bob", function b () {
     });
 
-    emitter.once("alice rocks", function () {
-        log.push("alice rocks");
+    emitter.once("alice rocks", function ar () {
     });
 
-    emitter.on("string notes both fired", function (data) {
-        log.push("from a string, both have fired " + data.alice);
+    emitter.on("both fired", function (data) {
+        console.log("data events", data);
     });
 
-    emitter.on("array notes both fired", function (data) {
-        log.push("string in an array, both have fired with data " + data.alice );
-    });
+    emitter.when(["alice", "bob"], 
+        "both fired", true );
+    
+    emitter.when(["alice", "bob"], 
+        "first time for alice, bob");
+    
+    emitter.when([["alice",2]], "alice fired twice");
+    
 
-    emitter.when(["alice fires", "bob fires"], "string notes both fired", true);
-    emitter.when(["alice fires", "bob fires"], function (data) {
-        log.push("single function fires with data " + data.alice); 
-    });
-    emitter.when( ["alice fires", "bob fires"], ["array notes both fired", function (data) {
-        log.push("array function fires data " + data.alice);
-    }]);
-    emitter.when([["alice fires",2]], function (data) {
-        log.push("alice fired twice with data " + data.alice );
-    });
-    emitter.when("bob fires", function () {
-        log.push("just care about bob firing");
-    });
+    emitter.emit("alice", "a1");
+    emitter.emit("alice", "a2");
+    emitter.emit("bob", {alice: "rocks"});
 
-    emitter.on("done", function () {
-        // console.log(data); 
-    });
+    emitter.emit("alice", "a3");
+    emitter.emit("bob", {alice: "awesome"});
 
-    emitter.on("near first", function () {
-        log.push("called immediately");
-    });
+    console.log(emitter.log.logs(["emitted", "Executing"]));
 
 
-    console.log("all", emitter.events());
 
-    var evs; 
-    console.log("alice", (evs = emitter.events("alice") ) );
-    console.log("handles", emitter.handlers(evs));
-
-
-    console.log("not alice", emitter.events("alice", true));
-
-    emitter.emit("alice rocks");
-    emitter.emit("alice fires");
-    emitter.emit("bob fires", {alice: "rocks"});
-
-    emitter.emit("alice fires");
-    emitter.emit("bob fires", {alice: "awesome"});
-
-    emitter.emit("done", log);
-
-    emitter.emit("near first", {}, true); 
-
-    process.on("exit", function () {
-        console.log("all", emitter.events());
-        emitter.log.print();
-        console.log(log);
-    });
 
 
 ## [once.js](#once.js "save: | jshint")
@@ -130,26 +87,19 @@ Testing the once method
     var emitter = new EventWhen();
     emitter.makeLog();
 
-    emitter.once("test 1", function () {
-        console.log("test 1 fires");
+    emitter.once("test 1", function t1 () {
         emitter.emit("test 2");
     });
 
 
-    emitter.once("test 2", function() {
-        console.log("actually does fire, once means at least once");
+    // it will not fire!
+    emitter.once("test 2", function t2a () {
     }, 0);
 
-    emitter.once("test 2", function () {
-        console.log("test 2 fires");
+    emitter.once("test 2", function t2b () {
     }, 2);
 
-    emitter.once("test 2", function() {
-        console.log("impatient test 2 handler");
-    }, 4, true);
-
-    emitter.once("test 2", function() {
-        console.log("last test 2 handler");
+    emitter.once("test 2", function t2c () {
     }, 4);
 
 
@@ -165,11 +115,12 @@ Testing the once method
     emitter.emit("test 2");
 
 
-    emitter.log.print();
+    console.log(emitter.log.logs(["emitted", "Executing"]));
 
-## [handler.js](#handler.js "save: |jshint")
+## [scope.js](#scope.js "save: |jshint")
 
-Checking out the binding/arguments for handlers.
+Use scope example. 
+
 
     /*global require, console*/
 
@@ -177,34 +128,37 @@ Checking out the binding/arguments for handlers.
     var emitter = new EventWhen();
     emitter.makeLog();
 
-    var global = {fred : 1};
+    emitter.scope("bob", {n:3});
+    
+    emitter.scope("jane", {n:8});
+ 
+    emitter.scope("number requested", {count: 0});
 
-    var n = 4;
-    var something = [3];
+    emitter.on("number requested", function (data, evObj) {
+        var base = evObj.pieces[0], 
+            scope = evObj.scopes[base],
+            hscope = evObj.scopes["number requested"];
 
-    var fredf = function (data, em, arr, ev) {
-        var jack = arr[0];
-        var jill = arr[1];
-        jack += 1;
-        this.jack = jack;
-        jill.push(5);
-        this.jill = jill;
-        this.fred += data.inc;
-    };
+        console.log(scope.n, hscope);
 
+        scope.n *= 2;
+    
+        hscope.count += 1;
 
-    emitter.on("fires",  [[global, fredf, [n, something]]]);
+    });
 
 
-    emitter.emit("fires", {inc : 3});
+    emitter.emit("number requested:bob");
 
-    emitter.log.print();
-    console.log(global, n, something);
+    emitter.emit("number requested:jane");
+    
+    emitter.emit("number requested:bob");
 
+    console.log(emitter.log.logs());
 
 ## [arrays.js](#arrays.js "save: |jshint")
 
-Handlers as arrays: [obj, fun/method name, arg]
+Array of handlers, sharing a context. 
 
     /*global require, console*/
     var EventWhen = require('../index.js'),
@@ -213,30 +167,38 @@ Handlers as arrays: [obj, fun/method name, arg]
 
     emitter.makeLog();
 
-    emitter.on("first", [glob, function (data, emitter, args, ev) {
-        var g = this; 
-        var n = data.n;
-        console.log(ev, n);
-        g.seconder = function (data, emitter, args, ev) {
-            n += 1;
-            console.log(n, ev);
-            if ( n < 10) {
-                emitter.emit(ev);
-            }
-        };
-        emitter.emit("second");
-        }]
-    );
+    emitter.on("first", [
+        function f1 (data, evObj) {
+            var g = this; 
+            g.n = data.n;
+            console.log(evObj.ev, g.n);
+        },
+        function f2 (data, evObj) {
+            var g = this, 
+                ev = evObj.ev, 
+                emitter = evObj.emitter;
 
-    emitter.on("second", [glob, "seconder"]);
+            console.log(g.n, ev);
+            if ( g.n < 10) {
+                emitter.emit(ev, {n:(g.n+1)});
+            } else {
+                emitter.emit("done");
+            }    
+        }], glob );
+
+    emitter.on("done", function d () {
+        console.log("all done");
+    });
 
     emitter.emit("first", {n: 5});
 
-    emitter.log.print();
+    console.log(emitter.log.logs());
 
 ## [action.js](#action.js "save: |jshint")
 
-This is a demonstration of how the action ideas work. An action is a string-invoked function. While events should be declaration of facts ("such and such happened"), actions should be, well, active ("spell checking")
+This is a demonstration of how the action ideas work. An action is a
+string-invoked function. While events should be declaration of facts ("such
+and such happened"), actions should be, well, active ("spell checking")
 
     /*global require, console*/
     var EventWhen = require('../index.js'),
@@ -245,18 +207,19 @@ This is a demonstration of how the action ideas work. An action is a string-invo
 
     emitter.makeLog();
 
-    emitter.action("firing test 2", function (data, emitter, args) {
+    emitter.action("fire test 2", function (data, evObj) {
         var g = this;
         g.record = 2;
-        emitter.emit("test 2 fired", [data.msg, args.recipient]);
-    });
+        evObj.emitter.emit("test 2", data.msg);
+    }, glob);
 
-    emitter.on("test 1 fires", ["firing test 2", "test 1 fired"], glob, {recipient: "king"});
+    emitter.on("test 1", "fire test 2");
 
-    emitter.on("test 1 fired", function () {console.log("test 1 done!");});
+    emitter.on("test 2", function t2 (data) {
+        var g = this;
+        console.log(data, g.record);
+    }, glob);
 
-    emitter.emit("test 1 fires", {msg: "See you tonight."});
+    emitter.emit("test 1", {msg: "See you tonight."});
 
-    emitter.log.print();
-
-    console.log(glob);
+    console.log(emitter.log.logs());

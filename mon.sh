@@ -2,6 +2,9 @@
 echo "compiling eventwhen"
 literate-programming eventwhen.md
 echo "compiling tests"
+cd examples
+node ../node_modules/.bin/literate-programming emitwhenExamples.md
+cd ..
 cd test
 node ../node_modules/.bin/literate-programming test.md
 echo "testing"

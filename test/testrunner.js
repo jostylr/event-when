@@ -497,7 +497,7 @@ test('handler info', function (s) {
     var emitter = new EventWhen();
 
     var expected = [
-        "h:fred bob[a:hi, f:jack, h: [a:dude, f:]]"
+        "h:fred bob[a:hi, `jack`, h: [a:dude, ``]]"
         ],
         actual = [];
 
@@ -505,10 +505,9 @@ test('handler info', function (s) {
         s.deepEqual(actual, expected);
     });
 
-    var h = emitter.on("cool", ["hi", function() {}, emitter.makeHandler(["dude", function(){}])]);
+    var h = emitter.on("cool", ["hi", function jack () {}, emitter.makeHandler(["dude", function(){}])]);
     
     h._label = "fred";
-    h.value[1]._label = "jack";
     h.value._label = "bob";
     
     actual.push(h.summarize());
@@ -875,12 +874,11 @@ test("summarize", function (t) {
 
     h2._label = "hi";
 
-    var named = function () {"what"};
-    named._label = "bob";
+    var named = function bob () {"what";};
 
-    var h3 = emitter.makeHandler([function () {"neat"}, h2, named]);
+    var h3 = emitter.makeHandler([function () {"neat";}, h2, named]);
 
-    t.equals(h3.summarize(), "h: [f:, h:hi a:act, f:bob]", 
+    t.equals(h3.summarize(), "h: [``, h:hi a:act, `bob`]", 
         " level handler");
 
 });
@@ -904,12 +902,35 @@ test("when counting", function (t) {
 
     emitter.when(["go", n], "done", "now");
 
-    var time;
-
     emitter.on("done", function () {
-        console.log(c);
         t.equals(c, 100, "when fired correctly");
     });
 
     emitter.emit("go");
+});
+
+test("once twice", function (t) {
+
+    t.plan(1);
+
+    var emitter = new EventWhen();
+    var n = 0;
+
+    emitter.on("first", function () {
+        if ( n < 2) {
+            emitter.emit("first");
+            n += 1;
+        }
+    });
+
+    emitter.once("first", function a () {
+        t.pass("`a` called");
+    });
+
+    emitter.once("first", function b () {
+        t.fail("`b` called");
+    }, 0);
+
+    emitter.emit("first");
+
 });

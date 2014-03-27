@@ -71,16 +71,17 @@
         
             ret = (function derez(value, path) {
                 
-                    var i, name, nu, temp;
+                    var i, name, nu, temp, ret;
                  
                     if (typeof value === "function") {
-                        if ( value.hasOwnProperty("_label") ) {
-                            return {$fun:value._label};
-                        } else { 
-                            return {$fun:value.toString().
-                                replace(/\s+/g, " ").
-                                slice(0,60)};
+                        if (value.hasOwnProperty("name")) {
+                            ret = value.name;
+                        } else {
+                            ret = value.toString();
+                            temp = ret.indexOf("(");
+                            ret = ret.slice(9, temp).trim() || "";
                         }
+                        return "`" + ret + "`";
                     }
                 
                     if ( typeof value === 'object' && value !== null &&
@@ -132,12 +133,16 @@
         };
 
     var serial = function (obj) {
+        
+            var ret;
             
             if (arguments.length > 1) {
                 obj = Array.prototype.slice.call(arguments, 0);
             }
         
-            return JSON.stringify(decycle(obj));
+            ret =  JSON.stringify(decycle(obj)) || "";
+        
+            return ret.replace(/\"\`|\`\"/g, "`");
         
         };
 
@@ -175,30 +180,28 @@
         try {
             if (typeof value === "string") {
                 if ( actions.hasOwnProperty(value) ) {
-                    emitter.log("executing action", value, evObj);
-                    actions[value].execute(data, evObj, context);
+                    emitter.log("executing action", value, context, evObj);
+                    return actions[value].execute(data, evObj, context);
                 } else {
                     emitter.log("action not found", value, evObj);
+                    return false;
                 }
-                return;
             }
     
             if (typeof value === "function") {
-                emitter.log("executing function", value, evObj);
-                value.call(context, data, evObj);
-                return; 
+                emitter.log("executing function", value, context, 
+                    evObj);
+                return value.call(context, data, evObj);
             }
     
             if ( Array.isArray(value) ) {
-                value.forEach(function (el) {
-                    me.call(empty, data, evObj, context, el); 
+                return value.some(function (el) {
+                    return me.call(empty, data, evObj, context, el); 
                 });
-                return;
             }
     
             if ( typeof value.execute === "function" ) {
-                value.execute(data, evObj, context);
-                return;
+                return value.execute(data, evObj, context);
             }   
     
             emitter.log("value not executable", value, evObj);
@@ -207,7 +210,7 @@
             emitter.error(e, value, data, evObj, context);
         }
     
-        return;
+        return false;
     }; 
     Handler.prototype.contains = function me (target, htype) {
         
@@ -242,7 +245,7 @@
             }
         
             if (typeof value === "function") {
-                return "f:" + (value._label || "" );
+                return serial(value);
             }
         
             if ( Array.isArray(value) ) {
@@ -396,7 +399,7 @@
         
             if (Object.keys(events).length === 0) {
                 if (tracker.reset === true) {
-                    tracker.add(tracker.original);
+                    tracker.reinitialize();
                 } else if (tracker.idempotent === false) {
                     tracker.go = noop;
                 }
@@ -417,7 +420,6 @@
             keys.forEach(function (event) {
                 emitter.off(event, handler);
             });
-        
             tracker.data = [];
             return tracker;
         };
@@ -760,18 +762,18 @@
                 context = temp;
             }
         
-            if ( n > 1) {
-                n = Math.ceil(n);
-            } else { 
-                n = 1;
+            if (typeof n === "undefined") {
+                handler.n = n = 1;
+            } else {
+                handler.n = n;
             }
         
-            handler.n = n;
-        
             g = function() {
-                handler.n -=1;
-                if (handler.n <= 0) {
+                if (handler.n >= 1) {
+                    handler.n -=1;
+                } else {
                     emitter.off(ev, handler);
+                    return true;
                 }
             };
         
@@ -957,12 +959,14 @@
     EvW.prototype.log = function () {}; //noop stub
     EvW.prototype.makeLog = function () {
             var emitter = this;
-            var s = serial;
+            var s = emitter.serial;
             var logs = [],
                 full = [], 
                 fdesc = {"emit" : function (ev, data, timing) {
-                        return "Event " + s(ev) +
-                            " emitted with data " + s(data) +
+                        return "Event " + s(ev) + " emitted" + 
+                            ( (typeof data !== "undefined") ? 
+                                " with data " + s(data) :
+                                "" ) +
                             ( (timing !== emitter.timing) ? " with timing " + 
                                 s(timing) : "" );
                     },
@@ -1017,7 +1021,9 @@
                     }, 
                     
                     "handler for event removed" : function (ev, removed) {
-                        return "Removed handler " + s(removed) + " from " + s(ev);
+                        return "Removed handler " + 
+                            s(removed.map(function (el) {return el.summarize();})) +
+                            " from " + s(ev);
                     },
                     
                     "removed handlers on event ignoring when" : function (ev) {
@@ -1050,8 +1056,10 @@
                         return "Overwiting " + s(name) + " with new " + s(proto);
                     },
                     
-                    "creating action" : function(name, proto) {
-                        return "Creating action " + s(name) + " with new " + s(proto);
+                    "creating action" : function(name, proto, context) {
+                        return "Creating action " + s(name) +
+                            " with function " + s(proto) + 
+                            ( context ?  " with context " + s(context) : "" ); 
                     },
                     
                     "seeing new event" : function (ev) {
@@ -1102,9 +1110,10 @@
                         return err;
                     },
                     
-                    "executing action" : function ( value, evObj) {
+                    "executing action" : function ( value, context, evObj) {
                         return "Executing action " + s(value) +
-                            " for event " + s(evObj.cur[0]); 
+                            " for event " + s(evObj.cur[0]) +
+                            ( context ?  " with context " + s(context) : "" ); 
                     },
                     
                     "action not found" : function (value, evObj) {
@@ -1112,20 +1121,29 @@
                             " requested action " + s(value) + " but action not found";
                     },
                     
-                    "executing function" : function (value, evObj) {
-                        return "Executing function " + s(value) + 
-                            " for event " + s(evObj.cur[0]);
+                    "executing function" : function (value, context, evObj) {
+                        var f = s(value);
+                        if (f === "``") {
+                            return ;
+                        }
+                        return "Executing function " + f + 
+                            " for event " + s(evObj.cur[0]) + 
+                            ( context ?  " with context " + s(context) : "" ); 
                     },
                     
                     "canceling tracker" : function (tracker) {
                         return "Canceling watcher " + s(tracker);
-                    }};
+                    }},
+                temp;
         
             var ret = function (desc) {
                 var args = Array.prototype.slice.call(arguments, 0);
         
                 if ( ret.fdesc.hasOwnProperty(desc) ) {
-                    logs.push( fdesc[desc].apply( emitter, args.slice(1) ) );
+                    temp = fdesc[desc].apply( emitter, args.slice(1) );
+                    if (temp) {
+                        logs.push( fdesc[desc].apply( emitter, args.slice(1) ) );
+                    }
                 }
         
                 full.push(s(args));
@@ -1136,11 +1154,31 @@
             ret.fdesc = fdesc;
         
             ret.full = function (filt, neg) {
+                var arr;
+                if (Array.isArray(filt) ) {
+                    arr = filt;
+                    filt = function (el) {
+                        return arr.some(function (partial) {
+                            return ( el.indexOf(partial) !== -1 );     
+                        });
+                    };
+                } 
+                  
                 var f = filter(filt, neg);
                 return full.filter(f); 
             };
         
             ret.logs = function (filt, neg) {
+                var arr;
+                if (Array.isArray(filt) ) {
+                    arr = filt;
+                    filt = function (el) {
+                        return arr.some(function (partial) {
+                            return ( el.indexOf(partial) !== -1 );     
+                        });
+                    };
+                } 
+                  
                 var f = filter(filt, neg);
                 return logs.filter(f); 
             };
@@ -1207,7 +1245,8 @@
                 emitter.log("overwriting action", name, handler,
                     emitter._actions[name], action);
             } else {
-                emitter.log("creating action", name, handler, action); 
+                emitter.log("creating action", name, handler, 
+                    context, action); 
             }
         
             emitter._actions[name] = action;
@@ -1238,7 +1277,7 @@
     EvW.prototype.error = function (e, handler, data, evObj, context) {
             var emitter = this;
             emitter._looping = false;
-            var s = serial;
+            var s = emitter.serial;
             var err = "error " + e + "\n\n" +
                 "event " + 
                 ( (evObj.ev === evObj.cur[0] ) ?

@@ -24,10 +24,11 @@ file.
     calls. This library is designed to address those needs. 
 
     Most event libraries suggest making objects (such as a button) into
-    emitters. This library is designed to allow you to attach the object to
-    the event/handler/emit.  It also allows you to listen for events before
-    the corresponding object exists. This is more like having listeners on a
-    form element responding to button clicks in the form.
+    emitters; this is to promote separation of concerns, a good goal. This
+    library is designed to allow you to attach the object to the
+    event/handler/emit.  It also allows you to listen for events before the
+    corresponding object exists. This is more like having listeners on a form
+    element responding to button clicks in the form. 
 
     There are several noteworthy features of this library:
 
@@ -926,8 +927,8 @@ The main issue here is removing .when trackers.
 #### Once
 
 This method produces a wrapper around a provided handler that automatically
-removes the handler after a certain number of event firings (once is default).
-The new handler is what is returned.
+removes the handler after a certain number of event firings (once is
+default).  The new handler is what is returned.
 
 The way it works is the f is put into a handler object. This handler object
 then has a function placed as the first to be invoked. When invoked, it will
@@ -945,18 +946,18 @@ consequences.
 
         _":switch vars"
 
-        if ( n > 1) {
-            n = Math.ceil(n);
-        } else { 
-            n = 1;
+        if (typeof n === "undefined") {
+            handler.n = n = 1;
+        } else {
+            handler.n = n;
         }
 
-        handler.n = n;
-
         g = function() {
-            handler.n -=1;
-            if (handler.n <= 0) {
+            if (handler.n >= 1) {
+                handler.n -=1;
+            } else {
                 emitter.off(ev, handler);
+                return true;
             }
         };
 
@@ -1179,7 +1180,8 @@ to delete the action.
             emitter.log("overwriting action", name, handler,
                 emitter._actions[name], action);
         } else {
-            emitter.log("creating action", name, handler, action); 
+            emitter.log("creating action", name, handler, 
+                context, action); 
         }
 
         emitter._actions[name] = action;
@@ -1550,7 +1552,7 @@ flow of the emitter.
     function (e, handler, data, evObj, context) {
         var emitter = this;
         emitter._looping = false;
-        var s = serial;
+        var s = emitter.serial;
         _"logs:error"
         console.log(err);
         emitter.log("error raised", e, handler, data, evObj, context);
@@ -1578,9 +1580,14 @@ flow of the emitter.
 [example]()
 
     emitter.error = function (e, handler, data, evObj, context) {
-    console.log("Found error: " + e + " while executing " + handler + " with
-    data " + data + " in executing the event " + evObj.cur[0] + " with
-    context " + context); emitter._looping = false; throw Error(e); };
+        console.log( "Found error: " + e + 
+            " while executing " + handler + 
+            " with data " + data + 
+            " in executing the event " + evObj.cur[0] + 
+            " with context " + context ); 
+        emitter._looping = false; 
+        throw Error(e); 
+    };
 
 
 #### MakeLog
@@ -1592,16 +1599,20 @@ create the simple descriptions.
 
     function () {
         var emitter = this;
-        var s = serial;
+        var s = emitter.serial;
         var logs = [],
             full = [], 
-            fdesc = {_"logs"};
+            fdesc = {_"logs"},
+            temp;
 
         var ret = function (desc) {
             var args = Array.prototype.slice.call(arguments, 0);
 
             if ( ret.fdesc.hasOwnProperty(desc) ) {
-                logs.push( fdesc[desc].apply( emitter, args.slice(1) ) );
+                temp = fdesc[desc].apply( emitter, args.slice(1) );
+                if (temp) {
+                    logs.push( fdesc[desc].apply( emitter, args.slice(1) ) );
+                }
             }
 
             full.push(s(args));
@@ -1612,11 +1623,13 @@ create the simple descriptions.
         ret.fdesc = fdesc;
 
         ret.full = function (filt, neg) {
+            _":array filt"
             var f = filter(filt, neg);
             return full.filter(f); 
         };
 
         ret.logs = function (filt, neg) {
+            _":array filt"
             var f = filter(filt, neg);
             return logs.filter(f); 
         };
@@ -1624,6 +1637,23 @@ create the simple descriptions.
         emitter.log = ret; 
         return ret;
     }
+
+[array filt]()
+
+The array of matching exact strings in the logs is not useful. So instead, we
+make it do partial matches. For this, we define a function to pass into
+filter. 
+
+    var arr;
+    if (Array.isArray(filt) ) {
+        arr = filt;
+        filt = function (el) {
+            return arr.some(function (partial) {
+                return ( el.indexOf(partial) !== -1 );     
+            });
+        };
+    } 
+   
 
 [doc]()
 
@@ -2020,7 +2050,9 @@ emitter's .error method (which can be overwritten). The default will rethrow
 the error with more information. The error is likely to be called multiple
 times if throwing is kept being done. Maybe should think about that.  
 
-evObj.stop is the flag to set to stop execution. 
+evObj.stop is the flag to set to stop execution for the rest of the event's
+handlers. To just stop the cascade for a given handler (see once), return
+true. 
 
     function me (data, evObj, context, value) {
         if (evObj.stop) {
@@ -2037,30 +2069,28 @@ evObj.stop is the flag to set to stop execution.
         try {
             if (typeof value === "string") {
                 if ( actions.hasOwnProperty(value) ) {
-                    emitter.log("executing action", value, evObj);
-                    actions[value].execute(data, evObj, context);
+                    emitter.log("executing action", value, context, evObj);
+                    return actions[value].execute(data, evObj, context);
                 } else {
                     emitter.log("action not found", value, evObj);
+                    return false;
                 }
-                return;
             }
 
             if (typeof value === "function") {
-                emitter.log("executing function", value, evObj);
-                value.call(context, data, evObj);
-                return; 
+                emitter.log("executing function", value, context, 
+                    evObj);
+                return value.call(context, data, evObj);
             }
 
             if ( Array.isArray(value) ) {
-                value.forEach(function (el) {
-                    me.call(empty, data, evObj, context, el); 
+                return value.some(function (el) {
+                    return me.call(empty, data, evObj, context, el); 
                 });
-                return;
             }
 
             if ( typeof value.execute === "function" ) {
-                value.execute(data, evObj, context);
-                return;
+                return value.execute(data, evObj, context);
             }   
 
             emitter.log("value not executable", value, evObj);
@@ -2069,7 +2099,7 @@ evObj.stop is the flag to set to stop execution.
             emitter.error(e, value, data, evObj, context);
         }
 
-        return;
+        return false;
     }
 
 [doc]()
@@ -2099,8 +2129,10 @@ evObj.stop is the flag to set to stop execution.
 
 #### Summarize
 
-This tries to report the structure of the handlers. We use the property name
-"name" for the tag to return for any given level.
+This tries to report the structure of the handlers. We use the property
+name "_label" for the tag to return for any given level.
+
+For functions, we use their given name 
 
     function me (value) {
         var ret, lead;
@@ -2114,7 +2146,7 @@ This tries to report the structure of the handlers. We use the property name
         }
 
         if (typeof value === "function") {
-            return "f:" + (value._label || "" );
+            return serial(value);
         }
 
         if ( Array.isArray(value) ) {
@@ -2440,7 +2472,7 @@ If reset is true, then we add those events before firing off the next round.
 
         if (Object.keys(events).length === 0) {
             if (tracker.reset === true) {
-                tracker.add(tracker.original);
+                tracker.reinitialize();
             } else if (tracker.idempotent === false) {
                 tracker.go = noop;
             }
@@ -2474,7 +2506,6 @@ clearing the data.
         keys.forEach(function (event) {
             emitter.off(event, handler);
         });
-
         tracker.data = [];
         return tracker;
     }
@@ -2531,8 +2562,10 @@ This is where we keep track of the log statements and what to do with them.
 
 
     "emit" : function (ev, data, timing) {
-        return "Event " + s(ev) +
-            " emitted with data " + s(data) +
+        return "Event " + s(ev) + " emitted" + 
+            ( (typeof data !== "undefined") ? 
+                " with data " + s(data) :
+                "" ) +
             ( (timing !== emitter.timing) ? " with timing " + 
                 s(timing) : "" );
     },
@@ -2587,7 +2620,9 @@ This is where we keep track of the log statements and what to do with them.
     }, 
 
     "handler for event removed" : function (ev, removed) {
-        return "Removed handler " + s(removed) + " from " + s(ev);
+        return "Removed handler " + 
+            s(removed.map(function (el) {return el.summarize();})) +
+            " from " + s(ev);
     },
 
     "removed handlers on event ignoring when" : function (ev) {
@@ -2621,8 +2656,10 @@ This is where we keep track of the log statements and what to do with them.
         return "Overwiting " + s(name) + " with new " + s(proto);
     },
 
-    "creating action" : function(name, proto) {
-        return "Creating action " + s(name) + " with new " + s(proto);
+    "creating action" : function(name, proto, context) {
+        return "Creating action " + s(name) +
+            " with function " + s(proto) + 
+            ( context ?  " with context " + s(context) : "" ); 
     },
 
 
@@ -2666,9 +2703,10 @@ This is where we keep track of the log statements and what to do with them.
         return err;
     },
     
-    "executing action" : function ( value, evObj) {
+    "executing action" : function ( value, context, evObj) {
         return "Executing action " + s(value) +
-            " for event " + s(evObj.cur[0]); 
+            " for event " + s(evObj.cur[0]) +
+            ( context ?  " with context " + s(context) : "" ); 
     },
 
     "action not found" : function (value, evObj) {
@@ -2676,9 +2714,14 @@ This is where we keep track of the log statements and what to do with them.
             " requested action " + s(value) + " but action not found";
     },
 
-    "executing function" : function (value, evObj) {
-        return "Executing function " + s(value) + 
-            " for event " + s(evObj.cur[0]);
+    "executing function" : function (value, context, evObj) {
+        var f = s(value);
+        if (f === "``") {
+            return ;
+        }
+        return "Executing function " + f + 
+            " for event " + s(evObj.cur[0]) + 
+            ( context ?  " with context " + s(context) : "" ); 
     },
 
     "canceling tracker" : function (tracker) {
@@ -2857,16 +2900,17 @@ one of the weird builtin objects.
 
     function derez(value, path) {
 
-        var i, name, nu, temp;
+        var i, name, nu, temp, ret;
  
         if (typeof value === "function") {
-            if ( value.hasOwnProperty("_label") ) {
-                return {$fun:value._label};
-            } else { 
-                return {$fun:value.toString().
-                    replace(/\s+/g, " ").
-                    slice(0,60)};
+            if (value.hasOwnProperty("name")) {
+                ret = value.name;
+            } else {
+                ret = value.toString();
+                temp = ret.indexOf("(");
+                ret = ret.slice(9, temp).trim() || "";
             }
+            return "`" + ret + "`";
         }
 
         if ( typeof value === 'object' && value !== null &&
@@ -2939,19 +2983,24 @@ not the copy.
 #### Serial
 
 This is a simple wrapper to stringify the result of the decycle. If multiple
-arguments are supplied, an arrayified version of is yielded. 
+arguments are supplied, an arrayified version of is yielded.
+
+A function is denoted with tick marks. To avoid string quoted tick marks, we
+remove the added quotes. 
 
     function (obj) {
+
+        var ret;
         
         if (arguments.length > 1) {
             obj = Array.prototype.slice.call(arguments, 0);
         }
 
-        return JSON.stringify(decycle(obj));
+        ret =  JSON.stringify(decycle(obj)) || "";
+
+        return ret.replace(/\"\`|\`\"/g, "`");
     
     }
-
-    
 
 ## README
 
@@ -3241,6 +3290,9 @@ with the event string and handler name added to the error.
 Here we benchmark the basic emit, handler code. This is presumably where
 the most number of operations occurs. 
 
+    
+    /*global require, process, console */
+    
     var n = process.argv[2] || 1e3;
 
     var i, time, c;

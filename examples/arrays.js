@@ -5,23 +5,29 @@ var EventWhen = require('../index.js'),
 
 emitter.makeLog();
 
-emitter.on("first", [glob, function (data, emitter, args, ev) {
-    var g = this; 
-    var n = data.n;
-    console.log(ev, n);
-    g.seconder = function (data, emitter, args, ev) {
-        n += 1;
-        console.log(n, ev);
-        if ( n < 10) {
-            emitter.emit(ev);
-        }
-    };
-    emitter.emit("second");
-    }]
-);
+emitter.on("first", [
+    function f1 (data, evObj) {
+        var g = this; 
+        g.n = data.n;
+        console.log(evObj.ev, g.n);
+    },
+    function f2 (data, evObj) {
+        var g = this, 
+            ev = evObj.ev, 
+            emitter = evObj.emitter;
 
-emitter.on("second", [glob, "seconder"]);
+        console.log(g.n, ev);
+        if ( g.n < 10) {
+            emitter.emit(ev, {n:(g.n+1)});
+        } else {
+            emitter.emit("done");
+        }    
+    }], glob );
+
+emitter.on("done", function d () {
+    console.log("all done");
+});
 
 emitter.emit("first", {n: 5});
 
-emitter.log.print();
+console.log(emitter.log.logs());

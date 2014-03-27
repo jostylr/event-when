@@ -32,4 +32,8 @@ fs.watchFile("test/test.md", function () {
     exec("./mon.sh", out);
 });
 
+fs.watchFile("examples/emitwhenExamples.md", function () {
+    exec("./mon.sh", out);
+});
+
 exec("./mon.sh", out);

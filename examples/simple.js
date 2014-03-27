@@ -5,25 +5,18 @@ var EventWhen = require('../index.js'),
 
 emitter.makeLog();
 
-f = emitter.on("test 1 on", function () {
-    console.log("test 1 starts!");
+f = emitter.on("test 1 on", function t1s () {
     emitter.emit("test 1 finishes");
 });
 
-emitter.on("test 1 finishes", function () {
-    console.log("test 1 finishes!");
+emitter.on("test 1 finishes", function t1f () {
     emitter.off("test 1 on", f);
-    console.log("offed");
     emitter.emit("test 1 on");
 });
 
 emitter.emit("test 1 on");
 
-emitter.log.print();
-emitter.log.filter(function (str) {
-    if (str.search("test 1") === -1) {
-        return false;
-    } else {
-        return true;
-    }
-});
+console.log(emitter.log.logs());
+
+console.log("just emits now:" ); 
+console.log(emitter.log.logs("emitted"));

@@ -454,14 +454,13 @@ This tests the summarize of handlers.
 
 [expected]()
 
-    h:fred bob[a:hi, f:jack, h: [a:dude, f:]]
+    h:fred bob[a:hi, `jack`, h: [a:dude, ``]]
 
 [code]()
 
-    var h = emitter.on("cool", ["hi", function() {}, emitter.makeHandler(["dude", function(){}])]);
+    var h = emitter.on("cool", ["hi", function jack () {}, emitter.makeHandler(["dude", function(){}])]);
 
     h._label = "fred";
-    h.value[1]._label = "jack";
     h.value._label = "bob";
 
     actual.push(h.summarize());
@@ -917,12 +916,11 @@ This is to test the handler method of summarize.
 
         h2._label = "hi";
 
-        var named = function () {"what"};
-        named._label = "bob";
+        var named = function bob () {"what";};
 
-        var h3 = emitter.makeHandler([function () {"neat"}, h2, named]);
+        var h3 = emitter.makeHandler([function () {"neat";}, h2, named]);
 
-        t.equals(h3.summarize(), "h: [f:, h:hi a:act, f:bob]", 
+        t.equals(h3.summarize(), "h: [``, h:hi a:act, `bob`]", 
             " level handler");
 
     });
@@ -950,14 +948,49 @@ This is code that should break.
 
         emitter.when(["go", n], "done", "now");
 
-        var time;
-
         emitter.on("done", function () {
-            console.log(c);
             t.equals(c, 100, "when fired correctly");
         });
 
         emitter.emit("go");
+    });
+
+## once twice
+
+This is to check that we can't call a once handler more than once if it is to
+only be called once. 
+
+In the original, this would fail. By placing an emit of "first" before the
+once handler called, the handlers involving the once get loaded onto the
+queue before being removed. The solution was to allow for handler
+termination (return true) and thus the once counter handler returns true if
+it shouldn't fire. This also takes care of passing in a 0 for once -- now it
+will not fire.  
+
+    test("once twice", function (t) {
+    
+        t.plan(1);
+
+        var emitter = new EventWhen();
+        var n = 0;
+
+        emitter.on("first", function () {
+            if ( n < 2) {
+                emitter.emit("first");
+                n += 1;
+            }
+        });
+
+        emitter.once("first", function a () {
+            t.pass("`a` called");
+        });
+
+        emitter.once("first", function b () {
+            t.fail("`b` called");
+        }, 0);
+
+        emitter.emit("first");
+
     });
 
 ## [testrunner.js](#testrunner.js "save: |jshint")
@@ -1011,3 +1044,5 @@ This is code that should break.
     _"summarize"
 
     _"when"
+
+    _"once twice"

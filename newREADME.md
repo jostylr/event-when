@@ -13,10 +13,11 @@ a lot of closures or globals to handle manipulating state from event
 calls. This library is designed to address those needs. 
 
 Most event libraries suggest making objects (such as a button) into
-emitters. This library is designed to allow you to attach the object to
-the event/handler/emit.  It also allows you to listen for events before
-the corresponding object exists. This is more like having listeners on a
-form element responding to button clicks in the form.
+emitters; this is to promote separation of concerns, a good goal. This
+library is designed to allow you to attach the object to the
+event/handler/emit.  It also allows you to listen for events before the
+corresponding object exists. This is more like having listeners on a form
+element responding to button clicks in the form. 
 
 There are several noteworthy features of this library:
 
@@ -578,9 +579,14 @@ This is a method to be overwritten, not called.
 __example__
 
     emitter.error = function (e, handler, data, evObj, context) {
-    console.log("Found error: " + e + " while executing " + handler + " with
-    data " + data + " in executing the event " + evObj.cur[0] + " with
-    context " + context); emitter._looping = false; throw Error(e); };
+        console.log( "Found error: " + e + 
+            " while executing " + handler + 
+            " with data " + data + 
+            " in executing the event " + evObj.cur[0] + 
+            " with context " + context ); 
+        emitter._looping = false; 
+        throw Error(e); 
+    };
 
 ---
 <a name="log"></a>
