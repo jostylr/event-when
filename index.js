@@ -8,6 +8,11 @@
 
     var filter = function (condition, negate) {
             
+            if ( (Array.isArray(condition)) && (typeof condition[1] === "boolean") ) {
+                negate = condition[1];
+                condition = condition[0];
+            }
+        
             if (typeof condition === "string") {
                
                if (negate) {
@@ -21,7 +26,7 @@
                 }
         
             } else if ( Array.isArray(condition) ) {
-               
+              
                 if (negate) {
                     return function (el) {
                         return condition.indexOf(el) === -1;
@@ -346,7 +351,7 @@
         tracker.go();
         return tracker;
     };
-    Tracker.prototype.remove = function (byeEvents) {
+    Tracker.prototype.remove = Tracker.prototype.rem = function (byeEvents) {
             var tracker = this,
                 events = tracker.events;
         
@@ -488,7 +493,7 @@
             var h = emitter._handlers[ret];
             if (h) {
                 //unshifting does the bubbling up
-               events.unshift({scopeEvent: ret, handlers: h.slice()});
+               events.unshift([ret, h.slice()]);
             }
             return ret;
         }, ""); 
@@ -871,13 +876,13 @@
                 
                 cur = events[0]; 
                 
-                if (events[0].handlers.length === 0) {
+                if (events[0][1].length === 0) {
                     events.shift();
                     continue;
                 }
                 
-                ev = cur.scopeEvent;
-                f = cur.handlers.shift();
+                ev = cur[0];
+                f = cur[1].shift();
                 if (f) {
                     evObj.cur = [ev, f];
                     emitter.log("firing", ev, f, evObj);
