@@ -962,8 +962,8 @@
             var s = emitter.serial;
             var logs = [],
                 full = [], 
-                fdesc = {"emit" : function (ev, data, timing) {
-                        return "Event " + s(ev) + " emitted" + 
+                fdesc = {"emit" : function (ev, data, timing, evObj) {
+                        return evObj.count + ". Event " + s(ev) + " emitted" + 
                             ( (typeof data !== "undefined") ? 
                                 " with data " + s(data) :
                                 "" ) +
@@ -1062,14 +1062,6 @@
                             ( context ?  " with context " + s(context) : "" ); 
                     },
                     
-                    "seeing new event" : function (ev) {
-                        return s(ev) + " is being handled";
-                    },
-                    
-                    "seeing event again" : function (ev) {
-                        return s(ev) + " is again being handled";
-                    },
-                    
                     "emission stopped" : function (ev) {
                         return "Event " + s(ev) + " emission stopped";
                     },
@@ -1111,13 +1103,17 @@
                     },
                     
                     "executing action" : function ( value, context, evObj) {
-                        return "Executing action " + s(value) +
-                            " for event " + s(evObj.cur[0]) +
+                        return evObj.count + ") " + 
+                            "Executing action " + s(value) +
+                            " for event " +
+                            s(evObj.cur[0]) +
                             ( context ?  " with context " + s(context) : "" ); 
                     },
                     
                     "action not found" : function (value, evObj) {
-                        return "Event " + s(evObj.cur[0]) + 
+                        return  evObj.count + ") " + 
+                            " Event " +
+                            s(evObj.cur[0]) + 
                             " requested action " + s(value) + " but action not found";
                     },
                     
@@ -1126,8 +1122,10 @@
                         if (f === "``") {
                             return ;
                         }
-                        return "Executing function " + f + 
-                            " for event " + s(evObj.cur[0]) + 
+                        return evObj.count + ") " + 
+                            "Executing function " + f + 
+                            " for event " + 
+                            s(evObj.cur[0]) + 
                             ( context ?  " with context " + s(context) : "" ); 
                     },
                     

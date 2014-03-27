@@ -24,8 +24,9 @@ file.
     calls. This library is designed to address those needs. 
 
     Most event libraries suggest making objects (such as a button) into
-    emitters; this is to promote separation of concerns, a good goal. This
-    library is designed to allow you to attach the object to the
+    emitters; this is to promote separation of concerns, a good goal. But we
+    want to coordinate events from multiple sources. So to do this, event-when
+    is designed to allow you to attach the object to the
     event/handler/emit.  It also allows you to listen for events before the
     corresponding object exists. This is more like having listeners on a form
     element responding to button clicks in the form. 
@@ -356,17 +357,20 @@ but we have no need for the finished string, just the intermediates.
     order of emission is from the most specific to the general (bubbling
     up).  `emitter.scopeSep` holds what to split on.
 
+    In what follows, it is important to know that the handler signature 
+    is `(data, evObj)`.
+
     As an example, if the event `a:b:c` is emitted, then `a:b:c` fires,
     followed by `a:b`, followed by `a`. The scope objects available, however,
     include that of all three of the emitted events as well as `b`, and `c`
     separately. Thus, we can have an event `a:b` with a handler on `a` that
     uses the scope of `b`. The name `b` can be found by accessing 
     `base = evObj.pieces[0]` and the scope accessed from `evObj.scopes[base]`.
-    Note that `b` will not fired as a stand-alone event; it is just its scope
-    which is found that way.
+    Note that `b` will not fire as a stand-alone event; it is just its scope
+    which can be found that way.
 
     To stop the emitting and any bubbling, set `evObj.stop === true` in the
-    handler ( handler signature is `(data, evObj)` ). To do more
+    handler . To do more
     fine-controlled stopping, you need to manipulate `evObj.events` which is
     an array consisting of objects of the form `{str scopeEvent, arr
     handlers}`. 
@@ -558,7 +562,7 @@ when there are monitors around.
 
 [doc]()
 
-    ### monitor(listener arr/filter, listener)
+    ### monitor(listener arr/filter, listener) --> [filt, listener]
 
     If you want to react to events on a more coarse grain level, then you can
     use the monitor method. 
@@ -578,15 +582,18 @@ when there are monitors around.
     __returns__
 
     Listener array of filter, function when assigning. Use this to remove the
-    monitoring.
+    monitoring. The returned array also has a `.orig` property containing the
+    original filter type.
     
     __example__
 
         emitter.monitor(/bob/, function(ev, data, emitter) {
             console.log("bob in ", ev, " with ", data);
-            emitter.emit("bob seen");
+            emitter.emit("mischief managed");
         });
 
+    Note if you were to emit "bob" in the above monitor, then we would have an
+    infinite loop.
 
 #### Scope
 
@@ -655,17 +662,26 @@ We return the event name so that it can then be used for something else.
     * 1 arguments. Leads to specified scope's object being returned.
     * 2 arguments. Emitter returned for chaining.
 
+    __note__ 
+
+    The scope is associated not only just the full scope, but also its parts.
+    For example, the event "file:bob" would have associated scopes of "file",
+    "bob", and "file:bob". In a handler with signature `(data, evObj)`, this
+    can be accessed by `evObj.scopes.bob`, `evObj.scopes.file`, and
+    `evObj.scopes["file:bob"]`,  assuming there are scopes associated with
+    those strings. 
+
+    __example__
+
+        _":example"
 
 [example]()
 
-    // stores reference to button element
-    emitter.scope("button:submit", {id:"great", dom: submitButton});
-    // returns object in second argument above
-    emitter.scope("button:submit");
-    //overwrites obj
-    emitter.scope("button:submit", popupWarning);
-    //clears scope button:submit
-    emitter.scope("button:submit", null);
+    emitter.scope("bob", {bd: "1/1"});
+
+    emitter.scope("bob") === {bd:"1/1"};
+
+    emitter.scope() === ["bob"];
 
 #### Scopes
 
@@ -712,6 +728,17 @@ This will return an object with with key as scope, value as context.
     scope's value. If the value is an object, then that object is the same
     object and modifications on one will reflect on the other. 
 
+    __example__
+
+    Following the example of bob in scope...
+
+        _":example"
+
+[example]()
+
+    emitter.scopes("bob") === {bob: {bd :"1/1"} }
+
+    emitter.scopes("bob", true) == {}
 
 
 #### On
@@ -914,10 +941,10 @@ The main issue here is removing .when trackers.
 
 [example]()
 
-    // removes f from "full:event"
-    emitter.off("full:event", f);
-    // removes all handlers to all events with :event as last 
-    emitter.off(/\:event$/);
+    // removes f from "full:bob"
+    emitter.off("full:bob", f);
+    // removes all handlers to all events with :bob as last 
+    emitter.off(/\:bob$/);
     // removes all listed events
     emitter.off(["first", "second"], f);
     // function filter
@@ -1098,7 +1125,7 @@ sure that properly written, but unordered, is okay.
     __arguments__
 
     * `events` A string or an array of strings. These represent the events
-      that need to be fired before taking the specified action. The array
+      that need to be fired before emitting the event `ev`. The array
       could also contain a numbered event which is of the form `[event, # of
       times]`. This will countdown the number of times the event fires
       before considering it done. 
@@ -1513,7 +1540,7 @@ but it should work.
       active handler is stopped.  
     * `toRemove` Any [filter](#filter) type. If an event matches, it is
       removed. 
-    * `neg`. Reverse match semantics. 
+    * `neg`. Reverse match semantics of filter type. 
         
     __returns__
 
@@ -1668,23 +1695,33 @@ filter.
 
     The log has various properties/methods of interest: 
 
-    * `_logs` This is where the carefully crafted logs are stored. This
-      should be the most useful and meaningful statements for each logged
-      event. 
+    * `_logs` This is where the carefully crafted logs are stored. This should
+      be the most useful and meaningful statements for each logged event. 
     * `_full`. This is a complete dumping of all passed in data to the log,
       including the description. 
     * `fdesc` This is the object whose keys are the emitter.log descriptions
       and whose values are functions that produce the log input. This is not
       prototyped; if you delete a function, it is gone. This allows for easy
-      removal of unwanted descriptions, but...
-    * `full` This produces the logs. It arguments get passed to the fitler
-      function so strings match as substrings, regexs, arrays of exact
-      matches (probably not that useful...), general function filters, and
-      the ability to reverse the matches (maybe the array is useful for
-      that). 
-    * `logs` This acts on the logs array instead of the full array.
-      Otherwise same as the full function. 
+      removal of unwanted descriptions.
+    * `full` This produces the logs. Its arguments get passed to the filter
+      function so strings match as substrings, regexs, arrays of substrings to
+      match (exact matches did not seem useful for this), general function
+      filters, and the ability to reverse the matches (maybe the array is
+      useful for that). 
+    * `logs` This acts on the logs array instead of the full array.  Otherwise
+      same as the full function. 
       
+    __example__
+
+    You should run the example in the example directory to get a feeling for
+    what the logs produce. 
+
+        emitter.makeLog();
+
+        ...
+
+        emitter.log.logs(["emitted", "Executing"]);
+
 
 #### Events
 
@@ -1733,8 +1770,7 @@ If nothing is passed in, then we return all the events that have handlers.
 
     __returns__
 
-    The event strings with handlers attached that match the passed in
-    criteria.
+    An array of event strings that match the passed in criteria.
 
     __example__
 
@@ -1809,6 +1845,20 @@ with those events as keys and the values as the handlers.
 
     Object with keys of events and values of arrays of Handlers.
     
+    __example__
+
+    Let's say we have handlers for the events "bob wakes up" and "bob sleeps".
+
+        _":example"
+
+[example]()
+
+    emitter.handlers("bob") === {
+        "bob wakes up" : [handler1],
+        "bob sleeps" : [handler2, handler3]
+        }
+
+
 ### Handler
 
 This is where we define handlers.
@@ -2209,7 +2259,7 @@ This is a simple wrapper for new Handler
 
     __example__
 
-        emitter.makeHandler(f, obj);
+        emitter.makeHandler(function yay () {}, obj);
 
 ### Tracker
 
@@ -2561,8 +2611,8 @@ We restore tracker.go if it has been silenced.
 This is where we keep track of the log statements and what to do with them. 
 
 
-    "emit" : function (ev, data, timing) {
-        return "Event " + s(ev) + " emitted" + 
+    "emit" : function (ev, data, timing, evObj) {
+        return evObj.count + ". Event " + s(ev) + " emitted" + 
             ( (typeof data !== "undefined") ? 
                 " with data " + s(data) :
                 "" ) +
@@ -2663,14 +2713,6 @@ This is where we keep track of the log statements and what to do with them.
     },
 
 
-    "seeing new event" : function (ev) {
-        return s(ev) + " is being handled";
-    },
-
-    "seeing event again" : function (ev) {
-        return s(ev) + " is again being handled";
-    },
-
     "emission stopped" : function (ev) {
         return "Event " + s(ev) + " emission stopped";
     },
@@ -2704,13 +2746,17 @@ This is where we keep track of the log statements and what to do with them.
     },
     
     "executing action" : function ( value, context, evObj) {
-        return "Executing action " + s(value) +
-            " for event " + s(evObj.cur[0]) +
+        return evObj.count + ") " + 
+            "Executing action " + s(value) +
+            " for event " +
+            s(evObj.cur[0]) +
             ( context ?  " with context " + s(context) : "" ); 
     },
 
     "action not found" : function (value, evObj) {
-        return "Event " + s(evObj.cur[0]) + 
+        return  evObj.count + ") " + 
+            " Event " +
+            s(evObj.cur[0]) + 
             " requested action " + s(value) + " but action not found";
     },
 
@@ -2719,8 +2765,10 @@ This is where we keep track of the log statements and what to do with them.
         if (f === "``") {
             return ;
         }
-        return "Executing function " + f + 
-            " for event " + s(evObj.cur[0]) + 
+        return evObj.count + ") " + 
+            "Executing function " + f + 
+            " for event " + 
+            s(evObj.cur[0]) + 
             ( context ?  " with context " + s(context) : "" ); 
     },
 
