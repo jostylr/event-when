@@ -1,4 +1,4 @@
-/*global require, console, process*/
+/*global require, console*/
 
 var EventWhen = require('../index.js');
 var emitter = new EventWhen();

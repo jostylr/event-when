@@ -36,7 +36,7 @@ Let's just do a basic simple example
 
 Now let's involve some when action.
 
-    /*global require, console, process*/
+    /*global require, console*/
 
     var EventWhen = require('../index.js');
     var emitter = new EventWhen();
@@ -223,3 +223,95 @@ and such happened"), actions should be, well, active ("spell checking")
     emitter.emit("test 1", {msg: "See you tonight."});
 
     console.log(emitter.log.logs());
+
+## integration tester
+
+The idea of this little program is to run through and execute all the .js
+files in the directory, capturing the output and storing it in an object.
+
+If there are any errors, this should throw as it is a test.
+
+     /*global require, console*/
+    var EventWhen = require('../index.js'),
+        emitter = new EventWhen(), 
+        glob = {}, 
+        actual = {};
+
+    var fs = require('fs');
+
+    emitter.scope("actual", {});
+
+    emitter.on("start", "load expected");
+
+    emitter.on("ready expected.json", "store expected");
+
+    emitter.on("ready expected.json", "queue files");
+
+    emitter.on("list ready:files", "load files");
+
+    emitter.on("ready", "run", actual);
+
+    emitter.on("file done", "run file", files);
+
+    emitter.on("results loaded", "compare results", glob);
+
+    emitter.action("load expected", function (data, evObj) {
+        var emitter = evObj.emitter;
+        fs.readFile("expected.json", {encoding : "utf8"}, 
+    
+            function(err, text) {
+                if (err) {
+                    throw Error(err);
+                }
+                emitter.emit("ready expected.json", JSON.parse(text)); 
+            });
+        
+        }
+    );
+
+    emitter.action("store expected", function (data, evObj) {
+        var emitter = evObj.emitter;
+        emitter.scope("expected", data); 
+    });
+
+    emitter.action("queue files", function (data, evObj) {
+        var emitter = evObj.emitter;
+        emitter.scope("files", Object.keys(data)); 
+        emitter.emit("list ready:files");
+    });
+        
+    emitter.action("load files", function (data, evObj) {
+        var emitter = evObj.emitter;
+        var files = evObj.scopes.files;
+        files.forEach(function (el) {
+            fs.readFile(el, {encoding:"utf8"}, 
+
+            function (err, text) {
+                if (err) {
+                    throw Error(err);
+                } 
+                emitter.emit("ready:"+el, text);
+            });
+        });
+    });
+
+    emitter.action("run", function (data, evObj) {
+        var actual = this;
+        var fname = evObj.pieces[0];
+        var emitter = evObj.emitter;
+    
+        var script = "var act = ''; var cl = function(str) {act +=str;};" +
+            data.replace(/console\.log/g, "cl") +
+            "ext.emit(";
+
+        var f = new Function(emitter, fname, script);
+
+
+
+
+            
+        
+    
+
+
+    
