@@ -94,10 +94,9 @@ The file structure is fairly simple.
 * [index.js](#main "save:|jshint") This is the node module entry point and
   only relevant file. It is a small file.
 * [ghpages/index.js](#main "save:") This is for browser access. 
-* [benchmark.js](#benchmark "save:|jshint") This is a very simple benchmark
+* [test/benchmark.js](#benchmark "save:|jshint") This is a very simple benchmark
   test. 
-* [README.md](#old-readme "save: |clean raw ") The standard README.
-* [newREADME.md](#readme "save: ") The standard README, new version.
+* [README.md](#readme "save: ") The standard README, new version.
 * [package.json](#npm-package "save: json  | jshint") The requisite package
   file for a npm project. 
 * [TODO.md](#todo "save: | clean raw") A list of growing and shrinking items
