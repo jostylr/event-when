@@ -224,7 +224,7 @@ and such happened"), actions should be, well, active ("spell checking")
 
     console.log(emitter.log.logs());
 
-## integration tester
+## [integration.js](#integration.js "save: |jshint")
 
 The idea of this little program is to run through and execute all the .js
 files in the directory, capturing the output and storing it in an object.
@@ -232,10 +232,12 @@ files in the directory, capturing the output and storing it in an object.
 If there are any errors, this should throw as it is a test.
 
      /*global require, console*/
+     /*jshint evil:true*/
     var EventWhen = require('../index.js'),
         emitter = new EventWhen(), 
-        glob = {}, 
         actual = {};
+
+    emitter.makeLog();
 
     var fs = require('fs');
 
@@ -249,11 +251,23 @@ If there are any errors, this should throw as it is a test.
 
     emitter.on("list ready:files", "load files");
 
-    emitter.on("ready", "run", actual);
+    emitter.on("ready", "run");
 
-    emitter.on("file done", "run file", files);
+    emitter.on("done", "store", actual);
 
-    emitter.on("results loaded", "compare results", glob);
+    var when = emitter.when("list ready", "list done");
+
+    emitter.on("list done:expected", "compare", actual);
+
+    emitter.on("list done", "save", actual);
+
+    emitter.on("fail", "register failure");
+
+    emitter.scope("fail", {});
+
+    emitter.on("all done:pass", "report success");
+
+    emitter.on("all done:fail", "throw failure");
 
     emitter.action("load expected", function (data, evObj) {
         var emitter = evObj.emitter;
@@ -276,7 +290,11 @@ If there are any errors, this should throw as it is a test.
 
     emitter.action("queue files", function (data, evObj) {
         var emitter = evObj.emitter;
-        emitter.scope("files", Object.keys(data)); 
+        var files = Object.keys(data);
+        emitter.scope("files", files); 
+        files.forEach(function (el) {
+            when.add("done:"+el);
+        });
         emitter.emit("list ready:files");
     });
         
@@ -296,22 +314,88 @@ If there are any errors, this should throw as it is a test.
     });
 
     emitter.action("run", function (data, evObj) {
-        var actual = this;
         var fname = evObj.pieces[0];
         var emitter = evObj.emitter;
     
         var script = "var act = ''; var cl = function(str) {act +=str;};" +
             data.replace(/console\.log/g, "cl") +
-            "ext.emit(";
+            "return act";
 
-        var f = new Function(emitter, fname, script);
+        var f = new Function("require", script);
 
-
-
-
-            
+        emitter.emit( "done:"+fname, f(require) );
         
-    
+    });
 
-
+    emitter.action("store", function (data, evObj) {
+        var fname = evObj.pieces[0];
     
+        var actual = this;
+
+        actual[fname] = data;
+    
+    });
+
+    emitter.action("compare", function (data, evObj) {
+        var emitter = evObj.emitter;
+        var expected = emitter.scope("expected");
+        var actual = this; 
+        var exl = Object.keys(expected).length;
+        var acl = Object.keys(actual).length;
+        var flag = "pass";
+        var key; 
+
+        if  (exl !== acl) {
+            emitter.emit("fail:keys", [exl, acl] );
+            flag = "fail";
+        } else {
+
+            for (key in expected) {
+                if (expected[key] !== actual[key]) {
+                    emitter.emit("fail:"+key, [expected[key], actual[key]]);
+                    flag = "fail";
+                }
+            }
+
+        }
+
+        emitter.emit("all done:"+flag);
+
+    });
+
+    emitter.action("register failure", function (data, evObj) {
+        var fail = evObj.scope("fail");
+        var key = evObj.pieces[0];
+        fail[key] = data;
+        
+    });
+    
+    emitter.action("report success", function () {
+        console.log("success");
+    });
+    
+    emitter.action("throw failure", function (data, evObj) {
+        var fail = evObj.scopes.fail;
+
+        console.log("test failed: " + Object.keys(fail).join(","));
+
+        process.exit(1);
+
+    });
+
+    emitter.action("save", function () {
+        var actual = this;
+
+        fs.writeFile('actual.json', JSON.stringify(actual), 
+            function (err) {
+                if (err) {
+                  throw err;
+                }
+        });
+    });
+
+    emitter.emit("start");
+   
+    process.on("exit", function () {
+            //console.log(emitter.log.logs() ); 
+        } );

@@ -826,6 +826,8 @@
         
             handler.tracker = tracker;
         
+            handler._label = "tracker";
+        
             tracker.handler = handler; 
         
             tracker.add(events);

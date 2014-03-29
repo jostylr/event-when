@@ -1091,6 +1091,8 @@ one of the button counts (unless event bubbling is stopped). But
 
         handler.tracker = tracker;
 
+        handler._label = "tracker";
+
         tracker.handler = handler; 
 
         tracker.add(events);
