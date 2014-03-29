@@ -1,10 +1,10 @@
- /*global require, console*/
+ /*global require, console, process*/
  /*jshint evil:true*/
 var EventWhen = require('../index.js'),
     emitter = new EventWhen(), 
     actual = {};
 
-emitter.makeLog();
+emitter.makeLog(10, 4);
 
 var fs = require('fs');
 
@@ -24,7 +24,7 @@ emitter.on("done", "store", actual);
 
 var when = emitter.when("list ready", "list done");
 
-emitter.on("list done:expected", "compare", actual);
+emitter.on("saved:actual.json", "compare", actual);
 
 emitter.on("list done", "save", actual);
 
@@ -131,7 +131,7 @@ emitter.action("compare", function (data, evObj) {
 });
 
 emitter.action("register failure", function (data, evObj) {
-    var fail = evObj.scope("fail");
+    var fail = evObj.scopes.fail;
     var key = evObj.pieces[0];
     fail[key] = data;
     
@@ -144,25 +144,27 @@ emitter.action("report success", function () {
 emitter.action("throw failure", function (data, evObj) {
     var fail = evObj.scopes.fail;
 
-    console.log("test failed: " + Object.keys(fail).join(","));
-
-    process.exit(1);
+    throw "test failed: " + Object.keys(fail).join(",");
 
 });
 
-emitter.action("save", function () {
+emitter.action("save", function (data, evObj) {
     var actual = this;
+    var emitter = evObj.emitter;
 
     fs.writeFile('actual.json', JSON.stringify(actual), 
         function (err) {
             if (err) {
               throw err;
             }
+            
+            emitter.emit("saved:actual.json");
+            
     });
 });
 
 emitter.emit("start");
    
 process.on("exit", function () {
-        console.log(emitter.log.logs() ); 
+       // console.log(emitter.log.logs() ); 
     } );

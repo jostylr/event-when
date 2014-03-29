@@ -964,18 +964,39 @@
         };
     
     EvW.prototype.log = function () {}; //noop stub
-    EvW.prototype.makeLog = function () {
+    EvW.prototype.makeLog = function (len) {
+        
             var emitter = this;
-            var s = emitter.serial;
+            
+            var s;
+            switch (typeof len) {
+                case "number" : 
+                    s = function () {
+                        var str =  emitter.serial.apply({}, 
+                            Array.prototype.slice.call(arguments, 0) );
+            
+                        var ret = str.slice(0,len);
+            
+                        return ret;
+                    };
+                break;
+                case "function" : 
+                    s = len;
+                break;
+                default :
+                    s = emitter.serial;
+            }
+            var se = emitter.serial;
+        
             var logs = [],
                 full = [], 
                 fdesc = {"emit" : function (ev, data, timing, evObj) {
-                        return evObj.count + ". Event " + s(ev) + " emitted" + 
+                        return evObj.count + ". Event " + se(ev) + " emitted" + 
                             ( (typeof data !== "undefined") ? 
                                 " with data " + s(data) :
                                 "" ) +
                             ( (timing !== emitter.timing) ? " with timing " + 
-                                s(timing) : "" );
+                                se(timing) : "" );
                     },
                       
                     "restoring normal emit" : function () {
@@ -996,30 +1017,33 @@
                     },
                     
                     "intercepting event" : function ( ev, data, filt){
-                        return "Intercepted event " + s(ev, data) +
+                        return "Intercepted event " + se(ev) +
+                               ( (typeof data !== "undefined") ? 
+                                " with data " + s(data) :
+                                "" ) +
                             " with monitor " + s(filt.filt, filt[1]);
                     },
                     
                     "stopping event" : function(ev, data, filt) {
-                        return "Stopping event " + s(ev, data) +
+                        return "Stopping event " + se(ev) +
                             " because of monitor " + s(filt.filt, filt[1]);
                     },
                     
                     "deleting scope event" : function (ev, scope) {
-                        return "Scope event removed " + s(ev, scope);
+                        return "Scope event removed " + se(ev) + " " + s(scope);
                     },
                     
                     "overwriting scope event" : function(ev, obj, scope) {
-                        return "Changing the scope of " + s(ev) + " from " +
+                        return "Changing the scope of " + se(ev) + " from " +
                             s(scope) + " to " + s(obj);
                     }, 
                     
                     "creating scope event" : function (ev, obj) {
-                        return "Event " + s(ev) + " now has a scope " + s(obj); 
+                        return "Event " + se(ev) + " now has a scope " + s(obj); 
                     },
                     
                     "on" : function (ev, proto, f, context) {
-                        return "Attaching " + s(proto) + " to event " + s(ev) + 
+                        return "Attaching " + s(proto) + " to event " + se(ev) + 
                             ( context ?  " with context " + s(context) : "" ); 
                     },
                     
@@ -1029,48 +1053,48 @@
                     
                     "handler for event removed" : function (ev, removed) {
                         return "Removed handler " + 
-                            s(removed.map(function (el) {return el.summarize();})) +
-                            " from " + s(ev);
+                            se(removed.map(function (el) {return el.summarize();})) +
+                            " from " + se(ev);
                     },
                     
                     "removed handlers on event ignoring when" : function (ev) {
-                        return "Removing handlers for " + s(ev);
+                        return "Removing handlers for " + se(ev);
                     },
                     
                     "removing all handlers on event" : function (ev) {
-                        return "Removing handlers for " + s(ev);
+                        return "Removing handlers for " + se(ev);
                     },
                     
                     "once" : function(ev, n, proto, context) {
-                        return "Attaching " + s(proto) + " to event " + s(ev) + 
-                            "for " + s(n) + " time" + ( (n > 1) ? "s" : "" ) +   
+                        return "Attaching " + s(proto) + " to event " + se(ev) + 
+                            "for " + se(n) + " time" + ( (n > 1) ? "s" : "" ) +   
                             ( context ?  " with context " + s(context) : "" ); 
                     },
                     
                     "when" : function (events, ev, timing, reset) {
-                        return "Will emit " + s(ev) + 
+                        return "Will emit " + se(ev) + 
                             " when the following have fired: " + 
-                            s(events) + 
+                            se(events) + 
                             ( timing ? " with timing " + s(timing) : "" ) +
                             ( reset ? " will reset" : "" ); 
                     },
                     
                     "removed action" : function(name) {
-                        return "Removing action " + s(name);
+                        return "Removing action " + se(name);
                     },
                     
                     "overwriting action" : function (name, proto) {
-                        return "Overwiting " + s(name) + " with new " + s(proto);
+                        return "Overwiting " + se(name) + " with new " + s(proto);
                     },
                     
                     "creating action" : function(name, proto, context) {
-                        return "Creating action " + s(name) +
+                        return "Creating action " + se(name) +
                             " with function " + s(proto) + 
                             ( context ?  " with context " + s(context) : "" ); 
                     },
                     
                     "emission stopped" : function (ev) {
-                        return "Event " + s(ev) + " emission stopped";
+                        return "Event " + se(ev) + " emission stopped";
                     },
                     
                     "queue cleared of all events" : function () {
@@ -1078,7 +1102,7 @@
                     },
                     
                     "event cleared" : function (ev) {
-                        return "Event " + s(ev) + " cleared from queue";
+                        return "Event " + se(ev) + " cleared from queue";
                     },
                     
                     "some events stopped" : function(a, rq, rw) {
@@ -1091,7 +1115,7 @@
                             return el.ev;
                         });  
                     
-                        return "Events stopped per filter " + s(a) + 
+                        return "Events stopped per filter " + se(a) + 
                             "resulting in the elimination of " + 
                             s(qlist) + " and " + s(wlist);
                     },
@@ -1111,28 +1135,28 @@
                     
                     "executing action" : function ( value, context, evObj) {
                         return evObj.count + ") " + 
-                            "Executing action " + s(value) +
+                            "Executing action " + se(value) +
                             " for event " +
-                            s(evObj.cur[0]) +
+                            se(evObj.cur[0]) +
                             ( context ?  " with context " + s(context) : "" ); 
                     },
                     
                     "action not found" : function (value, evObj) {
                         return  evObj.count + ") " + 
                             " Event " +
-                            s(evObj.cur[0]) + 
-                            " requested action " + s(value) + " but action not found";
+                            se(evObj.cur[0]) + 
+                            " requested action " + se(value) + " but action not found";
                     },
                     
                     "executing function" : function (value, context, evObj) {
-                        var f = s(value);
+                        var f = se(value);
                         if (f === "``") {
                             return ;
                         }
                         return evObj.count + ") " + 
                             "Executing function " + f + 
                             " for event " + 
-                            s(evObj.cur[0]) + 
+                            se(evObj.cur[0]) + 
                             ( context ?  " with context " + s(context) : "" ); 
                     },
                     
@@ -1151,7 +1175,7 @@
                     }
                 }
         
-                full.push(s(args));
+                full.push(emitter.serial(args));
             };
         
             ret._logs = logs;
