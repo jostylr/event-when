@@ -259,7 +259,7 @@ If there are any errors, this should throw as it is a test.
 
     emitter.on("saved:actual.json", "compare", actual);
 
-    emitter.on("list done", "save", actual);
+emitter.on("list done", "save", actual);
 
     emitter.on("fail", "register failure");
 

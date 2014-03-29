@@ -14,11 +14,11 @@ calls. This library is designed to address those needs.
 
 Most event libraries suggest making objects (such as a button) into
 emitters; this is to promote separation of concerns, a good goal. But we
-want to coordinate events from multiple sources. So to do this, event-when
-is designed to allow you to attach the object to the
+want to coordinate events from multiple sources. So to do this,
+event-when is designed to allow you to attach the object to the
 event/handler/emit.  It also allows you to listen for events before the
-corresponding object exists. This is more like having listeners on a form
-element responding to button clicks in the form. 
+corresponding object exists. This is more like having listeners on a
+form element responding to button clicks in the form. 
 
 There are several noteworthy features of this library:
 
@@ -26,12 +26,14 @@ There are several noteworthy features of this library:
   you to specify an event to emit after various specified events have all
   fired.  For example, if we call a database and read a file to assemble
   a webpage, then we can do something like 
-```   
-emitter.when(["file parsed:jack", "database returned:jack"],
-    "all data retrieved:jack");
-``` 
-  This is why the idea of a central emitter is particularly useful to
-  this library's intent.
+    
+    ```   
+    emitter.when(["file parsed:jack", "database returned:jack"],
+        "all data retrieved:jack");
+    ``` 
+    
+    This is why the idea of a central emitter is particularly useful to
+    this library's intent.
 * [Scope](#scope). Events can be scoped. In the above example, each of
   the events are scoped based on the user jack. It bubbles up from the
   most specific to the least specific. Each level can access the
@@ -363,7 +365,15 @@ Both n and context are optional and their positioning can be either way.
 
 __return__
 
-The handler that contains both f and the counter. 
+The handler that contains both f and the counter.
+
+__example__
+
+    // talk with bob just once when event "bob" happens
+    // this will be the object brief
+    emitter.once("bob", "talk with bob", brief);
+    // talk with jack three times, using brief each time
+    emitter.once("jack", "talk with jack", 3, brief);
 
 ---
 <a name="stop"></a>

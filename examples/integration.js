@@ -26,8 +26,6 @@ var when = emitter.when("list ready", "list done");
 
 emitter.on("saved:actual.json", "compare", actual);
 
-emitter.on("list done", "save", actual);
-
 emitter.on("fail", "register failure");
 
 emitter.scope("fail", {});
