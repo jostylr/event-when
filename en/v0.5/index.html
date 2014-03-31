@@ -1,0 +1,50 @@
+<h2 id="event-when-build-status">event-when <a href="https://travis-ci.org/jostylr/event-when"><img src="https://travis-ci.org/jostylr/event-when.png" alt="Build Status" /></a></h2>
+<p>NOTE: Major rewrite in progress. The readme here refers to the current npm version, not to this repository. See newReadme for what's cooking.</p>
+<p>Install using <code>npm install event-when</code></p>
+<p>Then you can <code>EventWhen = require('event-when');</code> and use <code>evw = new EventWhen()</code> to create a new instance of this class.</p>
+<p>It is a node module that allows you to create object with event methods. Fairly standard stuff with the exception of the <code>.when</code> method which resolves the problem of how to keep track of when to fire an event that has to wait for other events. That is, it allows several events to feed into one event being emitted.</p>
+<p>As an example, let's say you need to read/parse a file (&quot;file parsed&quot;) and get some data from a database (&quot;db parsed&quot;). Both events can happen in either order. Once both are done, then the &quot;data is ready&quot;.</p>
+<p>We can implement this with <code>evw.when([&quot;file parsed&quot;, &quot;db parsed&quot;], &quot;data is ready&quot; );</code></p>
+<p>Nifty!</p>
+<h3 id="methods">Methods</h3>
+<p>The simplest example of a handler is a function, but it could also be an action name, event string to be emitted, a Handler object, or an array of such things that could also contain arrays of the form <code>[that, fun, arg]</code> where <code>that</code> is the context, <code>fun</code> is the function to fire, and <code>arg</code> is some data to be passed into the third argument of <code>fun</code>. The first two arguments of <code>fun</code> are the data for the event and the emitter itself; there is a fourth argument that is the event string itself (which is surprisingly useful at times).</p>
+<ul>
+<li>.emit(str event, [obj data] ). Invokes all attached functions to Event, passing in the Data object, emitter object itself, and event string as the three arguments to the attached functions.</li>
+<li>.later(str event, [obj data], [bool first] ). Queues the event for emitting on next tick (or so). If first is true, then it puts the event ahead of others in line for emitting. Other than timing, same as .emit.</li>
+<li><p>.when([fired events], Handler, options ) This has similar semantics as emit except the [fired events] array has a series of events that must occur (any order) before this event is emitted. The object data of each fired event is merged in with the others for the final data object -- the original is archived in the data object under <code>_archive</code>. This method returns a <a href="#tracker-object">tracker object</a>.</p>
+<p>Each fired event could be an array consisting of [event, number of times, bool first]. This allows for waiting for multiple times (such as waiting until a user clicks a button 10 times to intervene with anger management).</p>
+<p>The second argument can be any <a href="#handler-object">Handler-type</a>.</p>
+<p>The options argument has the following useful keys:</p>
+<ul>
+<li>that Will be the context for functions fired from ev</li>
+<li>args Will be the arguments passed to such functions</li>
+<li>timing Is the timing passed to emitting events. later and firstLater togger .later and .later(...true), respectively. No timing or anything else triggers .emit</li>
+<li>reset Should the .when parameters be reset to the initial state once fired?</li>
+</ul></li>
+<li>.on(str event, Handler--convertible, obj that, ? args, boolean first) Attaches a Handler object to the string Event. The Handler is returned. Anything convertible to a Handler can be in the second slot. The Handler will be called in the context of <code>that</code> with <code>args</code> passed in as one of the arguments if those are present. The boolean first if present and TRUE will lead to the handle being pushed in front of the current handlers on the event.</li>
+<li>.once(str event, fun handle, int n, obj that, ? args, bool first) This will fire the handler n times, default of 1 times. This is accomplishd by placing a counting function as the first function to execute; it removes the handler when it reaches 0, but it still executes. The post-n arguments are the same as in <code>.on</code>. Warning: If you passin a Handler from somewhere else, it will add the counting function to it which means it will decrement if something else calls it. You can always wrap a Handler in an array to avoid this.</li>
+<li>.off(str event, fun handle) Removes function Handle from Event. The handler can be of type handler or a function, string, etc. If it is not a Handler, then it will only remove it if the Handler's value matches what is passed in, e.g., if you pass in function f then only if value matches [f] and not [f, g].</li>
+<li>.off(str event) Removes all function handlers on Event.</li>
+<li>Both variants of .off above also have optional boolean that if true will prevent the removal of when handles from their tracker objects meaning those events may never fire.</li>
+<li>.off() Removes all events. Ouch.</li>
+<li>.stop([str event/bool current]) Removes queued handlers either globally (no args), on an event (str given), or current (TRUE)</li>
+<li>.events(fun partial | str match, bool negate) It lists all events that have handlers. No arguments lead to all events being reported; if partial is a function, then it is used as a filter. If the match string is provided, then that is used to match with the negate boolean allowing a reversal of the selection for the function filter.</li>
+<li>.handlers(arr events) If no arguments, it returns all events and their handlers. If there is an event listing, then it uses that list of keys to pull handlers.</li>
+<li><p>.action(str name, handler, that, args) This stores a reference to a Handler in the action list. It can be invoked by simply using the name instead of the handler in any place where Handlers are accepted.</p></li>
+</ul>
+<p>If a function handler returns FALSE, then no further handlers from that event emit incident will occur.</p>
+<p>Logging of single events can be done by passing an event logging function. To log all events, attach a logging function via .log = function</p>
+<h3 id="tracker-object">Tracker Object</h3>
+<p>The .when method creates a handler that has a <code>handler.tracker</code> object and that tracker object has the following methods. This is what is returned from that method. The handler itself is found in <code>tracker.handler</code>.</p>
+<ul>
+<li>.add(ev); .add(ev1, ev2, ...); .add([ev1, ev2, ...]) This method adds events to the array of events that should happen before firing. The event could be an array of event and number of times to fire as well as the boolean for placing it first. If an event already exists, this will increment its counter appropriately.</li>
+<li>.remove(ev1, ev2, ...) removes the event(s). Each one could be either a string or an array of <code>[ev, num]</code> specifying how many times to remove the event.</li>
+<li>.cancel() This will remove the handler of the <code>.when</code> object and effectively removes this from ever being called.</li>
+</ul>
+<p>So concludes Trackers.</p>
+<h3 id="handler-object">Handler Object</h3>
+<p>The Handler type is what encapsulates what is being called. The handles to be exceuted are storedin an array property called <code>.value</code>. It may have a <code>.name</code> property (generated for actions, at the least), <code>.that</code> for the context the functions are called in, <code>.args</code> for a pass-in data into the function.</p>
+<p>The prototype has the method <code>.execute</code> which is internal and is what is called to execute the handlers.</p>
+<p>You can pass in functions, strings, arrays of these things, arrays with an array [context, function, args], and Handlers themselves.</p>
+<h3 id="error">.Error</h3>
+<p>Since we are controlling the flow, we can also control error throwing. So that is what the emitter.error method does. All calls to handlers have their errors caught and sent to the .error method. The default is to throw the error again with the event string and handler name added to the error.</p>
