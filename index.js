@@ -406,6 +406,9 @@
                 if (tracker.reset === true) {
                     tracker.reinitialize();
                 } else if (tracker.idempotent === false) {
+                    if (tracker === emitter.whens[ev]) {
+                        delete emitter.whens[ev];
+                    }
                     tracker.go = noop;
                 }
                 emitter.emit(ev, data, tracker.timing); 
@@ -430,11 +433,21 @@
         };
     Tracker.prototype.reinitialize = function () {
             var tracker = this;
+            var ev = tracker.ev;
+            var emitter = tracker.emitter;
         
             tracker.cancel();
             tracker.add(tracker.original);
             if (tracker.go === noop) {
                 delete tracker.go; //restores to prototype
+                if (tracker.mutable) {
+                    if (emitter.whens[ev]) {
+                        emitter.log("reinitializing .when; making immutable due to conflict", tracker);
+                        tracker.mutable = false;
+                    } else {
+                        emitter.whens[ev] = tracker;
+                    }
+                }
             }
             tracker.go();
             return tracker;
@@ -455,6 +468,7 @@
             this.loopMax = 1000;
             this.emitCount = 0;
             this.timing = "momentary";
+            this.whens = {};
         
             this.looper = this.looper.bind(this);
         
@@ -790,11 +804,20 @@
         
             return handler;
         };
-    EvW.prototype.when = function (events, ev, timing, reset) {    
+    EvW.prototype.when = function (events, ev, timing, reset, immutable) {    
         
             var emitter = this;
+            var tracker; 
         
-            var tracker = new Tracker ();
+            if (!immutable) {
+                tracker = emitter.whens[ev]; 
+                if (tracker) {
+                    tracker.add(events);
+                    return tracker;
+                }
+            }
+        
+            tracker = new Tracker ();
         
             tracker.emitter = emitter;
             tracker.ev = ev;
@@ -832,6 +855,13 @@
         
             tracker.add(events);
         
+            if (!immutable) {
+                emitter.whens[ev] = tracker;
+                tracker.mutable = true;
+            } else {
+                tracker.mutable = false;
+            }
+            
             emitter.log("when", events, ev, timing, reset, tracker);
         
             return tracker;

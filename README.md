@@ -27,10 +27,8 @@ There are several noteworthy features of this library:
   fired.  For example, if we call a database and read a file to assemble
   a webpage, then we can do something like 
     
-    ```   
-    emitter.when(["file parsed:jack", "database returned:jack"],
-        "all data retrieved:jack");
-    ``` 
+emitter.when(["file parsed:jack", "database returned:jack"],
+    "all data retrieved:jack");
     
     This is why the idea of a central emitter is particularly useful to
     this library's intent.
@@ -72,10 +70,8 @@ For node, use `npm install index.js` or, better, add it to the
 package.json file with `--save` appended. 
 
 Then require and instantiate an emitter:
-```
 var EventWhen = require('event-when');
 emitter = new EventWhen();
-```
 
 ### Object Types
 
@@ -220,7 +216,7 @@ infinite loop.
 
 ---
 <a name="when"></a>
-### when(arr/str events, str ev, str timing, bool reset ) --> tracker 
+### when(arr/str events, str ev, str timing, bool reset, bool immutable ) --> tracker 
 
 This is how to do some action after several different events have all
 fired. Firing order is irrelevant.
@@ -239,6 +235,12 @@ __arguments__
   once fired. The original events array is saved and restored. Default
   is false. This can also be changed after initialization by setting
   tracker.reset. 
+* `immutable` Set the fifth argument to true in order to prevent this
+  .when being merged in with other .whens who have the same emitting
+  event. The default behavior is to combine .whens when they all emit the
+  same event; the timing and reset are defaulted to the first .when though
+  that can be modified with a return value. Note that immutables are still
+  mutable by direct action on the tracker. 
 
 __return__
 
@@ -249,6 +251,9 @@ __note__
 
 If an event fires more times than is counted and later the when is
 reset, those extra times do not get counted. 
+
+Also to get the tracker (assuming not immutable), then pass in empty array
+and the event of interest. 
 
 __example__
 
@@ -266,8 +271,13 @@ __example__
             }
     });
     emitter.when(["file read", "db returned"], "data gathered");
+    emitter.when("something more", "data gathered");
     emitter.emit("db returned", dbobj);
     emitter.emit("file read", fileobj);
+    emitter.emit("something more");
+
+emitter will automatically emit "data gathered" after third emit with
+data `[ ["db returned", dbobj], ["file read", fileobj]]`
 
 ---
 <a name="on"></a>

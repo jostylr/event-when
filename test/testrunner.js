@@ -908,6 +908,29 @@ test("when counting", function (t) {
     emitter.emit("go");
 });
 
+test("whens checking", function (t) {
+
+    t.plan(1);
+
+    var emitter = new EventWhen();
+
+    emitter.once("great", function (data) {
+        if (data[0][0] === "three") {
+            t.pass("three events done");
+        } else {
+            t.fail(data);
+        }
+    });
+    
+    emitter.when(["one", "two"], "great");
+    emitter.emit("one");
+
+    emitter.when("three", "great");
+    emitter.emit("two");
+
+    emitter.emit("three", "some data");
+});
+
 test("once twice", function (t) {
 
     t.plan(1);

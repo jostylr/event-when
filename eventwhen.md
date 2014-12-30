@@ -1,4 +1,4 @@
-# [event-when](# "version: 0.6.0| jostylr")
+# [event-when](# "version: 0.7.0-pre| jostylr")
 
 
 This is an event library that emphasizes flow-control from a single dispatch
@@ -176,6 +176,7 @@ passed in without context via nextTick or analog.
         this.loopMax = 1000;
         this.emitCount = 0;
         this.timing = "momentary";
+        this.whens = {};
 
         this.looper = this.looper.bind(this);
 
@@ -1080,12 +1081,26 @@ Emitting scoped events will count also as a firing of the parents, e.g.,
 one of the button counts (unless event bubbling is stopped). But
 `.emit("button")` will not count for any `.when("button:submit")`. 
 
+New addition to this in v0.7.0:  When using .when, if the event to be emitted
+already has a when, then the events are tacked on. Timing and reset are
+ignored if the .when already exists. If one wants a .when to not be added to
+in this fashion, then have a fifth argument of true.
 
-    function (events, ev, timing, reset) {    
+
+    function (events, ev, timing, reset, immutable) {    
 
         var emitter = this;
+        var tracker; 
 
-        var tracker = new Tracker ();
+        if (!immutable) {
+            tracker = emitter.whens[ev]; 
+            if (tracker) {
+                tracker.add(events);
+                return tracker;
+            }
+        }
+
+        tracker = new Tracker ();
 
         tracker.emitter = emitter;
         tracker.ev = ev;
@@ -1110,6 +1125,13 @@ one of the button counts (unless event bubbling is stopped). But
 
         tracker.add(events);
 
+        if (!immutable) {
+            emitter.whens[ev] = tracker;
+            tracker.mutable = true;
+        } else {
+            tracker.mutable = false;
+        }
+        
         emitter.log("when", events, ev, timing, reset, tracker);
 
 We return the tracker since one should use that to remove it. If you want
@@ -1118,6 +1140,7 @@ this way since the manipulations use tracker.
 
         return tracker;
     }
+
 
 [assign timing reset]()
 
@@ -1144,11 +1167,10 @@ sure that properly written, but unordered, is okay.
     }
 
 
-
 [doc]()
 
 
-    ### when(arr/str events, str ev, str timing, bool reset ) --> tracker 
+    ### when(arr/str events, str ev, str timing, bool reset, bool immutable ) --> tracker 
 
     This is how to do some action after several different events have all
     fired. Firing order is irrelevant.
@@ -1167,6 +1189,12 @@ sure that properly written, but unordered, is okay.
       once fired. The original events array is saved and restored. Default
       is false. This can also be changed after initialization by setting
       tracker.reset. 
+    * `immutable` Set the fifth argument to true in order to prevent this
+      .when being merged in with other .whens who have the same emitting
+      event. The default behavior is to combine .whens when they all emit the
+      same event; the timing and reset are defaulted to the first .when though
+      that can be modified with a return value. Note that immutables are still
+      mutable by direct action on the tracker. 
 
     __return__
 
@@ -1178,9 +1206,16 @@ sure that properly written, but unordered, is okay.
     If an event fires more times than is counted and later the when is
     reset, those extra times do not get counted. 
 
+    Also to get the tracker (assuming not immutable), then pass in empty array
+    and the event of interest. 
+
     __example__
 
         _":example"
+
+    emitter will automatically emit "data gathered" after third emit with
+    data `[ ["db returned", dbobj], ["file read", fileobj]]`
+
 
 [example]()
 
@@ -1198,8 +1233,10 @@ sure that properly written, but unordered, is okay.
             }
     });
     emitter.when(["file read", "db returned"], "data gathered");
+    emitter.when("something more", "data gathered");
     emitter.emit("db returned", dbobj);
     emitter.emit("file read", fileobj);
+    emitter.emit("something more");
     
     
 
@@ -1361,7 +1398,7 @@ This will return an object with with key as action, value as handler.
 
 This implements the looping over the queue. It is designed to avoid recursive
 stack calls. To do this, we keep track of whether we are looping or not in the
-emitter._looping variable. This should only get called if that flag is false. 
+`emitter._looping` variable. This should only get called if that flag is false. 
 
 For example, A is emittted and stats the loop. A emits B which then sees that
 the loop is active and does not call the loop. B does get queued and after the
@@ -2595,6 +2632,9 @@ If reset is true, then we add those events before firing off the next round.
             if (tracker.reset === true) {
                 tracker.reinitialize();
             } else if (tracker.idempotent === false) {
+                if (tracker === emitter.whens[ev]) {
+                    delete emitter.whens[ev];
+                }
                 tracker.go = noop;
             }
             emitter.emit(ev, data, tracker.timing); 
@@ -2648,11 +2688,21 @@ We restore tracker.go if it has been silenced.
 
     function () {
         var tracker = this;
+        var ev = tracker.ev;
+        var emitter = tracker.emitter;
 
         tracker.cancel();
         tracker.add(tracker.original);
         if (tracker.go === noop) {
             delete tracker.go; //restores to prototype
+            if (tracker.mutable) {
+                if (emitter.whens[ev]) {
+                    emitter.log("reinitializing .when; making immutable due to conflict", tracker);
+                    tracker.mutable = false;
+                } else {
+                    emitter.whens[ev] = tracker;
+                }
+            }
         }
         tracker.go();
         return tracker;
@@ -2977,7 +3027,7 @@ It was released as public domain, 2013-02-19 with no warranty.
 
 My main modification involves catching functions and replacing them with an
 object of the form `{$fun:label}` where the label is found in the function
-_label property. If no label is found, then the function is ignored. If an
+`_label` property. If no label is found, then the function is ignored. If an
 object has a label, then that is returned and the object is not recursed.
 Useful for support objects placed in an object, such as emitter in evObj.
 

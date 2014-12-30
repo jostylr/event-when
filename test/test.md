@@ -954,6 +954,35 @@ This is code that should break.
         emitter.emit("go");
     });
 
+
+## whens
+
+This is to check that the .whens mechanism works. 
+
+    test("whens checking", function (t) {
+
+        t.plan(1);
+
+        var emitter = new EventWhen();
+
+        emitter.once("great", function (data) {
+            if (data[0][0] === "three") {
+                t.pass("three events done");
+            } else {
+                t.fail(data);
+            }
+        });
+        
+        emitter.when(["one", "two"], "great");
+        emitter.emit("one");
+
+        emitter.when("three", "great");
+        emitter.emit("two");
+
+        emitter.emit("three", "some data");
+    });
+
+
 ## once twice
 
 This is to check that we can't call a once handler more than once if it is to
@@ -1044,4 +1073,6 @@ will not fire.
 
     _"when"
 
+    _"whens"
+    
     _"once twice"
