@@ -336,6 +336,8 @@ test('error checking', function (s) {
     
     h.name = "awesome";
     
+    console.log("error setup");
+    
     try {
         emitter.emit("error event");
     } catch (e) {
@@ -346,6 +348,7 @@ test('error checking', function (s) {
     
     emitter.error = function (e, value, data, evObj) {
         var cur = evObj.cur;
+        console.log(arguments);
         actual.push([e.message, cur[0], cur[1].name].join("\n"));
     };
     
@@ -833,54 +836,31 @@ test("decycle", function (t) {
 
 test("log testing", function (t) {
     
-    t.plan(1);
+    t.plan(2);
 
     var emitter = new EventWhen();
 
     var log = emitter.makeLog();
 
-    emitter.when(["dudette", "gone"], "gogo");
-
-    var f = function () {};
-    f._label = "awesome";
-
-    emitter.once("gone", f); 
-
-    emitter.action("dude", f);
-
-    emitter.on("dudette", "dude");
-
-    emitter.on("jack", "dude");
-
-    emitter.emit("jack:allan");
-
     emitter.emit("first", "got data");
 
-    emitter.emit("dudette", "JJ");
-
-    emitter.emit("gone", "LL");
-
-    //console.log(log.logs());
-   
-    t.deepEquals(log.logs(),
-    [ 'WHEN: "gogo" AFTER: ["dudette","gone"]',
-      'ATTACH "awesome" TO "gone" FOR 1',
-      'NEW ACTION "dude" FUN "awesome"',
-      'ATTACH "dude" TO "dudette"',
-      'ATTACH "dude" TO "jack"',
-      '1. EMITTING "jack:allan"',
-      '1) ACTING "dude" EVENT \'jack\':allan',
-      '1) EXECUTING awesome EVENT "jack"',
-      '2. EMITTING "first" DATA "got data"',
-      '3. EMITTING "dudette" DATA "JJ"',
-      'REMOVING HANDLER ["h:(when)gogo ``] FROM "dudette"',
-      '3) ACTING "dude" EVENT \'dudette\'',
-      '3) EXECUTING awesome EVENT "dudette"',
-      '4. EMITTING "gone" DATA "LL"',
-      'REMOVING HANDLER ["h:(when)gogo ``] FROM "gone"',
-      '5. EMITTING "gogo" DATA [["dudette","JJ"],["gone","LL"]]',
-      '4) EXECUTING awesome EVENT "gone"' ],
+    t.deepEquals(log.logs(), 
+    ['1. Event "first" emitted with data "got data"' ], 
     "emit event");
+
+    t.deepEquals(JSON.parse(log.full()[0]), 
+        [ 'emit','first', 'got data', 'momentary',
+          { emitter: { '$obj': 'emitter' },
+            ev: 'first',
+            data: 'got data',
+            scopes: {},
+            pieces: [ 'first' ],
+            count: 1,
+            timing: 'momentary',
+            events: [],
+            unseen: true
+          } ],
+        "emit event full data");
 
 });
 

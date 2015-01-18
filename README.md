@@ -301,7 +301,7 @@ desired.
 __f__
 
 Ultimately handlers execute functions. These functions will be passed in
-the data from the emit and an [event object](#evobj). It will be called in
+the data from the emit and an [event object](#event-object). It will be called in
 the passed in context
 
 __example__
@@ -742,7 +742,7 @@ It also has "private" variables that are best manipulated by the methods.
 * `_handlers` has key:value of `event:[handler1, handler2,..]` and will
   fire them in that order. 
 * `_queue` consists of events to be fired in this tick. These are the
-  [event objects](#evobj) which get passed in as the second argument to
+  [event objects](#event-object) which get passed in as the second argument to
   the handlers. 
 * `_waiting` is the queue for events to be fired after next tick.
 * `_actions` has k:v of `action name: handler` The handler can be of type
@@ -763,7 +763,7 @@ wrap handler type objects.
 * function  `context -> f(data, evObj)` This is the foundation as
   functions are the ones that execute.  They are called with parameters
   `data` that can be passed into the emit call and `evObj` which has a
-  variety of properties. See <a href="#evObj">evObj</a>.
+  variety of properties. See <a href="#event-object">evObj</a>.
 * string.  This is an action string. When executed, it will look up the
   action associated with that string and execute that handler. If no
   such action exists, that gets logged and nothing else happens.
@@ -962,7 +962,7 @@ replaced with the original events array. All data is wiped. No arguments.
 
 ___
 ### Event Object
-<a name="#evobj"></a>
+<a name="#event-object"></a>
 Each emitted event calls the listener with the first argument as the data
 and second argument as an event object. The event object consists of the
 following properties: 

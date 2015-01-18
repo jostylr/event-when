@@ -1,4 +1,4 @@
-# [event-when](# "version: 0.7.0| jostylr")
+# [event-when](# "version: 0.7.1| jostylr")
 
 
 This is an event library that emphasizes flow-control from a single dispatch
@@ -244,7 +244,7 @@ The various prototype methods on the event emitter.
     * `_handlers` has key:value of `event:[handler1, handler2,..]` and will
       fire them in that order. 
     * `_queue` consists of events to be fired in this tick. These are the
-      [event objects](#evobj) which get passed in as the second argument to
+      [event objects](#event-object) which get passed in as the second argument to
       the handlers. 
     * `_waiting` is the queue for events to be fired after next tick.
     * `_actions` has k:v of `action name: handler` The handler can be of type
@@ -781,7 +781,7 @@ array value of handler-types that will be executed in order.
             handlers[ev].contains = Handler.prototype.contains;
         }
 
-        emitter.log("on", ev, proto, f, context); 
+        emitter.log("on", ev, proto, context); 
 
         return f;
 
@@ -809,7 +809,7 @@ array value of handler-types that will be executed in order.
     __f__
 
     Ultimately handlers execute functions. These functions will be passed in
-    the data from the emit and an [event object](#evobj). It will be called in
+    the data from the emit and an [event object](#event-object). It will be called in
     the passed in context
 
     __example__
@@ -990,6 +990,8 @@ consequences.
 
         handler = new Handler([f], context);
 
+        handler._label = "(once)" + (f._label || f.name ||'');
+
         _":switch vars"
 
         if (typeof n === "undefined") {
@@ -1011,7 +1013,7 @@ consequences.
 
         emitter.on(ev, handler); 
 
-        emitter.log("once", ev, n, f, context, handler);
+        emitter.log("once", ev, n, f, context);
 
         return handler;
     }
@@ -1095,6 +1097,7 @@ in this fashion, then have a fifth argument of true.
         if (!immutable) {
             tracker = emitter.whens[ev]; 
             if (tracker) {
+                emitter.log("when add", events, ev);
                 tracker.add(events);
                 return tracker;
             }
@@ -1103,7 +1106,7 @@ in this fashion, then have a fifth argument of true.
         tracker = new Tracker ();
 
         tracker.emitter = emitter;
-        tracker.ev = ev;
+        tracker.ev = tracker._label = ev;
         tracker.data = [];
         _":assign timing reset"
         tracker.original = events.slice();
@@ -1117,9 +1120,10 @@ in this fashion, then have a fifth argument of true.
             this.remove(ev);
         }, tracker);
 
+
         handler.tracker = tracker;
 
-        handler._label = "tracker";
+        handler._label = "(when)" + ev;
 
         tracker.handler = handler; 
 
@@ -1981,6 +1985,9 @@ attach it to the new handler with its own context.
                 return value;
              } else {
                 this.value = value.value;
+                if (value.hasOwnProperty("_label")) {
+                    this._label = value._label;
+                }
                 this.context = context;
                 return this;
              }
@@ -1988,7 +1995,11 @@ attach it to the new handler with its own context.
 
         var handler = this;
 
-        handler.value = value; 
+        handler.value = value;
+        if (value.hasOwnProperty("_label")) {
+                    handler._label = value._label;
+                }
+
         handler.context = context;
 
         return handler;
@@ -2021,7 +2032,7 @@ The prototype object.
     * function  `context -> f(data, evObj)` This is the foundation as
       functions are the ones that execute.  They are called with parameters
       `data` that can be passed into the emit call and `evObj` which has a
-      variety of properties. See <a href="#evObj">evObj</a>.
+      variety of properties. See <a href="#event-object">evObj</a>.
     * string.  This is an action string. When executed, it will look up the
       action associated with that string and execute that handler. If no
       such action exists, that gets logged and nothing else happens.
@@ -2720,11 +2731,11 @@ This is where we keep track of the log statements and what to do with them.
 
 
     "emit" : function (ev, data, timing, evObj) {
-        return evObj.count + ". Event " + se(ev) + " emitted" + 
+        return evObj.count + ". EMITTING " + se(ev)  + 
             ( (typeof data !== "undefined") ? 
-                " with data " + s(data) :
+                " DATA " + s(data) :
                 "" ) +
-            ( (timing !== emitter.timing) ? " with timing " + 
+            ( (timing !== emitter.timing) ? " TIMING " + 
                 se(timing) : "" );
     },
   
@@ -2733,107 +2744,129 @@ This is where we keep track of the log statements and what to do with them.
     },
 
     "wrapping emit" : function (filt, listener) {
-        return "Creating monitor " + s(filt, listener);
+        return "ADD MONITOR " + s(filt, listener);
     },
 
     
     "removing wrapper" : function (filt) {
-        return "Removing monitor " + s(filt.filt, filt[1]);
+        return "SUB MONITOR " + s(filt.filt, filt[1]);
     },
 
     "attempted removal of wrapper failed": function(filt){
-        return "Failed to find/remove monitor " + s(filt);
+        return "NO SUCH MONITORY " + s(filt);
     },
 
     "intercepting event" : function ( ev, data, filt){
-        return "Intercepted event " + se(ev) +
+        return "INTERCEPTING " + se(ev) +
                ( (typeof data !== "undefined") ? 
-                " with data " + s(data) :
+                " DATA " + s(data) :
                 "" ) +
-            " with monitor " + s(filt.filt, filt[1]);
+            " MONITOR " + s(filt.filt, filt[1]);
     },
 
     "stopping event" : function(ev, data, filt) {
-        return "Stopping event " + se(ev) +
-            " because of monitor " + s(filt.filt, filt[1]);
+        return "STOP " + se(ev) +
+            " MONITOR " + s(filt.filt, filt[1]);
     },
 
     "deleting scope event" : function (ev, scope) {
-        return "Scope event removed " + se(ev) + " " + s(scope);
+        return "REMOVING SCOPE FOR " + se(ev); // + " " + s(scope);
     },
 
     "overwriting scope event" : function(ev, obj, scope) {
-        return "Changing the scope of " + se(ev) + " from " +
-            s(scope) + " to " + s(obj);
+        return "OVERWRITING SCOPE FOR " + se(ev); 
+        // + " from " + s(scope) + " to " + s(obj);
     }, 
 
     "creating scope event" : function (ev, obj) {
-        return "Event " + se(ev) + " now has a scope " + s(obj); 
+        return "CREATING SCOPE FOR " + se(ev); // + " now has a scope " + s(obj); 
     },
 
-    "on" : function (ev, proto, f, context) {
-        return "Attaching " + s(proto) + " to event " + se(ev) + 
-            ( context ?  " with context " + s(context) : "" ); 
+    "on" : function (ev, proto, context) {
+       if (proto.hasOwnProperty('_label') ) {
+            proto = proto._label;
+            if ( (proto.indexOf("(when)" ) === 0) ||
+            (proto.indexOf("(once)") === 0 ) ) {
+                return;
+            }
+        }
+        return "ATTACH " + s(proto) + " TO " + se(ev); 
+        //+ ( (context && context.hasOwnProperty('_label') ) ? 
+        //        " CONTEXT " + s(context._label) : "" ); 
     },
 
     "all handlers removed from all events" : function () {
-        return "Wiped out all handlers from all events";
+        return "ALL HANDLERS WIPED";
     }, 
 
     "handler for event removed" : function (ev, removed) {
-        return "Removed handler " + 
-            se(removed.map(function (el) {return el.summarize();})) +
-            " from " + se(ev);
+        var ident = s(removed._label) ||
+            se(removed.map(function (el) {return el.summarize();}));
+        return "REMOVING HANDLER " + ident +
+            " FROM " + se(ev);
     },
 
     "removed handlers on event ignoring when" : function (ev) {
-        return "Removing handlers for " + se(ev);
+        return "REMOVING NOT WHEN HANDLERS FROM " + se(ev);
     },
 
     "removing all handlers on event" : function (ev) {
-        return "Removing handlers for " + se(ev);
+        return "REMOVING ALL HANDLERS FROM " + se(ev);
     },
 
     "once" : function(ev, n, proto, context) {
-        return "Attaching " + s(proto) + " to event " + se(ev) + 
-            "for " + se(n) + " time" + ( (n > 1) ? "s" : "" ) +   
-            ( context ?  " with context " + s(context) : "" ); 
+        if (proto.hasOwnProperty('_label') ) {
+            proto = proto._label;
+        }
+        return "ATTACH " + s(proto) + " TO " + se(ev) + 
+            " FOR " + se(n)
+            // + ( (context && context.hasOwnProperty('_label') ) ?  " CONTEXT " + s(context._label) : "" ); 
     },
 
 
     "when" : function (events, ev, timing, reset) {
-        return "Will emit " + se(ev) + 
-            " when the following have fired: " + 
+        return "WHEN: " + se(ev) + 
+            " AFTER: " + 
             se(events) + 
-            ( timing ? " with timing " + s(timing) : "" ) +
-            ( reset ? " will reset" : "" ); 
+            ( timing ? " TIMING " + s(timing) : "" ) +
+            ( reset ? " (RESET ON) " : "" ); 
     },
     
+    "when add" : function (events, ev) {
+        return "WHEN: " + se(ev) + 
+            " AFTER: " + 
+            se(events) + "(PLUS OTHERS)";
+    },
+
+    
     "removed action" : function(name) {
-        return "Removing action " + se(name);
+        return "ACTION DELETE: " + se(name);
     },
     
     "overwriting action" : function (name, proto) {
-        return "Overwiting " + se(name) + " with new " + s(proto);
+        return "ACTION: " + se(name) + " OVERWRITTEN BY " + s(proto);
     },
 
     "creating action" : function(name, proto, context) {
-        return "Creating action " + se(name) +
-            " with function " + s(proto) + 
-            ( context ?  " with context " + s(context) : "" ); 
+        if (proto.hasOwnProperty("_label") ) {
+            proto = proto._label;
+        }
+        return "NEW ACTION " + se(name) +
+            " FUN " + s(proto) + 
+            ( context ?  " CON " + s(context) : "" ); 
     },
 
 
     "emission stopped" : function (ev) {
-        return "Event " + se(ev) + " emission stopped";
+        return "STOPPING " + se(ev); 
     },
 
     "queue cleared of all events" : function () {
-        return "Currently queued events for emitting have all been removed";
+        return "EVENT QUEUE CLEARED";
     },
 
     "event cleared" : function (ev) {
-        return "Event " + se(ev) + " cleared from queue";
+        return "EVENT" + se(ev) + " CLEARED";
     },
 
     "some events stopped" : function(a, rq, rw) {
@@ -2846,9 +2879,7 @@ This is where we keep track of the log statements and what to do with them.
             return el.ev;
         });  
 
-        return "Events stopped per filter " + se(a) + 
-            "resulting in the elimination of " + 
-            s(qlist) + " and " + s(wlist);
+        return "STOPING EVENTS " + s(qlist) + s(wlist) + " PER FILTER " + se(a);
     },
 
     "error raised" : function(e, handler, data, evObj, context) {
@@ -2857,34 +2888,41 @@ This is where we keep track of the log statements and what to do with them.
     },
     
     "executing action" : function ( value, context, evObj) {
+        var event = evObj.ev;
+        var l = evObj.cur[0].length;
+        event = "'" + event.slice(0, l) + "'" + event.slice(l);
         return evObj.count + ") " + 
-            "Executing action " + se(value) +
-            " for event " +
-            se(evObj.cur[0]) +
-            ( context ?  " with context " + s(context) : "" ); 
+            "ACTING " + se(value) +
+            " EVENT " + event;
+            //se(evObj.cur[0]);
+            //+ ( context ?  " CON " + s(context) : "" ); 
     },
 
     "action not found" : function (value, evObj) {
         return  evObj.count + ") " + 
-            " Event " +
-            se(evObj.cur[0]) + 
-            " requested action " + se(value) + " but action not found";
+            " EVENT " +
+            se(evObj.cur[0]); 
+            //+ " NO ACTION " + se(value);
     },
 
     "executing function" : function (value, context, evObj) {
-        var f = se(value);
+        /*var f = se(value);
         if (f === "``") {
+            return ;
+        }*/
+        var n = value._label || value.name;
+        if (!n) {
             return ;
         }
         return evObj.count + ") " + 
-            "Executing function " + f + 
-            " for event " + 
-            se(evObj.cur[0]) + 
-            ( context ?  " with context " + s(context) : "" ); 
+            "EXECUTING " + n + 
+            " EVENT " + 
+            se(evObj.cur[0]); 
+            //+ ( context ?  " with context " + s(context) : "" ); 
     },
 
     "canceling tracker" : function (tracker) {
-        return "Canceling watcher " + s(tracker);
+        return "CANCEL " + s(tracker._label);
     }
 
 [error]()
@@ -3320,7 +3358,7 @@ The readme for this. A lot of the pieces come from the doc sections.
 
     ___
     ### Event Object
-    <a name="#evobj"></a>
+    <a name="#event-object"></a>
     _"event object"
 
     ___
@@ -3330,156 +3368,6 @@ The readme for this. A lot of the pieces come from the doc sections.
 
 
 
-## old README
-
- ##event-when  [![Build Status](https://travis-ci.org/jostylr/event-when.png)](https://travis-ci.org/jostylr/event-when)
-
-NOTE: Major rewrite in progress. The readme here refers to the current npm
- version, not to this repository. See newReadme for what's cooking. 
-
-Install using `npm install event-when`
-
-Then you can `EventWhen = require('event-when');` and use `evw = new
-EventWhen()` to create a new instance of this class. 
-
-It is a node module that allows you to create object with event methods.
-Fairly standard stuff with the exception of the `.when` method which resolves
-the problem of how to keep track of when to fire an event that has to wait for
-other events.  That is, it allows several events to feed into one event being
-emitted. 
-
-As an example, let's say you need to read/parse a file ("file parsed") and get
-some data from a database ("db parsed"). Both events can happen in either
-order. Once both are done, then the "data is ready".
-
-We can implement this with  `evw.when(["file parsed", "db parsed"], "data is
-ready" );` 
-
-Nifty!
-
-
- ### Methods
-
-The simplest example of a handler is a function, but it could also be an
-action name, event string to be emitted, a Handler object, or an array of such
-things that could also contain arrays of the form `[that, fun, arg]` where
-`that` is the context, `fun` is the function to fire, and `arg` is some data
-to be passed into the third argument of `fun`. The first two arguments of
-`fun` are the data for the event and the emitter itself; there is a fourth
-argument that is the event string itself (which is surprisingly useful at
-times).
-
-* .emit(str event, [obj data] ). Invokes all attached functions to Event,
-  passing in the Data object, emitter object itself, and event string as the
-  three arguments to the attached functions. 
-* .later(str event, [obj data], [bool first] ).  Queues the event for emitting
-  on next tick (or so). If first is true, then it puts the event ahead of
-  others in line for emitting. Other than timing, same as .emit.
-* .when([fired events], Handler,  options ) This has similar semantics as emit
-  except the [fired events] array has a series of events that must occur (any
-  order) before this event is emitted. The object data of each fired event is
-  merged in with the others for the final data object -- the original is
-  archived in the data object under `_archive`. This method returns a [tracker
-  object](#tracker-object).
-
-    Each fired event could be an array consisting of [event, number of times,
-    bool first]. This allows for waiting for multiple times (such as waiting
-    until a user clicks a button 10 times to intervene with anger management).  
-
-    The second argument can be any [Handler-type](#handler-object). 
-        
-    The options argument has the following useful keys: 
-
-    * that Will be the context for functions fired from ev
-    * args Will be the arguments passed to such functions
-    * timing Is the timing passed to emitting events. later and firstLater
-      togger .later and .later(...true),  respectively. No timing or anything
-      else triggers .emit
-    * reset Should the .when parameters be reset to the initial state once
-      fired?
-
-* .on(str event, Handler--convertible, obj that, ? args, boolean first)
-  Attaches a Handler object to the string  Event. The Handler is returned.
-  Anything convertible to a Handler can be in the second slot. The Handler
-  will be called in the context of `that` with `args` passed in as one of the
-  arguments if those are present. The boolean first if present and TRUE will
-  lead to the handle being pushed in front of the current handlers on the
-  event. 
-* .once(str event, fun handle, int n, obj that, ? args, bool first) This will
-  fire the handler n times, default of 1 times. This is accomplishd by placing
-  a counting function as the first function to execute; it removes the handler
-  when it reaches 0, but it still executes. The post-n arguments are the same
-  as in `.on`. Warning: If you passin a Handler from somewhere else, it will
-  add the counting function to it which means it will decrement if something
-  else calls it. You can always wrap a Handler in an array to avoid this. 
-* .off(str event, fun handle) Removes function Handle from Event. The handler
-  can be of type handler or a function, string, etc. If it is not a Handler,
-  then it will only remove it if the Handler's value matches what is passed
-  in, e.g., if you pass in function f then only if value matches [f] and not
-  [f, g]. 
-* .off(str event) Removes all function handlers on Event. 
-* Both variants of .off above also have optional boolean that if true will
-  prevent the removal of when handles from their tracker objects meaning those
-  events may never fire. 
-* .off()  Removes all events. Ouch. 
-* .stop([str event/bool current]) Removes queued handlers either globally (no
-  args), on an event (str given), or current (TRUE)
-* .events(fun partial | str match, bool negate) It lists all events that have
-  handlers. No arguments lead to all events being reported; if partial is a
-  function, then it is used as a filter. If the match string is provided, then
-  that is used to match with the negate boolean allowing a reversal of the
-  selection for the function filter. 
-* .handlers(arr events) If no arguments, it returns all events and their
-  handlers. If there is an event listing, then it uses that list of keys to
-  pull handlers. 
-* .action(str name, handler, that, args) This stores a reference to a Handler
-  in the action list. It can be invoked by simply using the name instead of
-  the handler in any place where Handlers are accepted. 
-
-If a function handler returns FALSE, then no further handlers from that event
-emit incident will occur. 
-
-Logging of single events can be done by passing an event logging function. To
-log all events, attach a logging function via .log = function
-
- ### Tracker Object
-
-The .when method creates a handler that has a `handler.tracker` object and
-that tracker object has the following methods. This is what is returned from
-that method. The handler itself is found in `tracker.handler`.
-
-* .add(ev); .add(ev1, ev2, ...); .add([ev1, ev2, ...])  This method adds
-  events to the array of events that should happen before firing. The event
-  could be an array of event and number of times to fire as well as the
-  boolean for placing it first. If an event already exists, this will
-  increment its counter appropriately. 
-* .remove(ev1, ev2, ...)  removes the event(s). Each one could be either a
-  string or an array of `[ev, num]` specifying how many times to remove the
-  event. 
-* .cancel() This will remove the handler of the `.when` object and effectively
-  removes this from ever being called. 
-
-So concludes Trackers.
-
- ### Handler Object
-
-The Handler type is what encapsulates what is being called. The handles to be
-exceuted are storedin an array property called `.value`. It may have a `.name`
-property (generated for actions, at the least),  `.that` for the context the
-functions are called in, `.args` for a pass-in data into the function. 
-
-The prototype has the method `.execute` which is internal and is what is
-called to execute the handlers. 
-
-You can pass in functions, strings, arrays of these things, arrays with an
-array [context, function, args], and Handlers themselves.  
-
- ### .Error
-
-Since we are controlling the flow, we can also control error throwing. So that
-is what the emitter.error method does. All calls to handlers have their errors
-caught and sent to the .error method. The default is to throw the error again
-with the event string and handler name added to the error. 
 
 ## Benchmark
 
@@ -3601,6 +3489,10 @@ The requisite npm package file.
     }
 
 ## Change Log
+
+### Version 0.7.1
+
+Better logs have been designed. 
 
 ### Version 0.6.0 Thoughts
 
