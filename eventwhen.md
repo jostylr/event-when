@@ -1,4 +1,4 @@
-# [event-when](# "version: 0.7.1| jostylr")
+# [event-when](# "version: 1.0.0| jostylr")
 
 
 This is an event library that emphasizes flow-control from a single dispatch
@@ -177,6 +177,7 @@ passed in without context via nextTick or analog.
         this.emitCount = 0;
         this.timing = "momentary";
         this.whens = {};
+        this._cache = {};
 
         this.looper = this.looper.bind(this);
 
@@ -206,6 +207,7 @@ The various prototype methods on the event emitter.
     EvW.prototype.off = _"off";
     EvW.prototype.once = _"once";
     EvW.prototype.when = _"when";
+    EvW.prototype.cache = _"cache";
 
     EvW.prototype.looper = _"looper";
     EvW.prototype.nextTick =  _"nextTick";
@@ -290,7 +292,7 @@ we are already in the loop).
         };
 
         var events = evObj.events = [];
-i
+
 Note we use the reduce function for the construction of each scope level,
 but we have no need for the finished string, just the intermediates.
 
@@ -1242,7 +1244,161 @@ sure that properly written, but unordered, is okay.
     emitter.emit("file read", fileobj);
     emitter.emit("something more");
     
+#### Cache
+
+This solves the problem of needing a resource that one would ideally call only
+once. For example, reading a file into memory or getting a web request. 
+
+We use the following form: 
+
+`gcd.cache(event to initiate, event response, function to process, event to
+emit)`  
+
+The initiation event could be a string or an array of `[event, data,
+when]` . The event response
+can be a string or an array of events which becomes a when. The function's
+return will be what is passed into the event string in the fourth argument; it
+could also do its own emitting. If the fourther string is empty, no emitting
+is done. To deal with multiple possible responses (think success, errror,
+...), one can do sets of three arguments, replicating what was above. If the
+function argument slot is a string, that is emitted with the passed in data
+object. 
+
+    function (req, ret, fun, emit) {
+        
+        var gcd = this;
+        var cache = gcd._cache;
+        var start, end, proc, data, timing, cached;
+
+        _":prep req"
+
+        _":prep proc"
+
+At this point req should be an array of event, data, timing and we should have
+an array of arrays of  `[ret, fun, emit]` to iterate over in dealing with
+responses. 
+        
+        if (cache.hasOwnProperty(start) ) {
+            cached = cache[start];
+            if (cached.hasOwnProperty("done")) {
+                end = cached.done;
+                _":do the emit"
+            } else {
+                cached.waiting.push([fun, emit]);
+            }
+        } else {
+            cache[start] = cached = { waiting : [[fun, emit]]};
+            gcd.on(ret, _":handler");
+            gcd.emit(start, data, timing);
+        }
+    }
+
+[prep req]()
+
+Convert the request into an array to get a definite form and apply to emit. 
+
+    if (typeof req === "string") {
+        start = req;
+        data = null;
+        timing = timing ||gcd.timing || "momentary";
+    } else if (Array.isArray(req))  {
+        start = req[0];
+        data = req[1];
+        timing = req[3] ||gcd.timing || "momentary"; 
+    } else {
+        gcd.log("bad cache request", req);
+        return;
+    }
+
+[prep proc]()
+
+    if (typeof ret !== "string") {
+        gcd.log("bad cache return signal", ret);
+        return;
+    }
+
+    if (typeof fun === "string") {
+        emit = fun;
+        fun = null; 
+    }
+
+[do the emit]()
+
+    if (fun) {
+        end = fun(end);
+    } 
+    if (emit) {
+        gcd.emit(emit, end, timing);    
+    }
+                 
+[setup the handler]()
+
+This is the meat of the argument. So the handler acts when the string in ret
+is emitted. 
+
+    function (original) {
+        var i, n, waiting, proc, end;
+
+        cached.done = original;
+        waiting = cached.waiting;
+        
+        n = waiting.length;
+        for (i = 0; i < n; i +=1) {
+           end = original;
+           proc = waiting.shift();
+           fun = proc[0];
+           emit = proc[1];
+           _":do the emit"
+        }
+    }
     
+[doc]() 
+
+    ### cache(str request/arr [ev, data, timing], str returned, fun process/str emit, str emit) -->  emitter
+
+    This is how to cache an event request. This will ensure that the given
+    event will only be called once. The event string should be unique and hte
+    assumption is that the same data would be used. If not, one will have
+    problems. 
+
+    __arguments__
+
+    * `request` This is an event to be emitted. It can be either a string or
+      an array with data and timing. If multiple events are needed, use a
+      single event to trigger them. 
+    * `returned` This is the event to wait for indicating that the process is
+      complete. Both request and returned should be the same for caching the
+      request. But only the request is the cache key.
+    * `res` This takes in the data from the returned event and processes it.
+      The return value is the data used by the final emit. If the emit string
+      is empty, then the return value is not used and it is expected that res
+      will do the emitting. It is a function that takes (data, cache args)
+      called in the context of the event emitter. 
+    * `emit` This is what gets emitted upon obtaining the value. If res is not
+      present, this can be the third argument and the data will simply be
+      passed along.
+
+
+[example]()
+
+    var readfile = function (data, evObj) {
+        var file = evObj.pieces[0];
+        var gcd = evObj.emitter;
+        fs.readfile(file, function (err, text) {
+            if (err) {
+                gcd.emit("file read error:jack", err);
+            } else {
+                gcd.emit("got file:jack", text);
+            }
+        });
+    };
+    emitter.on("need file", readfile);
+
+
+    emitter.cache("need file:jack",  "got file:jack", diffLines, "lines gotten");
+    emitter.cache("need file:jack", "got file:jack", emitDiffWords);
+    emitter.cache("need file:jack", "got file:jack", "jack's text");
+
 
 #### Action
 
@@ -2819,7 +2975,7 @@ This is where we keep track of the log statements and what to do with them.
             proto = proto._label;
         }
         return "ATTACH " + s(proto) + " TO " + se(ev) + 
-            " FOR " + se(n)
+            " FOR " + se(n);
             // + ( (context && context.hasOwnProperty('_label') ) ?  " CONTEXT " + s(context._label) : "" ); 
     },
 
@@ -3235,13 +3391,17 @@ The readme for this. A lot of the pieces come from the doc sections.
 
     ### Object Types
 
-    * [Emitter](#emitter). This module exports a single function, the
+    * [Emitter](#emitter) This module exports a single function, the
       constructor for this type. It is what handles managing all the events.
-      It could also be called Dispatcher. 
+      It could also be called Dispatcher.
+    * [Event Object](#event-object) This is the object that is passed to
+      handlers. 
     * [Handler](#handler) This is the object type that interfaces between
       event/emits and action/functions. 
     * [Tracker](#tracker) This is what tracks the status of when to fire
       `.when` events.
+    * [Filter](#filter) This is a type that is used in filtering strings such
+      as in filtering the logs. 
 
 
     ### Method specification
@@ -3255,6 +3415,7 @@ The readme for this. A lot of the pieces come from the doc sections.
     * [off](#off)
     * [once](#once)
     * [stop](#stop)
+    * [cache](#cache)
     * [action](#action)
     * [actions](#actions)
     * [scope](#scope)
@@ -3295,6 +3456,10 @@ The readme for this. A lot of the pieces come from the doc sections.
     ---
     <a name="stop"></a>
     _"stop:doc"
+
+    ---
+    <a name="cache"></a>
+    _"cache:doc"
 
     ---
     <a name="action"></a>
@@ -3440,7 +3605,9 @@ Native event emitter
 
 ## TODO
 
-Redo all examples. Writing the command parser for event when might be instructive. 
+
+
+
 
 ## NPM package
 
@@ -3475,8 +3642,8 @@ The requisite npm package file.
         "node": ">0.6"
       },
       "devDependencies" : {
-        "literate-programming" : "~0.7.2",
-        "tape": "~2.5.0"
+        "literate-programming": "^0.8.4",
+        "tape": "^3.5.0"
       },
       "dependencies":{
       },
@@ -3489,6 +3656,13 @@ The requisite npm package file.
     }
 
 ## Change Log
+
+### Version 1.0.0 
+
+Switching to semver kind of thinking. Now using it extensively in
+literate-programming and it works well.
+
+Added in .cache method. 
 
 ### Version 0.7.1
 

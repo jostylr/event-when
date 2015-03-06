@@ -476,6 +476,7 @@
             this.emitCount = 0;
             this.timing = "momentary";
             this.whens = {};
+            this._cache = {};
         
             this.looper = this.looper.bind(this);
         
@@ -876,6 +877,76 @@
         
             return tracker;
         };
+    EvW.prototype.cache = function (req, ret, fun, emit) {
+            
+            var gcd = this;
+            var cache = gcd._cache;
+            var start, end, proc, data, timing, cached;
+        
+            if (typeof req === "string") {
+                start = req;
+                data = null;
+                timing = timing ||gcd.timing || "momentary";
+            } else if (Array.isArray(req))  {
+                start = req[0];
+                data = req[1];
+                timing = req[3] ||gcd.timing || "momentary"; 
+            } else {
+                gcd.log("bad cache request", req);
+                return;
+            }
+        
+            if (typeof ret !== "string") {
+                gcd.log("bad cache return signal", ret);
+                return;
+            }
+            
+            if (typeof fun === "string") {
+                emit = fun;
+                fun = null; 
+            }
+        
+            
+            if (cache.hasOwnProperty(start) ) {
+                cached = cache[start];
+                if (cached.hasOwnProperty("done")) {
+                    end = cached.done;
+                    if (fun) {
+                        end = fun(end);
+                    } 
+                    if (emit) {
+                        gcd.emit(emit, end, timing);    
+                    }
+                                
+                } else {
+                    cached.waiting.push([fun, emit]);
+                }
+            } else {
+                cache[start] = cached = { waiting : [[fun, emit]]};
+                gcd.on(ret, function (original) {
+                        var i, n, waiting, proc, end;
+                    
+                        cached.done = original;
+                        waiting = cached.waiting;
+                        
+                        n = waiting.length;
+                        for (i = 0; i < n; i +=1) {
+                           end = original;
+                           proc = waiting.shift();
+                           fun = proc[0];
+                           emit = proc[1];
+                           if (fun) {
+                               end = fun(end);
+                           } 
+                           if (emit) {
+                               gcd.emit(emit, end, timing);    
+                           }
+                                       
+                        }
+                    });
+                gcd.emit(start, data, timing);
+            }
+        };
     
     EvW.prototype.looper = function (caller) {
             var emitter = this,
@@ -1119,7 +1190,7 @@
                             proto = proto._label;
                         }
                         return "ATTACH " + s(proto) + " TO " + se(ev) + 
-                            " FOR " + se(n)
+                            " FOR " + se(n);
                             // + ( (context && context.hasOwnProperty('_label') ) ?  " CONTEXT " + s(context._label) : "" ); 
                     },
                     

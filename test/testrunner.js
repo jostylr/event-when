@@ -979,3 +979,53 @@ test("once twice", function (t) {
     emitter.emit("first");
 
 });
+
+test("cache checking", function (t) {
+
+    t.plan(1);
+
+    var emitter = new EventWhen();
+
+    var count = 0;
+    var log = [];
+
+    emitter.on("readfile", function (data, evObj) {
+        var loc = count += 1;
+        process.nextTick(function () {
+            emitter.emit("file read:" + evObj.pieces[0], 
+                evObj.pieces[0] + loc + ( (data) ? " " + data : "") );
+        });
+    });
+
+    emitter.on("log", function (data) {
+        log.push(data);
+        emitter.emit("seen");
+    });
+
+    emitter.when(["seen", 4], "done", "now");
+
+    emitter.on("done", function () {
+        t.equals(log.join("\n"), 
+        "second jack2\njack1\nthird jack1\njill2 neat", "cache works");
+    });
+
+    emitter.cache("readfile:jack", "file read:jack", "log"); 
+
+
+    emitter.cache("readfile:jack", "file read:jack", function () {
+        log.push("second jack"+count);
+        emitter.emit("seen");
+    });
+    
+
+    emitter.once("file read:jack", function () {
+        emitter.cache("readfile:jack", 
+            "file read:jack",  function (data) {
+                return "third " + data;
+            }, "log");
+    });
+
+    emitter.cache(["readfile:jill", "neat", "now"], "file read:jill", "log" );
+    
+
+});

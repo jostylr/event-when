@@ -1,7 +1,7 @@
 {
   "name": "event-when",
   "description": "An event library that allows for the blocking of event firing thus dealing with many-to-one event firing",
-  "version": "0.7.1",
+  "version": "1.0.0",
   "homepage": "https://github.com/jostylr/event-when",
   "author": {
     "name": "James Taylor",
@@ -25,8 +25,8 @@
     "node": ">0.6"
   },
   "devDependencies" : {
-    "literate-programming" : "~0.7.2",
-    "tape": "~2.5.0"
+    "literate-programming": "^0.8.4",
+    "tape": "^3.5.0"
   },
   "dependencies":{
   },

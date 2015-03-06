@@ -1,1 +1,0 @@
-Redo all examples. Writing the command parser for event when might be instructive.

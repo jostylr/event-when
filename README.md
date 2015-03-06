@@ -75,13 +75,17 @@ emitter = new EventWhen();
 
 ### Object Types
 
-* [Emitter](#emitter). This module exports a single function, the
+* [Emitter](#emitter) This module exports a single function, the
   constructor for this type. It is what handles managing all the events.
-  It could also be called Dispatcher. 
+  It could also be called Dispatcher.
+* [Event Object](#event-object) This is the object that is passed to
+  handlers. 
 * [Handler](#handler) This is the object type that interfaces between
   event/emits and action/functions. 
 * [Tracker](#tracker) This is what tracks the status of when to fire
   `.when` events.
+* [Filter](#filter) This is a type that is used in filtering strings such
+  as in filtering the logs. 
 
 ### Method specification
 
@@ -94,6 +98,7 @@ These are methods on the emitter object.
 * [off](#off)
 * [once](#once)
 * [stop](#stop)
+* [cache](#cache)
 * [action](#action)
 * [actions](#actions)
 * [scope](#scope)
@@ -415,6 +420,32 @@ __example__
     emitter.stop(true);
     // stop all events with button in title
     emitter.stop(/^button/);
+
+---
+<a name="cache"></a>
+### cache(str request/arr [ev, data, timing], str returned, fun process/str emit, str emit) -->  emitter
+
+This is how to cache an event request. This will ensure that the given
+event will only be called once. The event string should be unique and hte
+assumption is that the same data would be used. If not, one will have
+problems. 
+
+__arguments__
+
+* `request` This is an event to be emitted. It can be either a string or
+  an array with data and timing. If multiple events are needed, use a
+  single event to trigger them. 
+* `returned` This is the event to wait for indicating that the process is
+  complete. Both request and returned should be the same for caching the
+  request. But only the request is the cache key.
+* `res` This takes in the data from the returned event and processes it.
+  The return value is the data used by the final emit. If the emit string
+  is empty, then the return value is not used and it is expected that res
+  will do the emitting. It is a function that takes (data, cache args)
+  called in the context of the event emitter. 
+* `emit` This is what gets emitted upon obtaining the value. If res is not
+  present, this can be the third argument and the data will simply be
+  passed along.
 
 ---
 <a name="action"></a>
