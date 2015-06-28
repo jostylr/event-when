@@ -324,7 +324,9 @@
     Tracker.prototype.add = function (newEvents) {
         var tracker = this,
             events = tracker.events,
-            handler = tracker.handler;
+            handler = tracker.handler,
+            data = tracker.data, 
+            i;
     
         if (arguments.length !== 1) {
             newEvents = Array.prototype.slice.call(arguments);
@@ -341,7 +343,9 @@
                 num = 1;
             }
             if (Array.isArray(el) ) {
-                if ((typeof el[1] === "number") && (el[1] >= 1) && (typeof el[0] === "string") ) {
+                if ((typeof el[1] === "number") && (el[1] >= 1) && 
+                    (typeof el[0] === "string") ) {
+                    
                     num = el[1];
                     str = el[0];
                 } 
@@ -352,6 +356,11 @@
                 } else {
                     tracker.emitter.on(str, handler, order);
                     events[str] = num;
+                }
+                if (tracker.initialOrdering) {
+                    for ( i = 0; i<num; i+=1 ) {
+                        data.push([str]);
+                    }
                 }
             }
         });
@@ -477,6 +486,7 @@
             this.timing = "momentary";
             this.whens = {};
             this._cache = {};
+            this.initialOrdering = false;  // for .when tracker behavior
         
             this.looper = this.looper.bind(this);
         
@@ -814,7 +824,7 @@
         
             return handler;
         };
-    EvW.prototype.when = function (events, ev, timing, reset, immutable) {    
+    EvW.prototype.when = function (events, ev, timing, reset, immutable, initialOrdering) {    
         
             var emitter = this;
             var tracker; 
@@ -826,6 +836,10 @@
                     tracker.add(events);
                     return tracker;
                 }
+            }
+        
+            if (typeof initialOrdering === "undefined") {
+               initialOrdering = emitter.initialOrdering;  
             }
         
             tracker = new Tracker ();
@@ -849,13 +863,38 @@
             }
             tracker.original = events.slice();
             tracker.idempotent = false;
+            tracker.initialOrdering = initialOrdering;
         
             var handler = new Handler (function (data, evObj) {
-                var ev = evObj.cur[0];
-                if (typeof data !== "undefined") {
-                    this.data.push([ev, data]);
+                var ev = evObj.cur[0]; // subevent
+                var fullev = evObj.ev; // full event that triggered
+                var tracker = this;
+                var results = tracker.data;
+                var i, n;
+                if (tracker.initialOrdering) {
+                    n = results.length;
+                    if (typeof data === "undefined") {
+                        data = null;
+                    }
+                    for (i =0; i < n; i+=1) {
+                        if ( (results[i].length === 1) && (results[i][0] === ev) ) {
+                            results[i][1] = data;
+                            if (fullev !== ev) {
+                                results[i][2] = fullev;
+                            }
+                            break;
+                        }
+                    }
+                } else {
+                    if (typeof data !== "undefined") {
+                        if (fullev !== ev) {
+                            tracker.data.push([ev, data, fullev]);
+                        } else {
+                            tracker.data.push([ev, data]);
+                        }
+                    }
                 }
-                this.remove(ev);
+                tracker.remove(ev);
             }, tracker);
         
             handler.tracker = tracker;

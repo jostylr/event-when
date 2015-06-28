@@ -221,7 +221,7 @@ infinite loop.
 
 ---
 <a name="when"></a>
-### when(arr/str events, str ev, str timing, bool reset, bool immutable ) --> tracker 
+### when(arr/str events, str ev, str timing, bool reset, bool immutable, bool initialOrdering ) --> tracker 
 
 This is how to do some action after several different events have all
 fired. Firing order is irrelevant.
@@ -246,6 +246,11 @@ __arguments__
   same event; the timing and reset are defaulted to the first .when though
   that can be modified with a return value. Note that immutables are still
   mutable by direct action on the tracker. 
+* `initialOrdering` If true, the .when data will be returned in the order
+  of originally adding the events, rather than the default of the emit
+  order. To change this gloablly, change `emitter.initialOrdering = true`.
+  Also, when true, events that are emitted with no data do fill up a slot,
+  with data being null. 
 
 __return__
 
@@ -278,11 +283,14 @@ __example__
     emitter.when(["file read", "db returned"], "data gathered");
     emitter.when("something more", "data gathered");
     emitter.emit("db returned", dbobj);
-    emitter.emit("file read", fileobj);
+    emitter.emit("file read:some", fileobj);
     emitter.emit("something more");
 
 emitter will automatically emit "data gathered" after third emit with
-data `[ ["db returned", dbobj], ["file read", fileobj]]`
+data `[ ["db returned", dbobj], ["file read", fileobj, "file read:some"]]`
+
+Notice that if the event is a parent event of what was emitted, then the
+full event name is placed in the third slot.
 
 ---
 <a name="on"></a>

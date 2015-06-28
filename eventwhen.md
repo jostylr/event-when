@@ -1,4 +1,4 @@
-# [event-when](# "version: 1.0.0| jostylr")
+# [event-when](# "version: 1.1.0| jostylr")
 
 
 This is an event library that emphasizes flow-control from a single dispatch
@@ -178,6 +178,7 @@ passed in without context via nextTick or analog.
         this.timing = "momentary";
         this.whens = {};
         this._cache = {};
+        this.initialOrdering = false;  // for .when tracker behavior
 
         this.looper = this.looper.bind(this);
 
@@ -1085,13 +1086,17 @@ Emitting scoped events will count also as a firing of the parents, e.g.,
 one of the button counts (unless event bubbling is stopped). But
 `.emit("button")` will not count for any `.when("button:submit")`. 
 
-New addition to this in v0.7.0:  When using .when, if the event to be emitted
-already has a when, then the events are tacked on. Timing and reset are
-ignored if the .when already exists. If one wants a .when to not be added to
-in this fashion, then have a fifth argument of true.
+When using .when, if the event to be emitted already has a when, then the
+events are tacked on. Timing and reset are ignored if the .when already
+exists. If one wants a .when to not be added to in this fashion, then have a
+fifth argument of true.
+
+The initialOrdering setting is a local override to a global setting of whether
+the .when data should be presented in the order of creation of the .when or in
+the event emitting. The global default is in the order of data;  
 
 
-    function (events, ev, timing, reset, immutable) {    
+    function (events, ev, timing, reset, immutable, initialOrdering) {    
 
         var emitter = this;
         var tracker; 
@@ -1105,6 +1110,10 @@ in this fashion, then have a fifth argument of true.
             }
         }
 
+        if (typeof initialOrdering === "undefined") {
+           initialOrdering = emitter.initialOrdering;  
+        }
+
         tracker = new Tracker ();
 
         tracker.emitter = emitter;
@@ -1113,13 +1122,46 @@ in this fashion, then have a fifth argument of true.
         _":assign timing reset"
         tracker.original = events.slice();
         tracker.idempotent = false;
+        tracker.initialOrdering = initialOrdering;
+
+The handler adds the data. We prepopulate the data array with [ev] arrays in
+the order of adding if we are doing initial ordering. If an event is placed on
+it repeatedly, then there are separate entries in data for each one, in the
+order of adding. In the event of no initialOrdering, then we simply pop on
+data with the event name whenever the data is defined; ignoring it otherwise.
+With initialOrdering, we add the data as null. 
+
 
         var handler = new Handler (function (data, evObj) {
-            var ev = evObj.cur[0];
-            if (typeof data !== "undefined") {
-                this.data.push([ev, data]);
+            var ev = evObj.cur[0]; // subevent
+            var fullev = evObj.ev; // full event that triggered
+            var tracker = this;
+            var results = tracker.data;
+            var i, n;
+            if (tracker.initialOrdering) {
+                n = results.length;
+                if (typeof data === "undefined") {
+                    data = null;
+                }
+                for (i =0; i < n; i+=1) {
+                    if ( (results[i].length === 1) && (results[i][0] === ev) ) {
+                        results[i][1] = data;
+                        if (fullev !== ev) {
+                            results[i][2] = fullev;
+                        }
+                        break;
+                    }
+                }
+            } else {
+                if (typeof data !== "undefined") {
+                    if (fullev !== ev) {
+                        tracker.data.push([ev, data, fullev]);
+                    } else {
+                        tracker.data.push([ev, data]);
+                    }
+                }
             }
-            this.remove(ev);
+            tracker.remove(ev);
         }, tracker);
 
 
@@ -1146,6 +1188,7 @@ this way since the manipulations use tracker.
 
         return tracker;
     }
+
 
 
 [assign timing reset]()
@@ -1176,7 +1219,7 @@ sure that properly written, but unordered, is okay.
 [doc]()
 
 
-    ### when(arr/str events, str ev, str timing, bool reset, bool immutable ) --> tracker 
+    ### when(arr/str events, str ev, str timing, bool reset, bool immutable, bool initialOrdering ) --> tracker 
 
     This is how to do some action after several different events have all
     fired. Firing order is irrelevant.
@@ -1201,6 +1244,11 @@ sure that properly written, but unordered, is okay.
       same event; the timing and reset are defaulted to the first .when though
       that can be modified with a return value. Note that immutables are still
       mutable by direct action on the tracker. 
+    * `initialOrdering` If true, the .when data will be returned in the order
+      of originally adding the events, rather than the default of the emit
+      order. To change this gloablly, change `emitter.initialOrdering = true`.
+      Also, when true, events that are emitted with no data do fill up a slot,
+      with data being null. 
 
     __return__
 
@@ -1220,7 +1268,10 @@ sure that properly written, but unordered, is okay.
         _":example"
 
     emitter will automatically emit "data gathered" after third emit with
-    data `[ ["db returned", dbobj], ["file read", fileobj]]`
+    data `[ ["db returned", dbobj], ["file read", fileobj, "file read:some"]]`
+
+    Notice that if the event is a parent event of what was emitted, then the
+    full event name is placed in the third slot. 
 
 
 [example]()
@@ -1241,7 +1292,7 @@ sure that properly written, but unordered, is okay.
     emitter.when(["file read", "db returned"], "data gathered");
     emitter.when("something more", "data gathered");
     emitter.emit("db returned", dbobj);
-    emitter.emit("file read", fileobj);
+    emitter.emit("file read:some", fileobj);
     emitter.emit("something more");
     
 #### Cache
@@ -2643,10 +2694,16 @@ THe various prototype methods for the tracker object.
 We can add events on to the tracker. We allow it to be an array of events
 passed in or a bunch of strings passed in as parameters.
 
+The events get added to events for removal; that way we can see what is left.
+But they also get added to data so that input order is preserved. We could do
+a flag. 
+
     function (newEvents) {
         var tracker = this,
             events = tracker.events,
-            handler = tracker.handler;
+            handler = tracker.handler,
+            data = tracker.data, 
+            i;
 
         if (arguments.length !== 1) {
             newEvents = Array.prototype.slice.call(arguments);
@@ -2663,7 +2720,9 @@ passed in or a bunch of strings passed in as parameters.
                 num = 1;
             }
             if (Array.isArray(el) ) {
-                if ((typeof el[1] === "number") && (el[1] >= 1) && (typeof el[0] === "string") ) {
+                if ((typeof el[1] === "number") && (el[1] >= 1) && 
+                    (typeof el[0] === "string") ) {
+                    
                     num = el[1];
                     str = el[0];
                 } 
@@ -2674,6 +2733,11 @@ passed in or a bunch of strings passed in as parameters.
                 } else {
                     tracker.emitter.on(str, handler, order);
                     events[str] = num;
+                }
+                if (tracker.initialOrdering) {
+                    for ( i = 0; i<num; i+=1 ) {
+                        data.push([str]);
+                    }
                 }
             }
         });
@@ -3606,9 +3670,6 @@ Native event emitter
 ## TODO
 
 
-
-
-
 ## NPM package
 
 The requisite npm package file. 
@@ -3631,12 +3692,7 @@ The requisite npm package file.
       "bugs": {
         "url": "https://github.com/GHUSER/DOCNAME/issues"
       },
-      "licenses": [
-        {
-          "type": "MIT",
-          "url": "https://github.com/GHUSER/DOCNAME/blob/master/LICENSE-MIT"
-        }
-      ],
+      "license": "MIT", 
       "main": "index.js",
       "engines": {
         "node": ">0.6"
@@ -3656,6 +3712,13 @@ The requisite npm package file.
     }
 
 ## Change Log
+
+### Version 1.1.0
+
+Added ability to order the data in .when according to initial creation
+ordering, not event emitting ordering. Default is old behavior to avoid
+breaking changes -- semver!
+
 
 ### Version 1.0.0 
 

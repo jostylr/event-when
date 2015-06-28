@@ -117,6 +117,56 @@ Testing the when capabilities.
 
     emitter.emit("done");
 
+
+
+## testing when ordering
+
+Testing the when capabilities for ordering and event strings.
+
+
+[expected]()
+
+     first ready ;; boo ;; first ready:button
+     second ready ;; hoo
+     second ready ;; 
+     first ready ;; next first
+     fourth ready:cool ;; yet
+     third ready ;; not ;; third ready:not 
+
+[code]()
+
+    emitter.initialOrdering = true;
+
+    emitter.when(["first ready", ["second ready", 2]], "both ready");
+
+    emitter.when("first ready", "both ready");
+
+    emitter.when(["third ready", "fourth ready:cool"], "more ready", 
+        "momentary", false, false, false ); // testing override
+
+    var h = function (data) {
+        data.forEach(function (el) {
+            actual.push(el.join(" ;; ").trim());
+        });
+    };
+
+    emitter.on("both ready", h);
+
+    emitter.on("more ready", h);
+
+    emitter.emit("second ready", "hoo");
+    emitter.emit("first ready:button", "boo");
+    emitter.emit("second ready");
+    emitter.emit("first ready", "next first");    
+    emitter.emit("second ready");
+    emitter.emit("second ready", "never seen");
+
+    emitter.emit("fourth ready:cool", "yet");
+    emitter.emit("third ready:not", "not");
+
+    emitter.emit("done");
+
+
 ## checking action naming
 
 Testing actions.
@@ -1113,6 +1163,8 @@ will not fire.
     _"turning off a handler*test template";
 
     _"when waiting for 2 events*test template";
+    
+    _"testing when ordering*test template";
 
     _"checking action naming*test template";
 
