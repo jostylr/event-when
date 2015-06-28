@@ -128,6 +128,58 @@ test('when waiting for 2 events', function (s) {
 
 });
 
+test('testing when ordering', function (s) {
+    s.plan(1);
+
+    var emitter = new EventWhen();
+
+    var expected = [
+        "first ready ;; boo ;; first ready:button",
+        "second ready ;; hoo",
+        "second ready ;;",
+        "first ready ;; next first",
+        "fourth ready:cool ;; yet",
+        "third ready ;; not ;; third ready:not"
+        ],
+        actual = [];
+
+    emitter.on("done", function () {
+        s.deepEqual(actual, expected);
+    });
+
+    emitter.initialOrdering = true;
+    
+    emitter.when(["first ready", ["second ready", 2]], "both ready");
+    
+    emitter.when("first ready", "both ready");
+    
+    emitter.when(["third ready", "fourth ready:cool"], "more ready", 
+        "momentary", false, false, false ); // testing override
+    
+    var h = function (data) {
+        data.forEach(function (el) {
+            actual.push(el.join(" ;; ").trim());
+        });
+    };
+    
+    emitter.on("both ready", h);
+    
+    emitter.on("more ready", h);
+    
+    emitter.emit("second ready", "hoo");
+    emitter.emit("first ready:button", "boo");
+    emitter.emit("second ready");
+    emitter.emit("first ready", "next first");    
+    emitter.emit("second ready");
+    emitter.emit("second ready", "never seen");
+    
+    emitter.emit("fourth ready:cool", "yet");
+    emitter.emit("third ready:not", "not");
+    
+    emitter.emit("done");
+
+});
+
 test('checking action naming', function (s) {
     s.plan(1);
 
