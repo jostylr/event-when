@@ -1,4 +1,4 @@
-# [event-when](# "version: 1.1.0| jostylr")
+# [event-when](# "version: 1.2.0| jostylr")
 
 
 This is an event library that emphasizes flow-control from a single dispatch
@@ -208,6 +208,7 @@ The various prototype methods on the event emitter.
     EvW.prototype.off = _"off";
     EvW.prototype.once = _"once";
     EvW.prototype.when = _"when";
+    EvW.prototype.flatWhen = _"flat when";
     EvW.prototype.cache = _"cache";
 
     EvW.prototype.looper = _"looper";
@@ -1261,7 +1262,13 @@ sure that properly written, but unordered, is okay.
     reset, those extra times do not get counted. 
 
     Also to get the tracker (assuming not immutable), then pass in empty array
-    and the event of interest. 
+    and the event of interest.
+
+    There is a convenience method called `flatWhen`. This flattens the
+    emitted data. If the data had a single element in the array (just one
+    event fired with data A), then it emits A not an array containing A. If
+    there are multiple events with `[ev1, A], [ev2, B], ...` then it emits
+    `[A, B, ...]`.
 
     __example__
 
@@ -1294,7 +1301,20 @@ sure that properly written, but unordered, is okay.
     emitter.emit("db returned", dbobj);
     emitter.emit("file read:some", fileobj);
     emitter.emit("something more");
-    
+   
+
+#### Flat When
+
+This is a convenience method that simply flips the tracker to flatten. But it
+has a radical difference on the emitted values. 
+
+    function () {
+       var tracker = this.when.apply(this, arguments); 
+       tracker.flatten = true;
+       return tracker;
+    }
+
+
 #### Cache
 
 This solves the problem of needing a resource that one would ideally call only
@@ -2868,9 +2888,26 @@ If reset is true, then we add those events before firing off the next round.
                 }
                 tracker.go = noop;
             }
+            if (tracker.flatten) {
+                _":flatten"
+            } 
+            
             emitter.emit(ev, data, tracker.timing); 
+            
         }
         return tracker;
+    }
+
+[flatten]()
+
+If the tracker is set to flatten, then we either produce a single data value
+if data is a singleton array or we produce an array of just the data elements
+(second elements). 
+
+    if (data.length === 1) {
+        data = data[0][1];
+    } else {
+        data = data.map(function (el) {return el[1];});
     }
 
 
@@ -3712,6 +3749,10 @@ The requisite npm package file.
     }
 
 ## Change Log
+
+### Version 1.2.0
+
+Introduced flat when
 
 ### Version 1.1.0
 

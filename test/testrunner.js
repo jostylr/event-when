@@ -128,6 +128,46 @@ test('when waiting for 2 events', function (s) {
 
 });
 
+test('flat when', function (s) {
+    s.plan(1);
+
+    var emitter = new EventWhen();
+
+    var expected = [
+        "A",
+        "C",
+        "E"
+        ],
+        actual = [];
+
+    emitter.on("done", function () {
+        s.deepEqual(actual, expected);
+    });
+
+    emitter.flatWhen(["first ready", "second ready"], "both ready");
+    
+    emitter.flatWhen("third ready", "single ready");
+    
+    emitter.on("both ready", function (data) {
+        actual.push(data[0]);
+        actual.push(data[1]);
+    });
+    
+    emitter.on("single ready", function (data) {
+        actual.push(data);
+    });
+    
+    emitter.emit("first ready", "A");
+    
+    emitter.emit("first ready", "B");
+    emitter.emit("second ready", "C");
+    emitter.emit("first ready", "D");    
+    emitter.emit("third ready", "E");
+    
+    emitter.emit("done");
+
+});
+
 test('testing when ordering', function (s) {
     s.plan(1);
 

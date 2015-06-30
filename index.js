@@ -427,7 +427,16 @@
                     }
                     tracker.go = noop;
                 }
+                if (tracker.flatten) {
+                    if (data.length === 1) {
+                        data = data[0][1];
+                    } else {
+                        data = data.map(function (el) {return el[1];});
+                    }
+                } 
+                
                 emitter.emit(ev, data, tracker.timing); 
+                
             }
             return tracker;
         };
@@ -915,6 +924,11 @@
             emitter.log("when", events, ev, timing, reset, tracker);
         
             return tracker;
+        };
+    EvW.prototype.flatWhen = function () {
+           var tracker = this.when.apply(this, arguments); 
+           tracker.flatten = true;
+           return tracker;
         };
     EvW.prototype.cache = function (req, ret, fun, emit) {
             

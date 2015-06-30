@@ -263,7 +263,13 @@ If an event fires more times than is counted and later the when is
 reset, those extra times do not get counted. 
 
 Also to get the tracker (assuming not immutable), then pass in empty array
-and the event of interest. 
+and the event of interest.
+
+There is a convenience method called `flatWhen`. This flattens the
+emitted data. If the data had a single element in the array (just one
+event fired with data A), then it emits A not an array containing A. If
+there are multiple events with `[ev1, A], [ev2, B], ...` then it emits
+`[A, B, ...]`.
 
 __example__
 
@@ -285,6 +291,7 @@ __example__
     emitter.emit("db returned", dbobj);
     emitter.emit("file read:some", fileobj);
     emitter.emit("something more");
+      
 
 emitter will automatically emit "data gathered" after third emit with
 data `[ ["db returned", dbobj], ["file read", fileobj, "file read:some"]]`
