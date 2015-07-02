@@ -820,20 +820,27 @@
                 handler.n = n;
             }
         
-            g = function() {
-                if (handler.n >= 1) {
-                    handler.n -=1;
-                } else {
-                    emitter.off(ev, handler);
-                    if (f._label) {
-                        delete emitter._onces[f._label];
-                    }
-                    return true;
-                }
-            };
-        
             if (f._label) {
-                emitter._onces[f._label] = 1;
+                emitter._onces[f._label] = [ev, n, n];
+                g = function() {
+                    if (handler.n >= 1) {
+                        handler.n -=1;
+                        emitter._onces[f._label][2] -= 1;
+                    } else {
+                        emitter.off(ev, handler);
+                        delete emitter._onces[f._label];
+                        return true;
+                    }
+                };
+            } else {
+                g = function() {
+                    if (handler.n >= 1) {
+                        handler.n -=1;
+                    } else {
+                        emitter.off(ev, handler);
+                        return true;
+                    }
+                };
             }
         
             handler.value.unshift(g);
