@@ -1,4 +1,4 @@
-# [event-when](# "version: 1.2.0| jostylr")
+# [event-when](# "version: 1.3.0| jostylr")
 
 
 This is an event library that emphasizes flow-control from a single dispatch
@@ -164,6 +164,7 @@ passed in without context via nextTick or analog.
     function () {
 
         this._handlers = {};
+        this._onces = {};
         this._queue = [];
         this._queue.name = "queue";
         this._waiting = [];
@@ -893,7 +894,7 @@ This will remove all handlers that are or contain the passed in fun.
 Note that this could get messy in the case of multiple functions embedded in
 one handler; this will remove them if a single function is queued to be
 removed. Think of this more of as a partial match removal. Not sure if this is
-a good idea or not. Need to test how it interacts with .when. Proobably bad if
+a good idea or not. Need to test how it interacts with .when. Probably bad if
 several handlers with same tracker in the list. 
 
     handlers[ev] = handlers[ev].filter(function (handler) {
@@ -903,7 +904,10 @@ several handlers with same tracker in the list.
         } else {
             return true;
         }
-    }); 
+    });
+    if (handlers[ev].length === 0) {
+        delete handlers[ev];
+    }
     if (nowhen !== true)  {
         removed.forEach(function (el) {
             el.removal(ev, emitter);
@@ -1009,9 +1013,16 @@ consequences.
                 handler.n -=1;
             } else {
                 emitter.off(ev, handler);
+                if (f._label) {
+                    delete emitter._onces[f._label];
+                }
                 return true;
             }
         };
+
+        if (f._label) {
+            emitter._onces[f._label] = 1;
+        }
 
         handler.value.unshift(g);
 
@@ -3749,6 +3760,11 @@ The requisite npm package file.
     }
 
 ## Change Log
+
+### Version 1.3.0
+
+Removed empty handlers and created .onces to track labelled onces to show they
+did not get used up. No tests added :(
 
 ### Version 1.2.0
 

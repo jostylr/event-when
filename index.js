@@ -481,6 +481,7 @@
     var EvW = function () {
         
             this._handlers = {};
+            this._onces = {};
             this._queue = [];
             this._queue.name = "queue";
             this._waiting = [];
@@ -767,7 +768,10 @@
                         } else {
                             return true;
                         }
-                    }); 
+                    });
+                    if (handlers[ev].length === 0) {
+                        delete handlers[ev];
+                    }
                     if (nowhen !== true)  {
                         removed.forEach(function (el) {
                             el.removal(ev, emitter);
@@ -821,9 +825,16 @@
                     handler.n -=1;
                 } else {
                     emitter.off(ev, handler);
+                    if (f._label) {
+                        delete emitter._onces[f._label];
+                    }
                     return true;
                 }
             };
+        
+            if (f._label) {
+                emitter._onces[f._label] = 1;
+            }
         
             handler.value.unshift(g);
         
