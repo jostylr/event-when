@@ -405,6 +405,12 @@ __example__
     // talk with jack three times, using brief each time
     emitter.once("jack", "talk with jack", 3, brief);
 
+__note__
+
+If you attach a `_label` property to your handler f, then the once will
+get recorded in `emitter._onces` which one can use to monitor which onces
+have fired and how many times remain.
+
 ---
 <a name="stop"></a>
 ### stop(filter toRemove, bool neg) --> emitter

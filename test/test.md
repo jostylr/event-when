@@ -58,6 +58,57 @@ This tests that the once removes itself. We do a case with no number and one wit
     emitter.emit("second ready");
     emitter.emit("done");
 
+## checking labels and onces
+
+This test has some onces with and without labels and checking that the onces
+work. It also does a once with two handlers to make sure that works correctly. 
+
+[expected]() 
+
+
+     {\"for first\":[\"first ready\",1,1],\"sec sec\":[\"second ready\",1,1]} 
+     first fires
+     second fires
+     second second fires 
+     {} 
+     second fires
+     {} 
+
+[code]()
+
+    var l = function (label, f) {
+        f._label = label; 
+        return f;
+    };
+
+    var ao = function () {actual.push(JSON.stringify(emitter._onces));};
+
+    emitter.once("first ready", l("for first", function () {
+        actual.push("first fires");
+        emitter.emit("second ready");
+    }));
+
+
+    emitter.once("second ready", function () {
+        actual.push("second fires");
+    }, 2);
+
+    emitter.once("second ready", l("sec sec", function () {
+        actual.push("second second fires");
+    }));
+
+
+    ao();
+    emitter.emit("first ready");
+    ao();
+    emitter.emit("first ready");    
+    emitter.emit("second ready");
+    ao();
+    emitter.emit("done");
+
+
+
+
 ## turning off a handler
 
 
@@ -1010,7 +1061,8 @@ This will test out the various log stuff.
           '4. EMITTING "gone" DATA "LL"',
           'REMOVING HANDLER ["h:(when)gogo ``] FROM "gone"',
           '5. EMITTING "gogo" DATA [["dudette","JJ"],["gone","LL"]]',
-          '4) EXECUTING awesome EVENT "gone"' ],
+          '4) EXECUTING awesome EVENT "gone"',
+          'REMOVING HANDLER ["h:(once)awesome [``, ``, ``]"] FROM "gone"' ],
         "emit event");
 
 
@@ -1195,13 +1247,15 @@ will not fire.
 
 ## [testrunner.js](#testrunner.js "save: |jshint")
 
-    /*global require*/
+    /*global require, process*/
     var EventWhen = require('../index.js'),
         test = require('tape');
 
     _"two on and some emits*test template";
 
     _"simple once test*test template";
+    
+    _"checking labels and onces*test template";
 
     _"turning off a handler*test template";
 

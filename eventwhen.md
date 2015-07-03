@@ -1,4 +1,4 @@
-# [event-when](# "version: 1.3.1| jostylr")
+# [event-when](# "version: 1.4.0| jostylr")
 
 
 This is an event library that emphasizes flow-control from a single dispatch
@@ -897,22 +897,25 @@ removed. Think of this more of as a partial match removal. Not sure if this is
 a good idea or not. Need to test how it interacts with .when. Probably bad if
 several handlers with same tracker in the list. 
 
-    handlers[ev] = handlers[ev].filter(function (handler) {
-        if (handler.contains(fun) ) {
-            removed.push(handler);
-            return false;
-        } else {
-            return true;
+    if (handlers.hasOwnProperty(ev) ) {
+        handlers[ev] = handlers[ev].filter(function (handler) {
+            if (handler.contains(fun) ) {
+                removed.push(handler);
+                return false;
+            } else {
+                return true;
+            }
+        });
+        if (handlers[ev].length === 0) {
+            delete handlers[ev];
         }
-    });
-    if (handlers[ev].length === 0) {
-        delete handlers[ev];
     }
     if (nowhen !== true)  {
         removed.forEach(function (el) {
             el.removal(ev, emitter);
         });
     }
+
 
 
 
@@ -987,14 +990,18 @@ default).  The new handler is what is returned.
 The way it works is the f is put into a handler object. This handler object
 then has a function placed as the first to be invoked. When invoked, it will
 decrement the number of times and remove the handler if it is less than or
-equal to 0. That's it. No function wrapping in a function.
+equal to 0. That's it. No function wrapping in a function. If we hit 0, the
+return true value ceases that execution stream. We need to do this because f's
+exceution might lead to an event being emitted that could trigger it again. 
+
+We also have a function that will remove the handler if need be. 
 
 We allow for n and context to be switched. Minimal risk of unintended
 consequences. 
 
     function (ev, f, n, context) {
         var emitter = this, 
-            handler, g, temp;
+            handler, g, h, temp;
 
         handler = new Handler([f], context);
 
@@ -1008,30 +1015,52 @@ consequences.
             handler.n = n;
         }
 
-        if (f._label) {
+        if (f._label) { 
             emitter._onces[f._label] = [ev, n, n];
             g = function() {
                 if (handler.n >= 1) {
                     handler.n -=1;
-                    emitter._onces[f._label][2] -= 1;
-                } else {
+                } else { //should rarely happen
                     emitter.off(ev, handler);
                     delete emitter._onces[f._label];
-                    return true;
+                    return true; // prevents f from being executed
                 }
             };
+
+            h = function () {
+                if (handler.n === 0) {
+                    emitter.off(ev, handler);
+                    delete emitter._onces[f._label];
+                } else {
+                    emitter._onces[f._label][2] -= 1;
+                }
+            };
+
         } else {
             g = function() {
                 if (handler.n >= 1) {
                     handler.n -=1;
+                    if (handler.n === 0) {
+                        handler.value.push(function () {
+                            emitter.off(ev, handler);
+                        });
+                    } 
                 } else {
                     emitter.off(ev, handler);
                     return true;
                 }
             };
+           
+           h = function () {
+                if (handler.n === 0) {
+                    emitter.off(ev, handler);
+                }
+            };
+
         }
 
         handler.value.unshift(g);
+        handler.value.push(h);
 
         emitter.on(ev, handler); 
 
@@ -1064,6 +1093,12 @@ consequences.
     __example__
 
         _":example"
+
+    __note__
+
+    If you attach a `_label` property to your handler f, then the once will
+    get recorded in `emitter._onces` which one can use to monitor which onces
+    have fired and how many times remain. 
 
 [switch vars]()
 
@@ -1357,7 +1392,7 @@ object.
         
         var gcd = this;
         var cache = gcd._cache;
-        var start, end, proc, data, timing, cached;
+        var start, end, data, timing, cached;
 
         _":prep req"
 
@@ -3213,7 +3248,8 @@ console.logged.
         "\nhandler " + s(handler) + 
         "\ndata " + s(data) + 
         "\ncontext " + s(context) + 
-        "\nscopes " + s(evObj.scopes);
+        "\nscopes " + s(evObj.scopes) + 
+        "\nstack " + e.stack;
 
 [emergency logs]() 
 

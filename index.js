@@ -761,16 +761,18 @@
             if (fun) {
                 events.forEach( function (ev) {
                     var removed = [];
-                    handlers[ev] = handlers[ev].filter(function (handler) {
-                        if (handler.contains(fun) ) {
-                            removed.push(handler);
-                            return false;
-                        } else {
-                            return true;
+                    if (handlers.hasOwnProperty(ev) ) {
+                        handlers[ev] = handlers[ev].filter(function (handler) {
+                            if (handler.contains(fun) ) {
+                                removed.push(handler);
+                                return false;
+                            } else {
+                                return true;
+                            }
+                        });
+                        if (handlers[ev].length === 0) {
+                            delete handlers[ev];
                         }
-                    });
-                    if (handlers[ev].length === 0) {
-                        delete handlers[ev];
                     }
                     if (nowhen !== true)  {
                         removed.forEach(function (el) {
@@ -802,7 +804,7 @@
         };
     EvW.prototype.once = function (ev, f, n, context) {
             var emitter = this, 
-                handler, g, temp;
+                handler, g, h, temp;
         
             handler = new Handler([f], context);
         
@@ -820,30 +822,52 @@
                 handler.n = n;
             }
         
-            if (f._label) {
+            if (f._label) { 
                 emitter._onces[f._label] = [ev, n, n];
                 g = function() {
                     if (handler.n >= 1) {
                         handler.n -=1;
-                        emitter._onces[f._label][2] -= 1;
-                    } else {
+                    } else { //should rarely happen
                         emitter.off(ev, handler);
                         delete emitter._onces[f._label];
-                        return true;
+                        return true; // prevents f from being executed
                     }
                 };
+        
+                h = function () {
+                    if (handler.n === 0) {
+                        emitter.off(ev, handler);
+                        delete emitter._onces[f._label];
+                    } else {
+                        emitter._onces[f._label][2] -= 1;
+                    }
+                };
+        
             } else {
                 g = function() {
                     if (handler.n >= 1) {
                         handler.n -=1;
+                        if (handler.n === 0) {
+                            handler.value.push(function () {
+                                emitter.off(ev, handler);
+                            });
+                        } 
                     } else {
                         emitter.off(ev, handler);
                         return true;
                     }
                 };
+               
+               h = function () {
+                    if (handler.n === 0) {
+                        emitter.off(ev, handler);
+                    }
+                };
+        
             }
         
             handler.value.unshift(g);
+            handler.value.push(h);
         
             emitter.on(ev, handler); 
         
@@ -952,7 +976,7 @@
             
             var gcd = this;
             var cache = gcd._cache;
-            var start, end, proc, data, timing, cached;
+            var start, end, data, timing, cached;
         
             if (typeof req === "string") {
                 start = req;
@@ -1331,7 +1355,8 @@
                             "\nhandler " + s(handler) + 
                             "\ndata " + s(data) + 
                             "\ncontext " + s(context) + 
-                            "\nscopes " + s(evObj.scopes);
+                            "\nscopes " + s(evObj.scopes) + 
+                            "\nstack " + e.stack;
                         return err;
                     },
                     
@@ -1524,7 +1549,8 @@
                 "\nhandler " + s(handler) + 
                 "\ndata " + s(data) + 
                 "\ncontext " + s(context) + 
-                "\nscopes " + s(evObj.scopes);
+                "\nscopes " + s(evObj.scopes) + 
+                "\nstack " + e.stack;
             console.log(err);
             emitter.log("error raised", e, handler, data, evObj, context);
             throw Error(e);

@@ -1,4 +1,4 @@
-/*global require*/
+/*global require, process*/
 var EventWhen = require('../index.js'),
     test = require('tape');
 
@@ -59,6 +59,56 @@ test('simple once test', function (s) {
     emitter.emit("first ready");
     emitter.emit("first ready");    
     emitter.emit("second ready");
+    emitter.emit("done");
+
+});
+
+test('checking labels and onces', function (s) {
+    s.plan(1);
+
+    var emitter = new EventWhen();
+
+    var expected = [
+        "{\"for first\":[\"first ready\",1,1],\"sec sec\":[\"second ready\",1,1]}",
+        "first fires",
+        "second fires",
+        "second second fires",
+        "{}",
+        "second fires",
+        "{}"
+        ],
+        actual = [];
+
+    emitter.on("done", function () {
+        s.deepEqual(actual, expected);
+    });
+
+    var l = function (label, f) {
+        f._label = label; 
+        return f;
+    };
+    
+    var ao = function () {actual.push(JSON.stringify(emitter._onces));};
+    
+    emitter.once("first ready", l("for first", function () {
+        actual.push("first fires");
+        emitter.emit("second ready");
+    }));
+    
+    emitter.once("second ready", function () {
+        actual.push("second fires");
+    }, 2);
+    
+    emitter.once("second ready", l("sec sec", function () {
+        actual.push("second second fires");
+    }));
+    
+    ao();
+    emitter.emit("first ready");
+    ao();
+    emitter.emit("first ready");    
+    emitter.emit("second ready");
+    ao();
     emitter.emit("done");
 
 });
@@ -971,7 +1021,8 @@ test("log testing", function (t) {
       '4. EMITTING "gone" DATA "LL"',
       'REMOVING HANDLER ["h:(when)gogo ``] FROM "gone"',
       '5. EMITTING "gogo" DATA [["dudette","JJ"],["gone","LL"]]',
-      '4) EXECUTING awesome EVENT "gone"' ],
+      '4) EXECUTING awesome EVENT "gone"',
+      'REMOVING HANDLER ["h:(once)awesome [``, ``, ``]"] FROM "gone"' ],
     "emit event");
 
 });
