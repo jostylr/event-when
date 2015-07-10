@@ -1,4 +1,4 @@
-# [event-when](# "version: 1.4.0| jostylr")
+# [event-when](# "version: 1.4.1| jostylr")
 
 
 This is an event library that emphasizes flow-control from a single dispatch
@@ -279,6 +279,12 @@ we are already in the loop).
             scopes = {};
 
         timing = timing ||emitter.timing || "momentary";
+        
+        if (typeof ev !== "string") {
+            // not going to use internal error since this needs to end
+           console.error("emit called with no event", ev, data, timing);
+           return;
+        }
 
         var pieces = ev.split(sep);
 

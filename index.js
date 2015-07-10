@@ -511,6 +511,12 @@
             scopes = {};
     
         timing = timing ||emitter.timing || "momentary";
+        
+        if (typeof ev !== "string") {
+            // not going to use internal error since this needs to end
+           console.error("emit called with no event", ev, data, timing);
+           return;
+        }
     
         var pieces = ev.split(sep);
     
