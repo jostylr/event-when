@@ -258,6 +258,36 @@ Testing flat when capabilities.
 
 
 
+## silent when
+
+Testing flat when capabilities.
+
+
+[expected]()
+    
+    C  
+
+[code]()
+
+    var tracker = emitter.flatWhen(["first ready", "second ready", "third ready"], 
+        "both ready").silence();
+
+    tracker.silence("first ready");
+
+    emitter.on("both ready", function (data) {
+        actual.push(data);
+    });
+
+
+    emitter.emit("first ready", "A");
+
+    emitter.emit("first ready", "B");
+    emitter.emit("second ready", "C");
+    emitter.emit("first ready", "D");    
+    emitter.emit("third ready", "E");
+
+    emitter.emit("done");
+
 
 
 
@@ -1262,6 +1292,9 @@ will not fire.
     _"when waiting for 2 events*test template";
     
     _"flat when*test template";
+
+    _"silent when*test template";
+
     
     _"testing when ordering*test template";
 

@@ -318,6 +318,7 @@
 
     var Tracker = function () {
             this.events = {};
+            this.silent = [];
             return this;
         };
 
@@ -362,6 +363,7 @@
                         data.push([str]);
                     }
                 }
+                tracker.latest = str;
             }
         });
         tracker.go();
@@ -416,9 +418,21 @@
                 ev = tracker.ev, 
                 data = tracker.data,
                 events = tracker.events,
-                emitter = tracker.emitter;
+                emitter = tracker.emitter,
+                silent = tracker.silent;
         
             if (Object.keys(events).length === 0) {
+                data = data.filter(function (el) {
+                    return silent.indexOf(el[0]) === -1;  
+                });
+                if (tracker.flatten) {
+                    if (data.length === 1) {
+                        data = data[0][1];
+                    } else {
+                        data = data.map(function (el) {return el[1];});
+                    }
+                } 
+                
                 if (tracker.reset === true) {
                     tracker.reinitialize();
                 } else if (tracker.idempotent === false) {
@@ -427,13 +441,6 @@
                     }
                     tracker.go = noop;
                 }
-                if (tracker.flatten) {
-                    if (data.length === 1) {
-                        data = data[0][1];
-                    } else {
-                        data = data.map(function (el) {return el[1];});
-                    }
-                } 
                 
                 emitter.emit(ev, data, tracker.timing); 
                 
@@ -475,6 +482,15 @@
                 }
             }
             tracker.go();
+            return tracker;
+        };
+    Tracker.prototype.silence = function () {
+            var tracker = this;
+            if (arguments.length === 0) {
+                tracker.silent.push(tracker.latest);
+            } else {
+                Array.prototype.push.apply(tracker.silent, arguments); 
+            }
             return tracker;
         };
 
@@ -904,6 +920,7 @@
             tracker.emitter = emitter;
             tracker.ev = tracker._label = ev;
             tracker.data = [];
+            tracker.silent = [];
             if (typeof timing === "string") {
                 tracker.timing = timing;
                 tracker.reset = reset || false;

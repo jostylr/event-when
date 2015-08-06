@@ -1179,6 +1179,7 @@ the event emitting. The global default is in the order of data;
         tracker.emitter = emitter;
         tracker.ev = tracker._label = ev;
         tracker.data = [];
+        tracker.silent = [];
         _":assign timing reset"
         tracker.original = events.slice();
         tracker.idempotent = false;
@@ -2662,6 +2663,7 @@ available. Controlling it controls the queue of the when emit.
 
     function () {
         this.events = {};
+        this.silent = [];
         return this;
     }
 
@@ -2676,6 +2678,7 @@ THe various prototype methods for the tracker object.
     Tracker.prototype.go = _"go";
     Tracker.prototype.cancel = _"cancel";
     Tracker.prototype.reinitialize = _"reinitialize";
+    Tracker.prototype.silence = _"silence";
 
 [doc]()
 
@@ -2734,6 +2737,11 @@ THe various prototype methods for the tracker object.
     #### reinitialize()
 
     _"reinitialize:doc"
+
+    <a name="tracker-silence" />
+    #### silence()
+
+    _"silence:doc"
 
 [example]()
 
@@ -2818,6 +2826,7 @@ a flag.
                         data.push([str]);
                     }
                 }
+                tracker.latest = str;
             }
         });
         tracker.go();
@@ -2935,10 +2944,18 @@ If reset is true, then we add those events before firing off the next round.
             ev = tracker.ev, 
             data = tracker.data,
             events = tracker.events,
-            emitter = tracker.emitter;
+            emitter = tracker.emitter,
+            silent = tracker.silent;
 
 
         if (Object.keys(events).length === 0) {
+            data = data.filter(function (el) {
+                return silent.indexOf(el[0]) === -1;  
+            });
+            if (tracker.flatten) {
+                _":flatten"
+            } 
+            
             if (tracker.reset === true) {
                 tracker.reinitialize();
             } else if (tracker.idempotent === false) {
@@ -2947,9 +2964,6 @@ If reset is true, then we add those events before firing off the next round.
                 }
                 tracker.go = noop;
             }
-            if (tracker.flatten) {
-                _":flatten"
-            } 
             
             emitter.emit(ev, data, tracker.timing); 
             
@@ -3040,6 +3054,27 @@ We restore tracker.go if it has been silenced.
     Reinitializes the tracker. The existing waiting events get cleared and
     replaced with the original events array. All data is wiped. No arguments.  
     
+
+### Silence
+
+This sets up events to be not emitted. Each argument is an event to ignore. If
+no arguments, then it ignores the most recent event.
+
+    function () {
+        var tracker = this;
+        if (arguments.length === 0) {
+            tracker.silent.push(tracker.latest);
+        } else {
+            Array.prototype.push.apply(tracker.silent, arguments); 
+        }
+        return tracker;
+    }
+
+[doc]() 
+
+    This silences the passed in events or the last one added. In other words,
+    it will not appear in the list of events. If an event is applied multiple
+    times and silenced, it will be silent for the  
 
 ### Logs 
 

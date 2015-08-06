@@ -1012,6 +1012,13 @@ Cancel the tracking and abort with no event emitted. No arguments.
 Reinitializes the tracker. The existing waiting events get cleared and
 replaced with the original events array. All data is wiped. No arguments.  
 
+<a name="tracker-silence" />
+#### silence()
+
+This silences the passed in events or the last one added. In other words,
+it will not appear in the list of events. If an event is applied multiple
+times and silenced, it will be silent for the  
+
 ___
 ### Event Object
 <a name="#event-object"></a>
