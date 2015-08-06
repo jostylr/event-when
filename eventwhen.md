@@ -1,4 +1,4 @@
-# [event-when](# "version: 1.4.1| jostylr")
+# [event-when](# "version: 1.5.0| jostylr")
 
 
 This is an event library that emphasizes flow-control from a single dispatch
