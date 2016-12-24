@@ -1,4 +1,4 @@
-# [event-when](# "version: 1.5.0| jostylr")
+# [event-when](# "version: 1.6.0| jostylr")
 
 
 This is an event library that emphasizes flow-control from a single dispatch
@@ -210,6 +210,7 @@ The various prototype methods on the event emitter.
     EvW.prototype.once = _"once";
     EvW.prototype.when = _"when";
     EvW.prototype.flatWhen = _"flat when";
+    EvW.prototype.flatArrWhen = _"flat array when";
     EvW.prototype.cache = _"cache";
 
     EvW.prototype.looper = _"looper";
@@ -1330,6 +1331,10 @@ sure that properly written, but unordered, is okay.
     there are multiple events with `[ev1, A], [ev2, B], ...` then it emits
     `[A, B, ...]`.
 
+    There is another convenience method called `flatArrWhen`. This flattens the
+    emitted data but always returns an array, e.g., `[A]` or `[A, B, ...]`,
+    respectively in the above situation. 
+
     __example__
 
         _":example"
@@ -1371,6 +1376,16 @@ has a radical difference on the emitted values.
     function () {
        var tracker = this.when.apply(this, arguments); 
        tracker.flatten = true;
+       return tracker;
+    }
+
+#### Flat Array When
+
+This is a convenience method that will always return an array of values. 
+
+    function () {
+       var tracker = this.when.apply(this, arguments); 
+       tracker.flatArr = true;
        return tracker;
     }
 
@@ -2954,7 +2969,11 @@ If reset is true, then we add those events before firing off the next round.
             });
             if (tracker.flatten) {
                 _":flatten"
-            } 
+            }
+            // this is to do the falt thing, but always return array
+            if (tracker.flatArr) {
+                data = data.map(function (el) {return el[1];});
+            }
             
             if (tracker.reset === true) {
                 tracker.reinitialize();

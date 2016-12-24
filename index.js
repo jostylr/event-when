@@ -431,7 +431,11 @@
                     } else {
                         data = data.map(function (el) {return el[1];});
                     }
-                } 
+                }
+                // this is to do the falt thing, but always return array
+                if (tracker.flatArr) {
+                    data = data.map(function (el) {return el[1];});
+                }
                 
                 if (tracker.reset === true) {
                     tracker.reinitialize();
@@ -993,6 +997,11 @@
     EvW.prototype.flatWhen = function () {
            var tracker = this.when.apply(this, arguments); 
            tracker.flatten = true;
+           return tracker;
+        };
+    EvW.prototype.flatArrWhen = function () {
+           var tracker = this.when.apply(this, arguments); 
+           tracker.flatArr = true;
            return tracker;
         };
     EvW.prototype.cache = function (req, ret, fun, emit) {

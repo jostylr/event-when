@@ -288,7 +288,35 @@ Testing flat when capabilities.
 
     emitter.emit("done");
 
+## Flat array when
 
+Testing flat array when
+
+[expected]()
+
+    AB
+    EF
+    CD
+
+[code]()
+
+    emitter.flatArrWhen("single", "single ready");
+    emitter.on("single ready", function(data) {
+        actual.push(data[0]);
+    })
+    emitter.emit("single", "AB");
+   
+    emitter.flatArrWhen(["two", "three"], "two ready");
+    emitter.on("two ready", function (data) {
+        data.forEach(function (el) {
+            actual.push(el);
+        });
+    });
+    emitter.emit("three", "EF");
+    emitter.emit("two", "CD");
+    
+
+    emitter.emit("done");
 
 
 ## checking action naming
@@ -1294,6 +1322,8 @@ will not fire.
     _"flat when*test template";
 
     _"silent when*test template";
+    
+    _"flat array when*test template";
 
     
     _"testing when ordering*test template";

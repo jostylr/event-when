@@ -252,6 +252,41 @@ test('silent when', function (s) {
 
 });
 
+test('flat array when', function (s) {
+    s.plan(1);
+
+    var emitter = new EventWhen();
+
+    var expected = [
+        "AB",
+        "EF",
+        "CD"
+        ],
+        actual = [];
+
+    emitter.on("done", function () {
+        s.deepEqual(actual, expected);
+    });
+
+    emitter.flatArrWhen("single", "single ready");
+    emitter.on("single ready", function(data) {
+        actual.push(data[0]);
+    })
+    emitter.emit("single", "AB");
+       
+    emitter.flatArrWhen(["two", "three"], "two ready");
+    emitter.on("two ready", function (data) {
+        data.forEach(function (el) {
+            actual.push(el);
+        });
+    });
+    emitter.emit("three", "EF");
+    emitter.emit("two", "CD");
+    
+    emitter.emit("done");
+
+});
+
 
 test('testing when ordering', function (s) {
     s.plan(1);

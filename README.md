@@ -271,6 +271,10 @@ event fired with data A), then it emits A not an array containing A. If
 there are multiple events with `[ev1, A], [ev2, B], ...` then it emits
 `[A, B, ...]`.
 
+There is another convenience method called `flatArrWhen`. This flattens the
+emitted data but always returns an array, e.g., `[A]` or `[A, B, ...]`,
+respectively in the above situation. 
+
 __example__
 
     emitter.on("data gathered", function (data) {
