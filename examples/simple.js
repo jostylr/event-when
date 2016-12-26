@@ -5,6 +5,7 @@ var EventWhen = require('../index.js'),
 
 emitter.makeLog();
 
+
 f = emitter.on("test 1 on", function t1s () {
     emitter.emit("test 1 finishes");
 });
@@ -13,6 +14,7 @@ emitter.on("test 1 finishes", function t1f () {
     emitter.off("test 1 on", f);
     emitter.emit("test 1 on");
 });
+
 
 emitter.emit("test 1 on");
 

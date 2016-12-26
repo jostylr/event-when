@@ -1,2 +1,4 @@
-node_modules
 ghpages
+node_modules
+.checksum
+old

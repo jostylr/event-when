@@ -7,6 +7,9 @@ This is a set of tests for this library to pass.
 
 This tests the basic emit--on functions
 
+[name]()
+
+     two on and some emits
 
 [expected]()
 
@@ -31,6 +34,10 @@ This tests the basic emit--on functions
 ## simple once test
 
 This tests that the once removes itself. We do a case with no number and one with 2 attached. 
+
+[name]()
+
+    simple once test
 
 
 [expected]() 
@@ -62,6 +69,11 @@ This tests that the once removes itself. We do a case with no number and one wit
 
 This test has some onces with and without labels and checking that the onces
 work. It also does a once with two handlers to make sure that works correctly. 
+
+[name]()
+
+    checking labels and onces
+
 
 [expected]() 
 
@@ -114,6 +126,10 @@ work. It also does a once with two handlers to make sure that works correctly.
 
 This tests that we can remove handlers.
 
+[name]()
+
+    turning off a handler
+
 
 [expected]()
 
@@ -140,10 +156,14 @@ This tests that we can remove handlers.
 
     emitter.emit("done");
 
+
 ## when waiting for 2 events
 
 Testing the when capabilities.
 
+[name]()
+
+    when waiting for 2 events
 
 [expected]()
     
@@ -174,7 +194,10 @@ Testing the when capabilities.
 
 Testing the when capabilities for ordering and event strings.
 
+[name]()
 
+    testing when ordering
+    
 [expected]()
 
      first ready ;; boo ;; first ready:button
@@ -223,6 +246,9 @@ Testing the when capabilities for ordering and event strings.
 
 Testing flat when capabilities.
 
+[name]()
+
+    flat when
 
 [expected]()
     
@@ -262,6 +288,9 @@ Testing flat when capabilities.
 
 Testing flat when capabilities.
 
+[name]()
+
+    silent when
 
 [expected]()
     
@@ -292,6 +321,10 @@ Testing flat when capabilities.
 
 Testing flat array when
 
+[name]()
+
+    flat array when
+
 [expected]()
 
     AB
@@ -303,7 +336,7 @@ Testing flat array when
     emitter.flatArrWhen("single", "single ready");
     emitter.on("single ready", function(data) {
         actual.push(data[0]);
-    })
+    });
     emitter.emit("single", "AB");
    
     emitter.flatArrWhen(["two", "three"], "two ready");
@@ -322,6 +355,10 @@ Testing flat array when
 ## checking action naming
 
 Testing actions.
+
+[name]() 
+
+    checking action naming
 
 
 [expected]()
@@ -345,6 +382,9 @@ Testing actions.
 
 Want to emitting data and handler context
 
+[name]()
+
+    handler with context
 
 [expected]()
 
@@ -366,6 +406,10 @@ Want to emitting data and handler context
 ## Handler with two handles
 
 Let's have a function that acts and then an event that emits saying it acted. 
+
+[name]()
+
+    handler with two handles
 
 [expected]()
 
@@ -397,6 +441,9 @@ Let's have a function that acts and then an event that emits saying it acted.
 
 This is testing .events(). 
 
+[name]()
+
+    checking handlers and events
 
 [expected]()
 
@@ -437,6 +484,9 @@ This is testing .events().
 
 Can we remove handlers or stop events? 
 
+[name]()
+
+    canceling
 
 [expected]()
 
@@ -489,6 +539,9 @@ Can we remove handlers or stop events?
 
 Let's throw an error.
 
+[name]()
+
+    error checking
 
 [expected]()
 
@@ -527,6 +580,10 @@ Let's throw an error.
 ## Flow testing
 
 Does `.later` work? 
+
+[name]()
+
+    flow testing
 
 [expected]()
 
@@ -594,6 +651,10 @@ Does `.later` work?
 
 Does `.later` work for `.when`? 
 
+[name]()
+
+    when with later
+
 [expected]()
 
     A
@@ -654,6 +715,10 @@ Does `.later` work for `.when`?
 
 This tests the summarize of handlers. 
 
+[name]()
+
+    handler info
+
 [expected]()
 
     h:fred bob[a:hi, `jack`, h: [a:dude, ``]]
@@ -670,6 +735,10 @@ This tests the summarize of handlers.
     emitter.emit("done");
 
 ## Tracker testing
+
+[name]()
+
+    tracker testing
 
 [expected]()
 
@@ -730,61 +799,6 @@ This tests the summarize of handlers.
 
     emitter.emit("done");
 
-## Done
-
-This is a snippet that should be placed at the end of each async function. 
-
-    emitter.on("done", function () {
-        s.deepEqual(actual, expected);
-    });
-
-
-## Test Template
-
-This is the test template
-
-    test('_"*:expected|heading"', function (s) {
-        s.plan(1);
-
-        var emitter = new EventWhen();
-
-        var expected = _"*:expected| arrayify",
-            actual = [];
-
-        _"done"
-
-        _"*:code"
-
-    })
-
-## Arrayify
-
-We define a command that takes a list of items separated by returns and makes an array out of them. The strings are trimmed and empty lines are ignored. This should allow for some whitespace formatting. 
-
-    function (code) {
-        var lines = code.split("\n");
-        return '[\n"' + lines.filter(function (el) {
-            if (el.length > 0) {
-                return true;
-            } else {
-                return false;
-            }
-        }).map(function (el) {
-            return el.trim();
-        }).join('",\n"') + '"\n]';
-    }
-
- [arrayify](#arrayify "define: command | | now")
-
-
-## Heading
-
-    function () {
-        return this.hblock.heading.split("*")[0]; 
-    }
-
- [heading](#heading "define: command | | now")
-
 
 ## stop 
 
@@ -797,6 +811,8 @@ We want to test all the possibilities of the stop method:
 * array, exact matches clears event
 * function, true return value clears event
 * neg as second argument negates all filter types
+
+Need a break between list and code
 
     test("stop", function (t) {
         t.plan(11);
@@ -1119,11 +1135,11 @@ This will test out the various log stuff.
           '4. EMITTING "gone" DATA "LL"',
           'REMOVING HANDLER ["h:(when)gogo ``] FROM "gone"',
           '5. EMITTING "gogo" DATA [["dudette","JJ"],["gone","LL"]]',
+          '4) EXECUTING g EVENT "gone"', 
           '4) EXECUTING awesome EVENT "gone"',
-          'REMOVING HANDLER ["h:(once)awesome [``, ``, ``]"] FROM "gone"' ],
+          '4) EXECUTING h EVENT "gone"',
+          'REMOVING HANDLER ["h:(once)awesome [`g`, `f`, `h`]"] FROM "gone"' ],
         "emit event");
-
-
     });
 
 ## summarize
@@ -1303,50 +1319,101 @@ will not fire.
 
     });
 
-## [testrunner.js](#testrunner.js "save: |jshint")
+
+## Test Template
+
+This is the test template
+
+    test('\_":name"', function (s) {
+        s.plan(1);
+
+        var emitter = new EventWhen();
+
+        var expected = \_":expected| arrayify",
+            actual = [];
+
+        _"done"
+
+        \_":code"
+
+    })
+    
+    
+## Done
+
+This is a snippet that should be placed at the end of each async function. 
+
+    emitter.on("done", function () {
+        s.deepEqual(actual, expected);
+    });
+
+
+
+## Arrayify
+
+We define a command that takes a list of items separated by returns and makes an array out of them. The strings are trimmed and empty lines are ignored. This should allow for some whitespace formatting. 
+
+    function (code) {
+        var lines = code.split("\n");
+        return '[\n"' + lines.filter(function (el) {
+            if (el.length > 0) {
+                return true;
+            } else {
+                return false;
+            }
+        }).map(function (el) {
+            return el.trim();
+        }).join('",\n"') + '"\n]';
+    }
+
+ [arrayify](#arrayify "define: sync")
+
+
+## Testrunner
+
 
     /*global require, process*/
-    var EventWhen = require('../index.js'),
+    var EventWhen = require('./index.js'),
         test = require('tape');
 
-    _"two on and some emits*test template";
+    _"test template | compile two on and some emits";
 
-    _"simple once test*test template";
+    _"test template | compile simple once test";
     
-    _"checking labels and onces*test template";
+    _"test template | compile checking labels and onces";
 
-    _"turning off a handler*test template";
+    _"test template | compile turning off a handler";
 
-    _"when waiting for 2 events*test template";
+    _"test template | compile when waiting for 2 events";
     
-    _"flat when*test template";
+    _"test template | compile flat when";
 
-    _"silent when*test template";
+    _"test template | compile silent when";
     
-    _"flat array when*test template";
+    _"test template | compile flat array when";
 
     
-    _"testing when ordering*test template";
+    _"test template | compile testing when ordering";
 
-    _"checking action naming*test template";
+    _"test template | compile checking action naming";
 
-    _"checking handlers and events*test template";
+    _"test template | compile checking handlers and events";
 
-    _"handler with context*test template";
+    _"test template | compile handler with context";
 
-    _"handler with two handles*test template";
+    _"test template | compile handler with two handles";
 
-    _"canceling*test template";
+    _"test template | compile canceling";
 
-    _"error checking*test template";
+    _"test template | compile error checking";
 
-    _"flow testing*test template";
+    _"test template | compile flow testing";
 
-    _"when with later*test template";
+    _"test template | compile when with later";
 
-    _"handler info*test template";    
+    _"test template | compile handler info";    
 
-    _"tracker testing*test template";    
+    _"test template | compile tracker testing";    
 
     _"stop"
 
@@ -1371,3 +1438,4 @@ will not fire.
     _"once twice"
 
     _"cache"
+

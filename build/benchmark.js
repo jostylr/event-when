@@ -30,9 +30,9 @@ for (i = 0; i < n; i += 1) {
 }
 
 log(time, c, "event-when");
-   
+
     var EE = require("events").EventEmitter; 
- 
+
     emitter = new EE();
 
     emitter.on("go", function () {

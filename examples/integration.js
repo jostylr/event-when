@@ -25,7 +25,6 @@ emitter.on("done", "store", actual);
 var when = emitter.when("list ready", "list done");
 
 emitter.on("saved:actual.json", "compare", actual);
-
 emitter.on("fail", "register failure");
 
 emitter.scope("fail", {});
@@ -162,7 +161,7 @@ emitter.action("save", function (data, evObj) {
 });
 
 emitter.emit("start");
-   
+
 process.on("exit", function () {
        // console.log(emitter.log.logs() ); 
     } );

@@ -27,8 +27,10 @@ There are several noteworthy features of this library:
   fired.  For example, if we call a database and read a file to assemble
   a webpage, then we can do something like 
     
-emitter.when(["file parsed:jack", "database returned:jack"],
-    "all data retrieved:jack");
+    ```   
+    emitter.when(["file parsed:jack", "database returned:jack"],
+        "all data retrieved:jack");
+    ``` 
     
     This is why the idea of a central emitter is particularly useful to
     this library's intent.
@@ -70,8 +72,10 @@ For node, use `npm install index.js` or, better, add it to the
 package.json file with `--save` appended. 
 
 Then require and instantiate an emitter:
+```
 var EventWhen = require('event-when');
 emitter = new EventWhen();
+```
 
 ### Object Types
 
@@ -86,6 +90,7 @@ emitter = new EventWhen();
   `.when` events.
 * [Filter](#filter) This is a type that is used in filtering strings such
   as in filtering the logs. 
+
 
 ### Method specification
 
@@ -170,10 +175,12 @@ handler . To do more
 fine-controlled stopping, you need to manipulate `evObj.events` which is
 an array consisting of `[string ev, handlers]`.
 
+
 Once the event's turn on the queue occurs, the handlers for all the
 scopes fire in sequence without interruption unless an `emit.now` is
 emitted. To delay the handling, one needs to manipulate
 `evObj.emitter._queue` and `._waiting`. 
+
 
 __example__
 
@@ -218,6 +225,7 @@ __example__
 
 Note if you were to emit "bob" in the above monitor, then we would have an
 infinite loop.
+
 
 ---
 <a name="when"></a>
@@ -295,13 +303,12 @@ __example__
     emitter.emit("db returned", dbobj);
     emitter.emit("file read:some", fileobj);
     emitter.emit("something more");
-      
 
 emitter will automatically emit "data gathered" after third emit with
 data `[ ["db returned", dbobj], ["file read", fileobj, "file read:some"]]`
 
 Notice that if the event is a parent event of what was emitted, then the
-full event name is placed in the third slot.
+full event name is placed in the third slot. 
 
 ---
 <a name="on"></a>
@@ -413,7 +420,7 @@ __note__
 
 If you attach a `_label` property to your handler f, then the once will
 get recorded in `emitter._onces` which one can use to monitor which onces
-have fired and how many times remain.
+have fired and how many times remain. 
 
 ---
 <a name="stop"></a>
@@ -532,7 +539,7 @@ __example__
 
 The following are various ways to return all actions that contain the
 word bob. 
- 
+
     emitter.actions("bob"); 
     emitter.actions(/bob/);
     emitter.actions(function (str) {
@@ -778,6 +785,7 @@ inspecting them. Functions are denoted by tick marks around the name, if
 there is one. Multiple arguments are output as if they were all
 encapsulated in an array. 
 
+
 <a name="emitter"></a>
 ### Emitter Instance Properties
 
@@ -828,7 +836,7 @@ wrap handler type objects.
   works.
 
 ### Handler methods
-   
+
 These are largely internally used, but they can be used externally.
 
 * [summarize](#summarize)
@@ -957,10 +965,10 @@ They all return tracker for chainability.
 * [go](#tracker-go)
 * [cancel](#tracker-cancel)
 * [reinitialize](#tracker-reinitialize)
- 
+
 <a name="tracker-add" />
 #### add(arr/str events) 
- 
+
 Add events to tracking list.
 
 __arguments__
@@ -977,7 +985,7 @@ __example__
     t.add("neat");
     t.add(["neat", "some"]);
     t.add([["some", 4]]);
-   
+
 <a name="tracker-remove" />
 #### remove(arr/str events)
 
@@ -991,7 +999,7 @@ counting.
 __alias__
 
 `rem`
-   
+
 __example__
 
     t.remove("neat");

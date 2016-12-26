@@ -2,6 +2,8 @@
 
 Here we will have a few different examples of using emit when. 
 
+[../examples/](# "cd: save")
+
 ## [simple.js](#simple.js "save: |jshint")
 
 Let's just do a basic simple example
@@ -72,7 +74,6 @@ Now let's involve some when action.
     emitter.emit("bob", {alice: "awesome"});
 
     console.log(emitter.log.logs(["emitted", "Executing"]));
-
 
 
 
@@ -401,3 +402,5 @@ emitter.on("list done", "save", actual);
     process.on("exit", function () {
            // console.log(emitter.log.logs() ); 
         } );
+
+[](# "cd: save")

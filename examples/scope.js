@@ -7,7 +7,7 @@ emitter.makeLog();
 emitter.scope("bob", {n:3});
 
 emitter.scope("jane", {n:8});
- 
+
 emitter.scope("number requested", {count: 0});
 
 emitter.on("number requested", function (data, evObj) {
@@ -22,6 +22,7 @@ emitter.on("number requested", function (data, evObj) {
     hscope.count += 1;
 
 });
+
 
 emitter.emit("number requested:bob");
 

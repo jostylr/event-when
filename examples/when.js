@@ -25,6 +25,7 @@ emitter.when(["alice", "bob"],
 
 emitter.when([["alice",2]], "alice fired twice");
 
+
 emitter.emit("alice", "a1");
 emitter.emit("alice", "a2");
 emitter.emit("bob", {alice: "rocks"});

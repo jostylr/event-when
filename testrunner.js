@@ -1,16 +1,16 @@
 /*global require, process*/
-var EventWhen = require('../index.js'),
+var EventWhen = require('./index.js'),
     test = require('tape');
 
-test('two on and some emits', function (s) {
+test(' two on and some emits', function (s) {
     s.plan(1);
 
     var emitter = new EventWhen();
 
     var expected = [
-        "first fires",
-        "second fires"
-        ],
+    "first fires",
+    "second fires"
+    ],
         actual = [];
 
     emitter.on("done", function () {
@@ -37,10 +37,10 @@ test('simple once test', function (s) {
     var emitter = new EventWhen();
 
     var expected = [
-        "first fires",
-        "second fires",
-        "second fires"
-        ],
+    "first fires",
+    "second fires",
+    "second fires"
+    ],
         actual = [];
 
     emitter.on("done", function () {
@@ -52,9 +52,11 @@ test('simple once test', function (s) {
         emitter.emit("second ready");
     });
     
+    
     emitter.once("second ready", function () {
         actual.push("second fires");
     }, 2);
+    
     
     emitter.emit("first ready");
     emitter.emit("first ready");    
@@ -69,14 +71,14 @@ test('checking labels and onces', function (s) {
     var emitter = new EventWhen();
 
     var expected = [
-        "{\"for first\":[\"first ready\",1,1],\"sec sec\":[\"second ready\",1,1]}",
-        "first fires",
-        "second fires",
-        "second second fires",
-        "{}",
-        "second fires",
-        "{}"
-        ],
+    "{\"for first\":[\"first ready\",1,1],\"sec sec\":[\"second ready\",1,1]}",
+    "first fires",
+    "second fires",
+    "second second fires",
+    "{}",
+    "second fires",
+    "{}"
+    ],
         actual = [];
 
     emitter.on("done", function () {
@@ -95,6 +97,7 @@ test('checking labels and onces', function (s) {
         emitter.emit("second ready");
     }));
     
+    
     emitter.once("second ready", function () {
         actual.push("second fires");
     }, 2);
@@ -102,6 +105,7 @@ test('checking labels and onces', function (s) {
     emitter.once("second ready", l("sec sec", function () {
         actual.push("second second fires");
     }));
+    
     
     ao();
     emitter.emit("first ready");
@@ -119,10 +123,10 @@ test('turning off a handler', function (s) {
     var emitter = new EventWhen();
 
     var expected = [
-        "first fires",
-        "second fires",
-        "second fires"
-        ],
+    "first fires",
+    "second fires",
+    "second fires"
+    ],
         actual = [];
 
     emitter.on("done", function () {
@@ -153,8 +157,8 @@ test('when waiting for 2 events', function (s) {
     var emitter = new EventWhen();
 
     var expected = [
-        "when fired"
-        ],
+    "when fired"
+    ],
         actual = [];
 
     emitter.on("done", function () {
@@ -162,6 +166,7 @@ test('when waiting for 2 events', function (s) {
     });
 
     emitter.when(["first ready", "second ready"], "both ready");
+    
     
     emitter.on("both ready", function () {
         actual.push("when fired");
@@ -184,10 +189,10 @@ test('flat when', function (s) {
     var emitter = new EventWhen();
 
     var expected = [
-        "A",
-        "C",
-        "E"
-        ],
+    "A",
+    "C",
+    "E"
+    ],
         actual = [];
 
     emitter.on("done", function () {
@@ -197,6 +202,7 @@ test('flat when', function (s) {
     emitter.flatWhen(["first ready", "second ready"], "both ready");
     
     emitter.flatWhen("third ready", "single ready");
+    
     
     emitter.on("both ready", function (data) {
         actual.push(data[0]);
@@ -224,8 +230,8 @@ test('silent when', function (s) {
     var emitter = new EventWhen();
 
     var expected = [
-        "C"
-        ],
+    "C"
+    ],
         actual = [];
 
     emitter.on("done", function () {
@@ -240,6 +246,7 @@ test('silent when', function (s) {
     emitter.on("both ready", function (data) {
         actual.push(data);
     });
+    
     
     emitter.emit("first ready", "A");
     
@@ -258,10 +265,10 @@ test('flat array when', function (s) {
     var emitter = new EventWhen();
 
     var expected = [
-        "AB",
-        "EF",
-        "CD"
-        ],
+    "AB",
+    "EF",
+    "CD"
+    ],
         actual = [];
 
     emitter.on("done", function () {
@@ -271,9 +278,9 @@ test('flat array when', function (s) {
     emitter.flatArrWhen("single", "single ready");
     emitter.on("single ready", function(data) {
         actual.push(data[0]);
-    })
+    });
     emitter.emit("single", "AB");
-       
+    
     emitter.flatArrWhen(["two", "three"], "two ready");
     emitter.on("two ready", function (data) {
         data.forEach(function (el) {
@@ -282,6 +289,7 @@ test('flat array when', function (s) {
     });
     emitter.emit("three", "EF");
     emitter.emit("two", "CD");
+    
     
     emitter.emit("done");
 
@@ -294,13 +302,13 @@ test('testing when ordering', function (s) {
     var emitter = new EventWhen();
 
     var expected = [
-        "first ready ;; boo ;; first ready:button",
-        "second ready ;; hoo",
-        "second ready ;;",
-        "first ready ;; next first",
-        "fourth ready:cool ;; yet",
-        "third ready ;; not ;; third ready:not"
-        ],
+    "first ready ;; boo ;; first ready:button",
+    "second ready ;; hoo",
+    "second ready ;;",
+    "first ready ;; next first",
+    "fourth ready:cool ;; yet",
+    "third ready ;; not ;; third ready:not"
+    ],
         actual = [];
 
     emitter.on("done", function () {
@@ -346,8 +354,8 @@ test('checking action naming', function (s) {
     var emitter = new EventWhen();
 
     var expected = [
-        "first fired"
-        ],
+    "first fired"
+    ],
         actual = [];
 
     emitter.on("done", function () {
@@ -372,11 +380,11 @@ test('checking handlers and events', function (s) {
     var emitter = new EventWhen();
 
     var expected = [
-        "first;fire",
-        "done;second;water",
-        "first;water",
-        "done;first;second;fire;water"
-        ],
+    "first;fire",
+    "done;second;water",
+    "first;water",
+    "done;first;second;fire;water"
+    ],
         actual = [];
 
     emitter.on("done", function () {
@@ -416,8 +424,8 @@ test('handler with context', function (s) {
     var emitter = new EventWhen();
 
     var expected = [
-        "jt: hi!"
-        ],
+    "jt: hi!"
+    ],
         actual = [];
 
     emitter.on("done", function () {
@@ -442,10 +450,10 @@ test('handler with two handles', function (s) {
     var emitter = new EventWhen();
 
     var expected = [
-        "one:golden",
-        "two:golden",
-        "three:golden"
-        ],
+    "one:golden",
+    "two:golden",
+    "three:golden"
+    ],
         actual = [];
 
     emitter.on("done", function () {
@@ -478,10 +486,10 @@ test('canceling', function (s) {
     var emitter = new EventWhen();
 
     var expected = [
-        "emit this",
-        "emit that 1",
-        "emit that 2"
-        ],
+    "emit this",
+    "emit that 1",
+    "emit that 2"
+    ],
         actual = [];
 
     emitter.on("done", function () {
@@ -503,9 +511,11 @@ test('canceling', function (s) {
             actual.push("not seen either");
     });
     
+    
     emitter.on("stopping test", [function () {
             actual.push("emit that 1");
     }]);
+    
     
     emitter.on("stopping test", [function (data, evObj) {
             actual.push("emit that 2");
@@ -517,6 +527,7 @@ test('canceling', function (s) {
     emitter.on("stopping test", [function () {
             actual.push("never seen as it gets canceled beforehand");
     }]);
+    
     
     emitter.emit("bubbling stopping");
     emitter.emit("stopping test");
@@ -531,9 +542,9 @@ test('error checking', function (s) {
     var emitter = new EventWhen();
 
     var expected = [
-        "Error: Checking!",
-        "Checking!\nerror event\nawesome"
-        ],
+    "Error: Checking!",
+    "Checking!\nerror event\nawesome"
+    ],
         actual = [];
 
     emitter.on("done", function () {
@@ -547,6 +558,7 @@ test('error checking', function (s) {
     });
     
     h.name = "awesome";
+    
     
     try {
         emitter.emit("error event");
@@ -573,19 +585,19 @@ test('flow testing', function (s) {
     var emitter = new EventWhen();
 
     var expected = [
-        "A",
-        "J",
-        "I",
-        "K",
-        "G",
-        "check",
-        "H",
-        "B",
-        "C",
-        "F",
-        "E",
-        "D"
-        ],
+    "A",
+    "J",
+    "I",
+    "K",
+    "G",
+    "check",
+    "H",
+    "B",
+    "C",
+    "F",
+    "E",
+    "D"
+    ],
         actual = [];
 
     emitter.on("done", function () {
@@ -643,23 +655,23 @@ test('when with later', function (s) {
     var emitter = new EventWhen();
 
     var expected = [
-        "A",
-        "B",
-        "E",
-        "A",
-        "A",
-        "B",
-        "E",
-        "D",
-        "B",
-        "D",
-        "C",
-        "C",
-        "A",
-        "E",
-        "D",
-        "C"
-        ],
+    "A",
+    "B",
+    "E",
+    "A",
+    "A",
+    "B",
+    "E",
+    "D",
+    "B",
+    "D",
+    "C",
+    "C",
+    "A",
+    "E",
+    "D",
+    "C"
+    ],
         actual = [];
 
     emitter.on("done", function () {
@@ -709,8 +721,8 @@ test('handler info', function (s) {
     var emitter = new EventWhen();
 
     var expected = [
-        "h:fred bob[a:hi, `jack`, h: [a:dude, ``]]"
-        ],
+    "h:fred bob[a:hi, `jack`, h: [a:dude, ``]]"
+    ],
         actual = [];
 
     emitter.on("done", function () {
@@ -734,20 +746,20 @@ test('tracker testing', function (s) {
     var emitter = new EventWhen();
 
     var expected = [
-        "some:5",
-        "some:2,neat:1",
-        "some:1",
-        "great emitted",
-        "great emitted",
-        "neat:1",
-        "great emitted",
-        "neat:1",
-        "great emitted",
-        "---",
-        "some:5",
-        "great emitted",
-        "---"
-        ],
+    "some:5",
+    "some:2,neat:1",
+    "some:1",
+    "great emitted",
+    "great emitted",
+    "neat:1",
+    "great emitted",
+    "neat:1",
+    "great emitted",
+    "---",
+    "some:5",
+    "great emitted",
+    "---"
+    ],
         actual = [];
 
     emitter.on("done", function () {
@@ -1072,8 +1084,9 @@ test("log testing", function (t) {
 
     emitter.emit("gone", "LL");
 
+
     //console.log(log.logs());
-   
+
     t.deepEquals(log.logs(),
     [ 'WHEN: "gogo" AFTER: ["dudette","gone"]',
       'ATTACH "awesome" TO "gone" FOR 1',
@@ -1091,10 +1104,11 @@ test("log testing", function (t) {
       '4. EMITTING "gone" DATA "LL"',
       'REMOVING HANDLER ["h:(when)gogo ``] FROM "gone"',
       '5. EMITTING "gogo" DATA [["dudette","JJ"],["gone","LL"]]',
+      '4) EXECUTING g EVENT "gone"', 
       '4) EXECUTING awesome EVENT "gone"',
-      'REMOVING HANDLER ["h:(once)awesome [``, ``, ``]"] FROM "gone"' ],
+      '4) EXECUTING h EVENT "gone"',
+      'REMOVING HANDLER ["h:(once)awesome [`g`, `f`, `h`]"] FROM "gone"' ],
     "emit event");
-
 });
 
 test("summarize", function (t) {
@@ -1222,6 +1236,7 @@ test("cache checking", function (t) {
         "second jack2\njack1\nthird jack1\njill2 neat", "cache works");
     });
 
+
     emitter.cache("readfile:jack", "file read:jack", "log"); 
 
 
@@ -1240,5 +1255,6 @@ test("cache checking", function (t) {
 
     emitter.cache(["readfile:jill", "neat", "now"], "file read:jill", "log" );
     
+
 
 });

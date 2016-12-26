@@ -4,8 +4,7 @@
   "version": "1.6.0",
   "homepage": "https://github.com/jostylr/event-when",
   "author": {
-    "name": "James Taylor",
-    "email": "jostylr@gmail.com"
+    "name": "James Taylor", "email": "jostylr@gmail.com"
   },
   "repository": {
     "type": "git",
@@ -14,21 +13,23 @@
   "bugs": {
     "url": "https://github.com/jostylr/event-when/issues"
   },
-  "license": "MIT", 
+  "license": "MIT",
   "main": "index.js",
   "engines": {
-    "node": ">0.6"
-  },
-  "devDependencies" : {
-    "literate-programming": "^0.8.4",
-    "tape": "^3.5.0"
+    "node": ">=0.10"
   },
   "dependencies":{
+    
+  },
+  "devDependencies" : {
+    "litpro" : "^0.13.0",
+    "litpro-jshint" : "^0.3.1",
+    "tape" : "^4.6.3"
   },
   "scripts" : { 
-    "prepublish" : "node ./node_modules/literate-programming/bin/literate-programming.js eventwhen.md",
-    "compile" : "node ./node_modules/literate-programming/bin/literate-programming.js eventwhen.md",
-    "test" : "node ./test/testrunner.js"
+    "test" : "node testrunner.js"
   },
-  "keywords": ["event"]
+  "keywords": ["event"],
+  "private": true
+
 }

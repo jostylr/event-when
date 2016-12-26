@@ -1,5 +1,7 @@
-test
+testrunner.js
 examples
 *.md
-watcher.js
-mon.sh
+build
+src
+.travis.yml
+lprc.js
