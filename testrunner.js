@@ -1207,6 +1207,30 @@ test("once twice", function (t) {
 
 });
 
+test("empty queue", function (t) {
+
+    t.plan(1);
+
+    var emitter = new EventWhen();
+    emitter.queueEmpty = function () {
+        emitter.emit("go again");
+    };
+
+    emitter.once("go again", function () {
+        emitter.queueEmpty = function () {
+            t.pass('seen');
+        };
+        emitter.emit("wow");
+    });
+
+    emitter.on("first", function () {
+        emitter.emit("two");
+    });
+
+    emitter.emit("first");
+
+});
+
 test("cache checking", function (t) {
 
     t.plan(1);

@@ -111,6 +111,7 @@ These are methods on the emitter object.
 * [events](#events)
 * [handlers](#handlers)
 * [error](#error)
+* [queueEmpty](#queueempty)
 * [makeLog](#log)
 * [makeHandler](#makehandler)
 * [filter](#filt)
@@ -712,6 +713,12 @@ __example__
         emitter._looping = false; 
         throw Error(e); 
     };
+
+---
+<a name="queueempty"></a>
+The function `emitter.queueEmpty()` fires when all events that are waiting
+have been called. The default is a noop, but one can attach a function to
+the emitter that does whatever it wants. 
 
 ---
 <a name="log"></a>

@@ -1320,6 +1320,37 @@ will not fire.
     });
 
 
+## Empty queue
+
+This creates a custom empty queue function and tests whether it gets fired
+correctly. 
+
+    test("empty queue", function (t) {
+    
+        t.plan(1);
+
+        var emitter = new EventWhen();
+        emitter.queueEmpty = function () {
+            emitter.emit("go again");
+        };
+
+        emitter.once("go again", function () {
+            emitter.queueEmpty = function () {
+                t.pass('seen');
+            };
+            emitter.emit("wow");
+        });
+
+        emitter.on("first", function () {
+            emitter.emit("two");
+        });
+
+        emitter.emit("first");
+
+    });
+
+
+
 ## Test Template
 
 This is the test template
@@ -1436,6 +1467,8 @@ We define a command that takes a list of items separated by returns and makes an
     _"whens"
     
     _"once twice"
+    
+    _"empty queue"
 
     _"cache"
 

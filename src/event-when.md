@@ -74,6 +74,7 @@ The various prototype methods on the event emitter.
     EvW.prototype.actions = _"actions";
     EvW.prototype.makeHandler = _"make handler";
     EvW.prototype.error = _"error";
+    EvW.prototype.queueEmpty = function () {}; // noop stub
 
     EvW.prototype.filter = filter;
     EvW.prototype.decycle = decycle;
@@ -1604,6 +1605,8 @@ through the queue.
             emitter.nextTick(self);
         } else if ( waiting.length ) {
             emitter.nextTick(self);
+        } else {
+            emitter.queueEmpty();
         }
 
         if (caller) {
@@ -2439,7 +2442,7 @@ true.
 #### Summarize
 
 This tries to report the structure of the handlers. We use the property
-name "_label" for the tag to return for any given level.
+name "\_label" for the tag to return for any given level.
 
 For functions, we use their given name 
 
@@ -3487,6 +3490,7 @@ The readme for this. A lot of the pieces come from the doc sections.
     * [events](#events)
     * [handlers](#handlers)
     * [error](#error)
+    * [queueEmpty](#queueempty)
     * [makeLog](#log)
     * [makeHandler](#makehandler)
     * [filter](#filt)
@@ -3552,6 +3556,12 @@ The readme for this. A lot of the pieces come from the doc sections.
     ---
     <a name="error"></a>
     _"error:doc"
+
+    ---
+    <a name="queueempty"></a>
+    The function `emitter.queueEmpty()` fires when all events that are waiting
+    have been called. The default is a noop, but one can attach a function to
+    the emitter that does whatever it wants. 
 
     ---
     <a name="log"></a>

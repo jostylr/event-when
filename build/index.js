@@ -1151,6 +1151,8 @@
             emitter.nextTick(self);
         } else if ( waiting.length ) {
             emitter.nextTick(self);
+        } else {
+            emitter.queueEmpty();
         }
     
         if (caller) {
@@ -1591,6 +1593,7 @@
         emitter.log("error raised", e, handler, data, evObj, context);
         throw Error(e);
     };
+    EvW.prototype.queueEmpty = function () {}; // noop stub
     
     EvW.prototype.filter = filter;
     EvW.prototype.decycle = decycle;
