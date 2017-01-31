@@ -121,9 +121,7 @@ The requisite npm package file.
       "scripts" : { 
         "test" : "node testrunner.js"
       },
-      "keywords": ["event"],
-      "private": true
-
+      "keywords": ["event"]
     }
 
 ## Travis
@@ -133,6 +131,8 @@ A travis.yml file for continuous test integration!
     language: node_js
     node_js:
       - "node"
+      - "4.0"
+    sudo: false
 
 ## Gitignore
 

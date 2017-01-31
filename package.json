@@ -29,7 +29,5 @@
   "scripts" : { 
     "test" : "node testrunner.js"
   },
-  "keywords": ["event"],
-  "private": true
-
+  "keywords": ["event"]
 }
