@@ -28,6 +28,7 @@ passed in without context via nextTick or analog.
         this.timing = "momentary";
         this.whens = {};
         this._cache = {};
+        this._onceCache = {};
         this.initialOrdering = false;  // for .when tracker behavior
 
         this.looper = this.looper.bind(this);
@@ -44,6 +45,7 @@ The various prototype methods on the event emitter.
     
     
     EvW.prototype._emit = EvW.prototype.emit = _"emit";
+    EvW.prototype.emitCache = _"emit cache";
     EvW.prototype._emitWrap = _"monitor:wrapper";
     EvW.prototype.monitor = _"monitor";
     EvW.prototype.eventLoader = _"event loader";
@@ -126,8 +128,7 @@ we are already in the loop).
 
     function (ev, data, timing) {
         var emitter = this, 
-            sep = emitter.scopeSep, 
-            scopes = {};
+            sep, scopes, pieces, evObj, events;
 
         timing = timing ||emitter.timing || "momentary";
         
@@ -137,38 +138,9 @@ we are already in the loop).
            return;
         }
 
-        var pieces = ev.split(sep);
 
-        emitter.emitCount += 1;
+        _":create event object"
 
-        var evObj = {
-            emitter: emitter,
-            ev : ev,
-            data : data,
-            scopes : scopes, 
-            count : emitter.emitCount,
-            timing : timing,
-            unseen : true
-        };
-
-        var events = evObj.events = [];
-
-Note we use the reduce function for the construction of each scope level,
-but we have no need for the finished string, just the intermediates.
-
-        pieces.reduce(function (prev, el) {
-            var ret = prev + (prev ? sep + el : el);            
-            scopes[ret] = emitter.scope(ret);
-            scopes[el] = emitter.scope(el);
-            var h = emitter._handlers[ret];
-            if (h) {
-                //unshifting does the bubbling up
-               events.unshift([ret, h.slice()]);
-            }
-            return ret;
-        }, ""); 
-
-        evObj.pieces = pieces.reverse();
 
         emitter.eventLoader(timing, evObj);
 
@@ -270,6 +242,96 @@ That's it!
         emitter.emit(ev, data, "TIMING");
         return emitter;
     }
+
+[create event object]()
+
+    scopes = {};
+    sep = emitter.scopeSep; 
+    pieces = ev.split(sep);
+
+    emitter.emitCount += 1;
+    evObj = {
+        emitter: emitter,
+        ev : ev,
+        data : data,
+        scopes : scopes, 
+        count : emitter.emitCount,
+        timing : timing,
+        unseen : true
+    };
+
+    events = evObj.events = [];
+
+Note we use the reduce function for the construction of each scope level,
+but we have no need for the finished string, just the intermediates.
+
+    pieces.reduce(function (prev, el) {
+        var ret = prev + (prev ? sep + el : el);            
+        scopes[ret] = emitter.scope(ret);
+        scopes[el] = emitter.scope(el);
+        var h = emitter._handlers[ret];
+        if (h) {
+            //unshifting does the bubbling up
+           events.unshift([ret, h.slice()]);
+        }
+        return ret;
+    }, ""); 
+
+    evObj.pieces = pieces.reverse();
+
+
+
+#### Emit Cache
+
+This does a basic caching of events. It matches the whole event. It has the
+same signature as emit and, in fact, it just calls it. 
+
+    function (ev, data, timing) {
+        var emitter = this;
+        emitter._onceCache[ev] = data;
+        emitter.emit(ev, data, timing);
+        return emitter;
+    }
+
+ [doc]() 
+
+    ### emitCache(str ev, obj data, str timing) --> emitter
+
+    Emit the event but cache it for once methods. Only the full exact event is
+    cached, not subforms. If the same event is called
+    multiple times, it overwrites the previous data without comment. Once
+    methods check for the cache for the full event. On handlers are not
+    affected by this. 
+
+    __arguments__
+
+    Same as emit.
+
+    * `ev`  A string that denotes the event. 
+    * `data` Any value. It will be passed into the handler as the first
+      argument. 
+    * `timing` One of "now", "momentary", "soon", "later" implying emission
+      first on queue, last on queue, first on waiting list, last on waiting
+      list, respectively. "Momentary" is the default if not provided as that
+      will preserve the order of emitting. The waiting list is shifted once
+      for each tick (or in the browser, setTimeout).
+
+    __return__
+
+    The emitter for chaining. The events may or may not be already emitted
+    depending on the timing. 
+
+    __example__
+
+        _":example"
+
+[example]()
+
+    emitter.emitCache("text filled", someData);
+    emitter.once("text filled", function (data) {
+        //do something
+    });
+
 
 #### Event Object
 
@@ -871,6 +933,8 @@ consequences.
         } else {
             handler.n = n;
         }
+        
+        _":check cache"
 
         if (f._label) { 
             emitter._onces[f._label] = [ev, n, n];
@@ -974,6 +1038,25 @@ If needed, we switch n and context
     emitter.once("bob", "talk with bob", brief);
     // talk with jack three times, using brief each time
     emitter.once("jack", "talk with jack", 3, brief);
+
+[check cache]()
+
+ It is possible for a once method (defined just once) to be defined after the
+ event is emitted and the cache will then be there to fire it. This short circuits the rest. 
+
+ The handler.execute method is how we call things and it needs an event
+ object, some of which is not needed as we are are avoiding the queue. 
+
+    var cache = emitter._onceCache;
+    var scopes, pieces, evObj, events;
+    if ( (n === 1) && (cache.hasOwnProperty(ev)) ) {
+        _"emit:create event object | sub 
+        : data, : cache[ev], 
+        : timing, : 'now' " 
+        handler.execute(cache[ev], evObj, context);
+        return;
+    }
+
 
 #### When
 
@@ -1353,7 +1436,7 @@ is emitted.
     ### cache(str request/arr [ev, data, timing], str returned, fun process/str emit, str emit) -->  emitter
 
     This is how to cache an event request. This will ensure that the given
-    event will only be called once. The event string should be unique and hte
+    event will only be called once. The event string should be unique and the
     assumption is that the same data would be used. If not, one will have
     problems. 
 
@@ -1556,7 +1639,7 @@ This implements the looping over the queue. It is designed to avoid recursive
 stack calls. To do this, we keep track of whether we are looping or not in the
 `emitter._looping` variable. This should only get called if that flag is false. 
 
-For example, A is emittted and stats the loop. A emits B which then sees that
+For example, A is emittted and starts the loop. A emits B which then sees that
 the loop is active and does not call the loop. B does get queued and after the
 first handler of A finishes, the queue is consulted again.  This continues
 progress through the queue. We use either setTimeout (browser) or nextTick
@@ -3476,6 +3559,7 @@ The readme for this. A lot of the pieces come from the doc sections.
     These are methods on the emitter object. 
 
     * [emit](#emit)
+    * [emitCache](#emitCache)
     * [monitor](#monitor)
     * [when](#when)
     * [on](#on)
@@ -3499,6 +3583,10 @@ The readme for this. A lot of the pieces come from the doc sections.
     ---
     <a name="emit"></a>
     _"emit:doc"
+
+    ---
+    <a name="emitCache"></a>
+    _"emit cache:doc"
     
     ---
     <a name="monitor"></a>

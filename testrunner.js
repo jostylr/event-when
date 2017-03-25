@@ -1282,3 +1282,29 @@ test("cache checking", function (t) {
 
 
 });
+
+test("emit cache", function (t) {
+    t.plan(1);
+
+    var emitter = new EventWhen();
+    var arr = [];
+    emitter.on("works", function () {
+        arr.push("on seen");
+    });
+    emitter.emitCache("works:dude", 1);
+    emitter.once("works:dude", function () {
+        arr.push("fail");
+    }, 2);
+    emitter.once("works:dude", function (data) {
+        arr.push(data);
+    });
+    emitter.on("works:dude", function () {
+        arr.push("fail");
+    });
+
+    if ( (arr.length === 2) && (arr[0] === "on seen") && (arr[1] === 1) ) {
+        t.pass('correct order');
+    } else {
+        t.fail('not correct' + arr.join(','));
+    }
+}); 

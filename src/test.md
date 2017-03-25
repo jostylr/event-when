@@ -1351,6 +1351,36 @@ correctly.
 
 
 
+## Emit Cache
+
+This tests the `emitCache` function. 
+
+    test("emit cache", function (t) {
+        t.plan(1);
+
+        var emitter = new EventWhen();
+        var arr = [];
+        emitter.on("works", function () {
+            arr.push("on seen");
+        });
+        emitter.emitCache("works:dude", 1);
+        emitter.once("works:dude", function () {
+            arr.push("fail");
+        }, 2);
+        emitter.once("works:dude", function (data) {
+            arr.push(data);
+        });
+        emitter.on("works:dude", function () {
+            arr.push("fail");
+        });
+
+        if ( (arr.length === 2) && (arr[0] === "on seen") && (arr[1] === 1) ) {
+            t.pass('correct order');
+        } else {
+            t.fail('not correct' + arr.join(','));
+        }
+    }); 
+
 ## Test Template
 
 This is the test template
@@ -1398,6 +1428,7 @@ We define a command that takes a list of items separated by returns and makes an
     }
 
  [arrayify](#arrayify "define: sync")
+
 
 
 ## Testrunner
@@ -1471,4 +1502,6 @@ We define a command that takes a list of items separated by returns and makes an
     _"empty queue"
 
     _"cache"
+
+    _"emit cache"
 

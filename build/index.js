@@ -518,6 +518,7 @@
         this.timing = "momentary";
         this.whens = {};
         this._cache = {};
+        this._onceCache = {};
         this.initialOrdering = false;  // for .when tracker behavior
     
         this.looper = this.looper.bind(this);
@@ -529,8 +530,7 @@
 
     EvW.prototype._emit = EvW.prototype.emit = function (ev, data, timing) {
         var emitter = this, 
-            sep = emitter.scopeSep, 
-            scopes = {};
+            sep, scopes, pieces, evObj, events;
     
         timing = timing ||emitter.timing || "momentary";
         
@@ -540,11 +540,13 @@
            return;
         }
     
-        var pieces = ev.split(sep);
     
+        scopes = {};
+        sep = emitter.scopeSep; 
+        pieces = ev.split(sep);
+        
         emitter.emitCount += 1;
-    
-        var evObj = {
+        evObj = {
             emitter: emitter,
             ev : ev,
             data : data,
@@ -553,8 +555,8 @@
             timing : timing,
             unseen : true
         };
-    
-        var events = evObj.events = [];
+        
+        events = evObj.events = [];
         pieces.reduce(function (prev, el) {
             var ret = prev + (prev ? sep + el : el);            
             scopes[ret] = emitter.scope(ret);
@@ -566,8 +568,9 @@
             }
             return ret;
         }, ""); 
-    
+        
         evObj.pieces = pieces.reverse();
+    
     
         emitter.eventLoader(timing, evObj);
     
@@ -575,6 +578,12 @@
     
         emitter.looper(ev);
     
+        return emitter;
+    };
+    EvW.prototype.emitCache = function (ev, data, timing) {
+        var emitter = this;
+        emitter._onceCache[ev] = data;
+        emitter.emit(ev, data, timing);
         return emitter;
     };
     EvW.prototype._emitWrap = function (ev, data, timing) {
@@ -849,6 +858,42 @@
             handler.n = n = 1;
         } else {
             handler.n = n;
+        }
+        
+        var cache = emitter._onceCache;
+        var scopes, pieces, evObj, events;
+        if ( (n === 1) && (cache.hasOwnProperty(ev)) ) {
+            scopes = {};
+            sep = emitter.scopeSep; 
+            pieces = ev.split(sep);
+            
+            emitter.emitCount += 1;
+            evObj = {
+                emitter: emitter,
+                ev : ev,
+                data : cache[ev],
+                scopes : scopes, 
+                count : emitter.emitCount,
+                timing : 'now',
+                unseen : true
+            };
+            
+            events = evObj.events = [];
+            pieces.reduce(function (prev, el) {
+                var ret = prev + (prev ? sep + el : el);            
+                scopes[ret] = emitter.scope(ret);
+                scopes[el] = emitter.scope(el);
+                var h = emitter._handlers[ret];
+                if (h) {
+                    //unshifting does the bubbling up
+                   events.unshift([ret, h.slice()]);
+                }
+                return ret;
+            }, ""); 
+            
+            evObj.pieces = pieces.reverse(); 
+            handler.execute(cache[ev], evObj, context);
+            return;
         }
     
         if (f._label) { 

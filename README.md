@@ -97,6 +97,7 @@ emitter = new EventWhen();
 These are methods on the emitter object. 
 
 * [emit](#emit)
+* [emitCache](#emitCache)
 * [monitor](#monitor)
 * [when](#when)
 * [on](#on)
@@ -191,6 +192,41 @@ __example__
     emitter.soon("i'll wait but not too long");
     // generic:specific gets handled then generic
     emitter.emit("generic:specific");
+
+---
+<a name="emitCache"></a>
+### emitCache(str ev, obj data, str timing) --> emitter
+
+Emit the event but cache it for once methods. Only the full exact event is
+cached, not subforms. If the same event is called
+multiple times, it overwrites the previous data without comment. Once
+methods check for the cache for the full event. On handlers are not
+affected by this. 
+
+__arguments__
+
+Same as emit.
+
+* `ev`  A string that denotes the event. 
+* `data` Any value. It will be passed into the handler as the first
+  argument. 
+* `timing` One of "now", "momentary", "soon", "later" implying emission
+  first on queue, last on queue, first on waiting list, last on waiting
+  list, respectively. "Momentary" is the default if not provided as that
+  will preserve the order of emitting. The waiting list is shifted once
+  for each tick (or in the browser, setTimeout).
+
+__return__
+
+The emitter for chaining. The events may or may not be already emitted
+depending on the timing. 
+
+__example__
+
+    emitter.emitCache("text filled", someData);
+    emitter.once("text filled", function (data) {
+        //do something
+    });
 
 ---
 <a name="monitor"></a>
@@ -459,7 +495,7 @@ __example__
 ### cache(str request/arr [ev, data, timing], str returned, fun process/str emit, str emit) -->  emitter
 
 This is how to cache an event request. This will ensure that the given
-event will only be called once. The event string should be unique and hte
+event will only be called once. The event string should be unique and the
 assumption is that the same data would be used. If not, one will have
 problems. 
 
