@@ -4,7 +4,8 @@
   "version": "1.7.0",
   "homepage": "https://github.com/jostylr/event-when",
   "author": {
-    "name": "James Taylor", "email": "jostylr@gmail.com"
+    "name": "James Taylor",
+    "email": "jostylr@gmail.com"
   },
   "repository": {
     "type": "git",
@@ -18,16 +19,16 @@
   "engines": {
     "node": ">=0.10"
   },
-  "dependencies":{
-    
+  "dependencies": {},
+  "devDependencies": {
+    "litpro": "^0.13.0",
+    "litpro-jshint": "^0.3.1",
+    "tape": "^4.6.3"
   },
-  "devDependencies" : {
-    "litpro" : "^0.13.0",
-    "litpro-jshint" : "^0.3.1",
-    "tape" : "^4.6.3"
+  "scripts": {
+    "test": "node testrunner.js"
   },
-  "scripts" : { 
-    "test" : "node testrunner.js"
-  },
-  "keywords": ["event"]
+  "keywords": [
+    "event"
+  ]
 }
