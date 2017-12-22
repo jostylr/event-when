@@ -12,6 +12,7 @@ passed in without context via setImmediate.
         this._handlers = new Map();
         this._scopes = new Map();
         this._actions = new Map();
+        this._onceCache = new Map();
         this._onces = {};
         this._queue = [];
         this._monitor = [];
@@ -21,7 +22,6 @@ passed in without context via setImmediate.
         this.emitCount = 0;
         this.whens = {};
         this._cache = {};
-        this._onceCache = {};
         this.initialOrdering = false;  // for .when tracker behavior
 
         this.looper = this.looper.bind(this);
@@ -46,6 +46,7 @@ The various prototype methods on the event emitter.
     EvW.prototype.on = _"on";
     EvW.prototype.off = _"off";
     EvW.prototype.once = _"once";
+    EvW.prototype.decrement = _"decrement";
     EvW.prototype.when = _"when";
     EvW.prototype.flatWhen = _"flat when";
     EvW.prototype.flatArrWhen = _"flat array when";
@@ -191,7 +192,7 @@ The handlers could be the full event+scope which get executed first.
     if (colIndex === -1) {
         actions = handlers.get(ev);
         if (actions) {
-            evObj = [ev, null, data, actions.decrement(ev).slice(0)]; 
+            evObj = [ev, null, data, emitter.decrement(actions.slice(0), ev)]; 
         } else {
             emitter.log("emit without action", ev, data);
             return;
@@ -201,11 +202,12 @@ The handlers could be the full event+scope which get executed first.
         const specifics = handlers.get(ev);
         const generals = handlers.get(evObj[0]);
         if (specifics && generals) {
-            actions = specifics.decrement(ev).concat(generals.decrement(evObj[0]));
+            actions = emitter.decrement(specifics.slice(0), ev).
+                concat(emitter.decrement(generals.slice(0), evObj[0]));
         } else if (specifics) {
-            actions = specifics.decrement(ev).slice(0);
+            actions = emitter.decrement(specifics.slice(0), ev);
         } else if (generals) {
-            actions = generals.decrement(evObj[0]).slice(0);
+            actions = emitter.decrement(generals.slice(0), evObj[0]);
         } else {
             emitter.log("emit without action", ev, data);
             return;
@@ -408,6 +410,7 @@ Event object is of the form `[event, scope, data, handlers]`
     
     let action; 
     while ( ( action = actions.shift() ) ) {
+        emitter.log("will execute handler", evObj[0], evObj[1]);
         action.execute(evObj[2], evObj[1], emitter);
     }
     
@@ -447,8 +450,6 @@ function is what would be executed to call.
         } else {
             handlerArr = [handler];
             handlers.set(ev, handlerArr);
-            // contains is for searching the handler; it is a method
-            handlerArr.contains = Handler.prototype.contains;
             // this decrements any once counters, calling removal as needed
             // must return array.
             handlerArr.decrement = Handler.prototype.decrement;
@@ -533,13 +534,13 @@ If present, n, needs to be first.
         let handler;
 
         if (typeof n === "number") {
-            handler = emitter.on(ev, action, n, f, context);
+            handler = emitter.on(ev, action, f, context);
             if (handler) {
                 handler.count = n; 
                 emitter.log("once", ev, action, n);
             }
         } else {
-            handler = emitter.on(ev, action, f, context);
+            handler = emitter.on(ev, action, n, f);
             if (handler) {
                 handler.count = 1;
                 emitter.log("once", ev, action, n);
@@ -626,6 +627,10 @@ handlers on the when events. This effectively blocks those events from
 happening until some manual reworking on the event. Since the no argument
 function wipes out all handlers, period, we do not need to worry about nowhen.
 
+!!! extend action to filter type and work through handler action strings. This
+could, for example, remove an entire set of actions that have a certain tag in
+the action name.
+
 
     function (events, action, nowhen) {
 
@@ -657,14 +662,21 @@ function wipes out all handlers, period, we do not need to worry about nowhen.
             action = null;
         }
 
-        if (action) {
+        let removed = [];
+        if (typeof action === 'string') {
             events.forEach( function (ev) {
-                var removed = [];
                 _":remove handler"
-                emitter.log("handler for event removed", ev, removed);
+                emitter.log("handler for event removed", ev, action);
             });
             return emitter;    
-        } 
+        } else if (action) { //presuming a handler to match
+            events.forEach( function (ev) {
+                _":remove handler | sub handler.action, handler"
+                emitter.log("handler for event removed", ev, action.action);
+            });
+            return emitter;        
+
+        }
 
         events.forEach( function (ev) {
             if (nowhen === true) {
@@ -694,7 +706,7 @@ to not have a shift, and splice from there.
         let place = [];
         let arr = handlers.get(ev);
         arr.forEach( (handler, ind) => {
-            if (handler.contains(action) ) {
+            if (handler.action === action ) {
                 removed.push(handler);
                 place.unshift(ind);
             }
@@ -743,8 +755,7 @@ The main issue here is removing .when trackers.
       trimmed. Or it could be null, in which case all events are searched for
       the removal of the given handler. 
     * `action`. This should be an action string that identifies what to
-      remove. It is fed into the handler.contains function so whatever works
-      with that is fine. 
+      remove. 
 
         If action is a boolean, then it is assumed to be `nowhen` for the whole
         event removal. If it is null, then it is assumed all handlers of the
@@ -772,6 +783,34 @@ The main issue here is removing .when trackers.
     // function filter
     emitter.off(function (ev) { return (ev === "what");}, "action now");
 
+
+### Decrement
+
+This decrements the once handlers and removes them if 
+
+    function (arr, ev) {
+        const emitter = this;
+        const n = arr.length;
+        if (n) {
+           let i;
+            for (i = 0; i<n; i +=1) {
+                if (arr[i].hasOwnProperty('count') ) {
+                    arr[i].count -=1; 
+                    if (arr[i].count === 0) {
+                        emitter.off(ev, arr[i]);
+                    }
+                }
+            }
+        }
+        
+        return arr; 
+    
+    }
+
+
+[doc]()
+
+    some docs
 
 ## Action
 
@@ -814,10 +853,25 @@ possibly context information.
             emitter.log("creating action", name, f, context); 
         }
 
-        actions.set(name,  {
+        let o =  {
             f : f,
             context : context
-        });
+        };
+        
+        if (typeof f === 'function') {
+      
+Making sure function is named. Note that if context is overwritten in the
+handler call, then the context string here will be misleading. Presumably, a
+named context will not be overwritten, only an object one (maybe) and the
+object will not be part of the name. 
+
+            Object.defineProperty(f, 'name', {
+                value:(f.name||'') + ":" +
+                    name + ":" + 
+                   ( (typeof context === 'string') ? context : '') , configurable:true});
+        }
+
+        actions.set(name, o);
 
         return emitter;
     }
@@ -882,6 +936,14 @@ the emit.
         handler.emitter = emitter;
         if (typeof f === 'function') {
             handler.f = f;
+      
+Making sure function is named 
+
+            Object.defineProperty(f, 'name', {
+                value:(f.name||'') + ":" +
+                    action + ":" + 
+                   ( (typeof context === 'string') ? context : '') , configurable:true});
+
         }
         if (context) {
             handler.context = context;
@@ -894,18 +956,13 @@ the emit.
 
 The prototype object.
 
-* contains Returns a boolean indicating whether the given handler type is
-  contained in the handler. 
 * execute Executes the handler
-* summarize Goes level by level summarizing the structure of the handler
 * removal Removes any of the handler bits that are attached to .when
   trackers.
 * decrement. This  
 
 ---
     Handler.prototype.execute = _"execute"; 
-    Handler.prototype.contains = _"contains";
-    Handler.prototype.summarize = _"summarize";
     Handler.prototype.removal = _"removal";
     Handler.prototype.decrement = _"decrement";
 
@@ -936,21 +993,15 @@ The prototype object.
       `this` that also points to the context. 
     * `context`. String to name the scope to use for the function as `this` 
     
-
    
     ### Handler methods
    
     These are largely internally used, but they can be used externally.
 
-    * [summarize](#summarize)
     * [execute](#execute)
     * [removal](#removal)
-    * [contains](#contains)
     * [decrement](#decrement)
 
-    ---
-    <a name="summarize"></a>
-    _"summarize:doc"
     
     ---
     <a name="execute"></a>
@@ -961,10 +1012,6 @@ The prototype object.
     _"removal:doc"
 
     ---
-    <a name="contains"></a>
-    _"contains:doc"
-    
-    ---
     <a name="decrement"></a>
     _"decrement:doc"
 
@@ -973,44 +1020,18 @@ The prototype object.
 This is to remove the tracking of a .when event in conjunction with the .off
 method.
 
-    function me (ev, emitter, htype) {
+    function me (ev, emitter) {
         var actions = emitter._actions;
         
-        htype = htype || this;
+        let handler =  this;
 
-        if ( htype.hasOwnProperty("tracker") ) {
-            htype.tracker._removeStr(ev);
-            emitter.log("untracked", ev, htype.tracker, htype);
+        if ( handler.hasOwnProperty("tracker") ) {
+            handler.tracker._removeStr(ev);
+            emitter.log("untracked", ev, handler.tracker, handler);
             return ;
         }
 
-        if (typeof htype === "string") {
-            if (actions.hasOwnProperty(htype) ) {
-                actions[htype].removal(ev, emitter);
-            }
-            return;
-        }
-
-The tracker is not attached to a function, but to a Handler object.
-
-        if (typeof htype === "function") {
-            return; 
-        }
-
-        if ( Array.isArray(htype) ) {
-            htype.forEach(function (el) {
-                me.call(empty, ev, emitter, el);
-                return;
-            });
-        }
-
-
-        if ( htype.hasOwnProperty("value") ) {
-            me.call(empty, ev, emitter, htype.value); 
-            return;
-        } 
-
-        emitter.log("unreachable reached", "removal", ev, htype);
+         emitter.log("unreachable reached", "removal", ev, handler);
 
         return;
     }
@@ -1035,86 +1056,17 @@ The tracker is not attached to a function, but to a Handler object.
 
         handler.removal("whened", emitter); 
 
-#### Contains
-
-This will search for the given possible target to determine if the Handler
-contains it. 
-
-This is used as a method of proper Handler types, but we can't call it as a
-method in general because strings become objectified if they are called in
-context. 
-
-
-    function me (target, htype) {
-
-        if ( (htype === target) || (this === target) ) {
-            return true;
-        }
-
-        htype = htype || this;
-               
-        if ( Array.isArray(htype) ) {
-            return htype.some(function (el) {
-                return me.call(empty, target, el);
-            });
-        }
-
-        if ( htype.hasOwnProperty("value")) {
-            return me.call(empty, target, htype.value);
-        } 
-
-        return false;
-
-    }
-
-[doc]() 
-
-    #### contains(target, htype) --> bool
-
-    This checks to see whether target is contained in the handler type at
-    some point.
-    
-    __arguments__
-
-    * `target` Anything of handler type that is to be matched.
-    * `htype` Anything of handler type. This is the current level. If
-      `htype` is not provided (typically the case in external calling), then
-      the `this` becomes `htype`. 
-
-    __return__ 
-    
-    It returns true if found; false otherwise.
-
-    __example__
-
-        handler.contains(f);
-        handler.contains("act");
 
 #### Execute
 
-Here we handle executing a handler. We could have a variety of values here.
+Here we handle executing a handler.
 
-* string. This should be an action. We lookup the action and use the
-  function. 
-* function. Classic. It gets called.
-* handler. This is an object of type handler and how we will always start.
-  We iterate through handlers to find executable types.
-* [possible handler types...]. The array form gets executed in order, be it
-  functions, actions, or Handlers. The array can contain Handler objects
-  that are then handled. 
 
-We pass in data, event object, and context; the value is for internal
-calling, for the most part. 
+We pass in data, scope, emitter, and context. We figure out what function to
+call either it being in the handler or using the action lookup. 
 
-All of the handlers are encapsulated in a try...catch that then calls the
-emitter's .error method (which can be overwritten). The default will rethrow
-the error with more information. The error is likely to be called multiple
-times if throwing is kept being done. Maybe should think about that.  
-
-evObj.stop is the flag to set to stop execution for the rest of the event's
-handlers. To just stop the cascade for a given handler (see once), return
-true. 
-
+No error catching for the function. 
+ 
     function me (data, scope, emitter) {
         
         const handler = this;
@@ -1122,7 +1074,8 @@ true.
 
         const f = this.f || raw.f;
         if (typeof f !== "function") {
-            emitter.error("bad function for handler", action);
+            emitter.error("bad function for handler", handler.action);
+            return;
         }
 
         let context = this.context || raw.context || empty;
@@ -1162,96 +1115,6 @@ true.
         handler.execute("cool", {emitter:emitter});
 
 
-#### Summarize
-
-This tries to report the structure of the handlers. We use the property
-name "\_label" for the tag to return for any given level.
-
-For functions, we use their given name 
-
-    function me (value) {
-        var ret, lead;
-
-        if (typeof value === "undefined" ) {     
-            value = this;
-        }
-
-       if (typeof value === "string") {
-            return "a:" + value;
-        }
-
-        if (typeof value === "function") {
-            return serial(value);
-        }
-
-        if ( Array.isArray(value) ) {
-            ret = value.map(function (el) {
-                return me.call(empty, el);
-            });
-            lead = value._label || "";
-            return lead + "[" + ret.join(", ") + "]";
-        }
-
-        if ( value && typeof value.summarize === "function" ) {
-            ret = me.call(empty, value.value);
-            lead = value._label || "";
-            return "h:" + lead + " " + ret;
-        } 
-
-        return "unknown";
-
-        }
-
-[doc]()
-
-    #### summarize(value) --> str
-
-    This takes a handler and summarizes its structure. To give a meaningful
-    string to handlers for a summarize, one can add `._label` properties to
-    any of the value types except action strings which are their own "label". 
-
-    __arguments__
-
-     * `value` or `this` is to be of handler type and is what is being
-      summarized. 
-
-    __return__
-
-    The summary string.
-
-    __example__
-
-        handler.summarize();
-
-
-#### Decrement
-
-This decrements the once handlers and removes them if 
-
-    function (ev) {
-        const arr = this;
-        const n = arr.length;
-        if (n) {
-           let i;
-            for (i = 0; i<n; i +=1) {
-                if (arr[i].hasOwnProperty('count') ) {
-                    arr[i].count -=1; 
-                    if (arr[i].count === 0) {
-                        //remove once!!!!!!!
-                    }
-                }
-            }
-        }
-        
-
-        return this; 
-    
-    }
-
-
-[doc]()
-
-    some docs
 
 ## When
 
@@ -2559,7 +2422,7 @@ This is where we keep track of the log statements and what to do with them.
 
     "handler for event removed" : function (ev, removed) {
         var ident = s(removed._label) ||
-            se(removed.map(function (el) {return el.summarize();}));
+            se(removed.map(function (el) {return el.action;}));
         return "REMOVING HANDLER " + ident +
             " FROM " + se(ev);
     },

@@ -357,8 +357,7 @@ This function behavior changes based on the number of arguments
   trimmed. Or it could be null, in which case all events are searched for
   the removal of the given handler. 
 * `action`. This should be an action string that identifies what to
-  remove. It is fed into the handler.contains function so whatever works
-  with that is fine. 
+  remove. 
 
     If action is a boolean, then it is assumed to be `nowhen` for the whole
     event removal. If it is null, then it is assumed all handlers of the
@@ -812,37 +811,14 @@ the emitter, or an object which will store the data.
 * `context`. String to name the scope to use for the function as `this` 
 
 
-
 ### Handler methods
 
 These are largely internally used, but they can be used externally.
 
-* [summarize](#summarize)
 * [execute](#execute)
 * [removal](#removal)
-* [contains](#contains)
 * [decrement](#decrement)
 
----
-<a name="summarize"></a>
-#### summarize(value) --> str
-
-This takes a handler and summarizes its structure. To give a meaningful
-string to handlers for a summarize, one can add `._label` properties to
-any of the value types except action strings which are their own "label". 
-
-__arguments__
-
- * `value` or `this` is to be of handler type and is what is being
-  summarized. 
-
-__return__
-
-The summary string.
-
-__example__
-
-    handler.summarize();
 
 ---
 <a name="execute"></a>
@@ -887,29 +863,6 @@ Nothing.
 __example__
 
     handler.removal("whened", emitter); 
-
----
-<a name="contains"></a>
-#### contains(target, htype) --> bool
-
-This checks to see whether target is contained in the handler type at
-some point.
-
-__arguments__
-
-* `target` Anything of handler type that is to be matched.
-* `htype` Anything of handler type. This is the current level. If
-  `htype` is not provided (typically the case in external calling), then
-  the `this` becomes `htype`. 
-
-__return__ 
-
-It returns true if found; false otherwise.
-
-__example__
-
-    handler.contains(f);
-    handler.contains("act");
 
 ---
 <a name="decrement"></a>

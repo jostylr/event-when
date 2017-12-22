@@ -159,6 +159,11 @@
         handler.emitter = emitter;
         if (typeof f === 'function') {
             handler.f = f;
+            Object.defineProperty(f, 'name', {
+                value:(f.name||'') + ":" +
+                    action + ":" + 
+                   ( (typeof context === 'string') ? context : '') , configurable:true});
+    
         }
         if (context) {
             handler.context = context;
@@ -174,7 +179,8 @@
     
         const f = this.f || raw.f;
         if (typeof f !== "function") {
-            emitter.error("bad function for handler", action);
+            emitter.error("bad function for handler", handler.action);
+            return;
         }
     
         let context = this.context || raw.context || empty;
@@ -188,99 +194,23 @@
         f.call(context, data, scope, emitter, context);
     
     }; 
-    Handler.prototype.contains = function me (target, htype) {
-    
-        if ( (htype === target) || (this === target) ) {
-            return true;
-        }
-    
-        htype = htype || this;
-               
-        if ( Array.isArray(htype) ) {
-            return htype.some(function (el) {
-                return me.call(empty, target, el);
-            });
-        }
-    
-        if ( htype.hasOwnProperty("value")) {
-            return me.call(empty, target, htype.value);
-        } 
-    
-        return false;
-    
-    };
-    Handler.prototype.summarize = function me (value) {
-        var ret, lead;
-    
-        if (typeof value === "undefined" ) {     
-            value = this;
-        }
-    
-       if (typeof value === "string") {
-            return "a:" + value;
-        }
-    
-        if (typeof value === "function") {
-            return serial(value);
-        }
-    
-        if ( Array.isArray(value) ) {
-            ret = value.map(function (el) {
-                return me.call(empty, el);
-            });
-            lead = value._label || "";
-            return lead + "[" + ret.join(", ") + "]";
-        }
-    
-        if ( value && typeof value.summarize === "function" ) {
-            ret = me.call(empty, value.value);
-            lead = value._label || "";
-            return "h:" + lead + " " + ret;
-        } 
-    
-        return "unknown";
-    
-        };
-    Handler.prototype.removal = function me (ev, emitter, htype) {
+    Handler.prototype.removal = function me (ev, emitter) {
         var actions = emitter._actions;
         
-        htype = htype || this;
+        let handler =  this;
     
-        if ( htype.hasOwnProperty("tracker") ) {
-            htype.tracker._removeStr(ev);
-            emitter.log("untracked", ev, htype.tracker, htype);
+        if ( handler.hasOwnProperty("tracker") ) {
+            handler.tracker._removeStr(ev);
+            emitter.log("untracked", ev, handler.tracker, handler);
             return ;
         }
     
-        if (typeof htype === "string") {
-            if (actions.hasOwnProperty(htype) ) {
-                actions[htype].removal(ev, emitter);
-            }
-            return;
-        }
-        if (typeof htype === "function") {
-            return; 
-        }
-    
-        if ( Array.isArray(htype) ) {
-            htype.forEach(function (el) {
-                me.call(empty, ev, emitter, el);
-                return;
-            });
-        }
-    
-    
-        if ( htype.hasOwnProperty("value") ) {
-            me.call(empty, ev, emitter, htype.value); 
-            return;
-        } 
-    
-        emitter.log("unreachable reached", "removal", ev, htype);
+         emitter.log("unreachable reached", "removal", ev, handler);
     
         return;
     };
-    Handler.prototype.decrement = function (ev) {
-        const arr = this;
+    Handler.prototype.decrement = function (arr, ev) {
+        const emitter = this;
         const n = arr.length;
         if (n) {
            let i;
@@ -288,14 +218,13 @@
                 if (arr[i].hasOwnProperty('count') ) {
                     arr[i].count -=1; 
                     if (arr[i].count === 0) {
-                        //remove once!!!!!!!
+                        emitter.off(ev, arr[i]);
                     }
                 }
             }
         }
         
-    
-        return this; 
+        return arr; 
     
     };
 
@@ -487,6 +416,7 @@
         this._handlers = new Map();
         this._scopes = new Map();
         this._actions = new Map();
+        this._onceCache = new Map();
         this._onces = {};
         this._queue = [];
         this._monitor = [];
@@ -496,7 +426,6 @@
         this.emitCount = 0;
         this.whens = {};
         this._cache = {};
-        this._onceCache = {};
         this.initialOrdering = false;  // for .when tracker behavior
     
         this.looper = this.looper.bind(this);
@@ -521,7 +450,7 @@
         if (colIndex === -1) {
             actions = handlers.get(ev);
             if (actions) {
-                evObj = [ev, null, data, actions.decrement(ev).slice(0)]; 
+                evObj = [ev, null, data, emitter.decrement(actions.slice(0), ev)]; 
             } else {
                 emitter.log("emit without action", ev, data);
                 return;
@@ -531,11 +460,12 @@
             const specifics = handlers.get(ev);
             const generals = handlers.get(evObj[0]);
             if (specifics && generals) {
-                actions = specifics.decrement(ev).concat(generals.decrement(evObj[0]));
+                actions = emitter.decrement(specifics.slice(0), ev).
+                    concat(emitter.decrement(generals.slice(0), evObj[0]));
             } else if (specifics) {
-                actions = specifics.decrement(ev).slice(0);
+                actions = emitter.decrement(specifics.slice(0), ev);
             } else if (generals) {
-                actions = generals.decrement(evObj[0]).slice(0);
+                actions = emitter.decrement(generals.slice(0), evObj[0]);
             } else {
                 emitter.log("emit without action", ev, data);
                 return;
@@ -713,8 +643,6 @@
         } else {
             handlerArr = [handler];
             handlers.set(ev, handlerArr);
-            // contains is for searching the handler; it is a method
-            handlerArr.contains = Handler.prototype.contains;
             // this decrements any once counters, calling removal as needed
             // must return array.
             handlerArr.decrement = Handler.prototype.decrement;
@@ -755,14 +683,14 @@
             action = null;
         }
     
-        if (action) {
+        let removed = [];
+        if (typeof action === 'string') {
             events.forEach( function (ev) {
-                var removed = [];
                 if (handlers.has(ev) ) {
                     let place = [];
                     let arr = handlers.get(ev);
                     arr.forEach( (handler, ind) => {
-                        if (handler.contains(action) ) {
+                        if (handler.action === action ) {
                             removed.push(handler);
                             place.unshift(ind);
                         }
@@ -777,10 +705,35 @@
                         el.removal(ev, emitter);
                     });
                 }
-                emitter.log("handler for event removed", ev, removed);
+                emitter.log("handler for event removed", ev, action);
             });
             return emitter;    
-        } 
+        } else if (action) { //presuming a handler to match
+            events.forEach( function (ev) {
+                if (handlers.has(ev) ) {
+                    let place = [];
+                    let arr = handlers.get(ev);
+                    arr.forEach( (handler, ind) => {
+                        if (handler === action ) {
+                            removed.push(handler);
+                            place.unshift(ind);
+                        }
+                    });
+                    place.forEach( ind => arr.splice(ind, 1));
+                    if (arr.length === 0) {
+                        handlers.delete(ev);
+                    }
+                }
+                if (nowhen !== true)  {
+                    removed.forEach(function (el) {
+                        el.removal(ev, emitter);
+                    });
+                }
+                emitter.log("handler for event removed", ev, action.action);
+            });
+            return emitter;        
+    
+        }
     
         events.forEach( function (ev) {
             if (nowhen === true) {
@@ -805,13 +758,13 @@
         let handler;
     
         if (typeof n === "number") {
-            handler = emitter.on(ev, action, n, f, context);
+            handler = emitter.on(ev, action, f, context);
             if (handler) {
                 handler.count = n; 
                 emitter.log("once", ev, action, n);
             }
         } else {
-            handler = emitter.on(ev, action, f, context);
+            handler = emitter.on(ev, action, n, f);
             if (handler) {
                 handler.count = 1;
                 emitter.log("once", ev, action, n);
@@ -839,6 +792,24 @@
         
         
         return handler; 
+    };
+    EvW.prototype.decrement = function (arr, ev) {
+        const emitter = this;
+        const n = arr.length;
+        if (n) {
+           let i;
+            for (i = 0; i<n; i +=1) {
+                if (arr[i].hasOwnProperty('count') ) {
+                    arr[i].count -=1; 
+                    if (arr[i].count === 0) {
+                        emitter.off(ev, arr[i]);
+                    }
+                }
+            }
+        }
+        
+        return arr; 
+    
     };
     EvW.prototype.when = function (events, ev, timing, reset, immutable, initialOrdering) {    
     
@@ -1031,6 +1002,7 @@
             
             let action; 
             while ( ( action = actions.shift() ) ) {
+                emitter.log("will execute handler", evObj[0], evObj[1]);
                 action.execute(evObj[2], evObj[1], emitter);
             }
             loop += 1;
@@ -1186,7 +1158,7 @@
             
             "handler for event removed" : function (ev, removed) {
                 var ident = s(removed._label) ||
-                    se(removed.map(function (el) {return el.summarize();}));
+                    se(removed.map(function (el) {return el.action;}));
                 return "REMOVING HANDLER " + ident +
                     " FROM " + se(ev);
             },
@@ -1427,10 +1399,19 @@
             emitter.log("creating action", name, f, context); 
         }
     
-        actions.set(name,  {
+        let o =  {
             f : f,
             context : context
-        });
+        };
+        
+        if (typeof f === 'function') {
+            Object.defineProperty(f, 'name', {
+                value:(f.name||'') + ":" +
+                    name + ":" + 
+                   ( (typeof context === 'string') ? context : '') , configurable:true});
+        }
+    
+        actions.set(name, o);
     
         return emitter;
     };

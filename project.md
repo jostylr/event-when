@@ -289,7 +289,8 @@ event.
 The handlers are treated differently. Handlers that are attached at the time
 of the emit will be used; there is no stopping them. As soon as the event is
 emitted, once handlers will decrement even before they are fired. This ensures
-they are called in the exact order of emitting. 
+they are called in the exact order of emitting. This also eliminates the need
+for an array of functions, handlers, etc. Everything is simplified. 
 
 Timing will be removed as well. All emit events are emitted in the order they
 are encountered with the handlers being called in the order, from most

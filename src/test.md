@@ -18,12 +18,13 @@ This tests the basic emit--on functions
 
 [code]()  
     
-    emitter.on("first ready", function () {
+    emitter.on("first ready", "test one", function () {
         actual.push("first fires");
+        console.log("first seen");
         emitter.emit("second ready");
     });
 
-    emitter.on("second ready", function () {
+    emitter.on("second ready", "test two", function () {
         actual.push("second fires");
         emitter.emit("done");
     });
@@ -49,15 +50,15 @@ This tests that the once removes itself. We do a case with no number and one wit
 
 [code]()
 
-    emitter.once("first ready", function () {
+    emitter.once("first ready", "test one", function () {
         actual.push("first fires");
         emitter.emit("second ready");
     });
 
 
-    emitter.once("second ready", function () {
+    emitter.once("second ready", "test two", 2, function () {
         actual.push("second fires");
-    }, 2);
+    });
 
 
     emitter.emit("first ready");
@@ -1390,6 +1391,10 @@ This is the test template
 
         var emitter = new EventWhen();
 
+        /*emitter.log = function () {
+            console.log(arguments);
+        }*/
+
         var expected = \_":expected| arrayify",
             actual = [];
 
@@ -1404,7 +1409,7 @@ This is the test template
 
 This is a snippet that should be placed at the end of each async function. 
 
-    emitter.on("done", function () {
+    emitter.on("done", "check equals", function () {
         s.deepEqual(actual, expected);
     });
 
@@ -1442,9 +1447,12 @@ We define a command that takes a list of items separated by returns and makes an
 
     _"test template | compile simple once test";
     
+[not yet]()
+
     _"test template | compile checking labels and onces";
 
     _"test template | compile turning off a handler";
+
 
     _"test template | compile when waiting for 2 events";
     
