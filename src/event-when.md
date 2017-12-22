@@ -1,31 +1,24 @@
-This the main code for event module.
-
-
-### Constructor
+## Constructor
 
 This manages an event emitter.
 
 We set some variables; see the doc section. 
 
-We bind `looper` which is the execution lop to the instance since it will be
-passed in without context via nextTick or analog.
+We bind `looper` which is the execution loop to the instance since it will be
+passed in without context via setImmediate.
 
     function () {
 
-        this._handlers = {};
+        this._handlers = new Map();
+        this._scopes = new Map();
+        this._actions = new Map();
         this._onces = {};
         this._queue = [];
-        this._queue.name = "queue";
-        this._waiting = [];
-        this._waiting.name = "waiting";
-        this._actions = {};
-        this._scopes = {};
         this._monitor = [];
         this.scopeSep = ":";
         this._looping = false;
         this.loopMax = 1000;
         this.emitCount = 0;
-        this.timing = "momentary";
         this.whens = {};
         this._cache = {};
         this._onceCache = {};
@@ -42,17 +35,11 @@ passed in without context via nextTick or analog.
 
 The various prototype methods on the event emitter. 
 
-    
-    
+     
     EvW.prototype._emit = EvW.prototype.emit = _"emit";
     EvW.prototype.emitCache = _"emit cache";
     EvW.prototype._emitWrap = _"monitor:wrapper";
     EvW.prototype.monitor = _"monitor";
-    EvW.prototype.eventLoader = _"event loader";
-    EvW.prototype.now = _"emit:convenience method| sub TIMING, now";
-    EvW.prototype.momentary = _"emit:convenience method| sub TIMING, momentary";
-    EvW.prototype.soon = _"emit:convenience method| sub TIMING, soon";
-    EvW.prototype.later = _"emit:convenience method| sub TIMING, later";
     EvW.prototype.scope = _"scope";
     EvW.prototype.scopes = _"scopes";
     
@@ -74,7 +61,6 @@ The various prototype methods on the event emitter.
     EvW.prototype.handlers = _"handlers";
     EvW.prototype.action = _"action";
     EvW.prototype.actions = _"actions";
-    EvW.prototype.makeHandler = _"make handler";
     EvW.prototype.error = _"error";
     EvW.prototype.queueEmpty = function () {}; // noop stub
 
@@ -88,14 +74,10 @@ The various prototype methods on the event emitter.
     Each instance has, in addition to the prototype methods, the following
     public properties: 
 
-    * `scopeSep` is the scope separator in the event parsing. The default is
-      `:`. We can have multiple levels; the top level is the global event. 
     * `count` tracks the number of events emitted. Can be used for
       logging/debugging. 
     * `loopMax` is a toggle to decide when to yield to the next cycle for
       responsiveness. Default 1000. 
-    * `timing` The default timing for `.emit` which defaults to "momentary",
-      i.e., appending to queue. 
 
     It also has "private" variables that are best manipulated by the methods.
 
@@ -104,49 +86,43 @@ The various prototype methods on the event emitter.
     * `_queue` consists of events to be fired in this tick. These are the
       [event objects](#event-object) which get passed in as the second argument to
       the handlers. 
-    * `_waiting` is the queue for events to be fired after next tick.
-    * `_actions` has k:v of `action name: handler` The handler can be of type
-      Handler or anything convertible to it. 
-    * `_scopes` has k:v of `scope name: object` When an event is emitted with
-      the given scope, the object will be passed in and is accessible to any
-      handler reacting to an event along the scope chain. 
+    * `_actions` has k:v of `action name: handler` 
+    * `_scopes` has k:v of `scope name: object` This can be accessed through
+      the function scope or the native get, set. 
     * `_looping` tracks whether we are in the executing loop. 
 
 
-#### Emit
+## Emit
 
 This function emits the events.
 
 We will load the event onto the queue or waiting list, depending on the
 timing provided. We create an object, `evObj` that will be passed around as
-the second argument into handlers. It wil contain the deconstruction of the
+the second argument into handlers. It will contain the deconstruction of the
 scopes along with their scope objects. It also creates a copy of the
 handlers array for each of the scope levels. 
 
 When ready, we load the events and call the loop (which exits immediately if
 we are already in the loop). 
 
-    function (ev, data, timing) {
-        var emitter = this, 
-            sep, scopes, pieces, evObj, events;
+    function (ev,  data) {
+        const emitter = this; 
+        let evObj;
 
-        timing = timing ||emitter.timing || "momentary";
-        
         if (typeof ev !== "string") {
-            // not going to use internal error since this needs to end
-           console.error("emit called with no event", ev, data, timing);
-           return;
+            emitter.error("event string is not a string", [ev, data]); 
+            return;
         }
 
+        _":setup event object"
 
-        _":create event object"
+        emitter._queue.push(evObj);
+        
+        emitter.log("emit", ev, data);
 
-
-        emitter.eventLoader(timing, evObj);
-
-        emitter.log("emit", ev, data, timing, evObj);
-
-        emitter.looper(ev);
+        if (emitter._looping === false) {
+            emitter.looper();
+        }
 
         return emitter;
     }
@@ -155,69 +131,42 @@ we are already in the loop).
 [doc]() 
 
 
-    ### emit(str ev, obj data, str timing) --> emitter
+    ### emit(str ev, obj data) --> emitter
 
-    Emit the event.  
+    Emit the event. 
 
     __arguments__
 
-    * `ev`  A string that denotes the event. 
+    * `ev`  A string that denotes the event. The string up to the first colon
+      is the actual event and after the first colon is the scope. 
     * `data` Any value. It will be passed into the handler as the first
       argument. 
-    * `timing` One of "now", "momentary", "soon", "later" implying emission
-      first on queue, last on queue, first on waiting list, last on waiting
-      list, respectively. "Momentary" is the default if not provided as that
-      will preserve the order of emitting. The waiting list is shifted once
-      for each tick (or in the browser, setTimeout).
 
     __return__
 
     The emitter for chaining. The events may or may not be already emitted
     depending on the timing. 
 
-    __convenience forms__ 
+    __scope__
 
-    * `.now`  Event A emits B, B fires after the emitting handler finishes,
-      but before other handler's for A finishes. This is the function
-      calling model.
-    * `.momentary` Event A emits B, B fires after A finishes. This is more
-      of a synchronous callback model. It is the same as `.emit` with the
-      default setting.
-    * `.soon` Event A emits B then C, both with soon, then C fires after
-      next tick. B fires after second tick.
-    * `.later` Event A emits B then C, both with later, then B fires after
-      next tick. C fires after second tick.
 
-    __scope__ 
-
-    Note that if ev contains the event separator, `:` by default, then it
-    will be broken up into multiple events, each one being emitted. The
-    order of emission is from the most specific to the general (bubbling
-    up).  `emitter.scopeSep` holds what to split on.
+    Note that if ev contains the event separator, `:`,  then the
+    part after the colon is the scope. Handlers can react to the full string
+    or to just the first part. The scope comes along into the handler to be
+    called. The
+    order of handling is from the most specific to the general (bubbling
+    up).
 
     In what follows, it is important to know that the handler signature 
-    is `(data, evObj)`.
+    is `(data, scope, emitter, context, event)`.
 
     As an example, if the event `a:b:c` is emitted, then `a:b:c` fires,
-    followed by `a:b`, followed by `a`. The scope objects available, however,
-    include that of all three of the emitted events as well as `b`, and `c`
-    separately. Thus, we can have an event `a:b` with a handler on `a` that
-    uses the scope of `b`. The name `b` can be found by accessing 
-    `base = evObj.pieces[0]` and the scope accessed from `evObj.scopes[base]`.
-    Note that `b` will not fire as a stand-alone event; it is just its scope
-    which can be found that way.
+    followed by `a`. The scope for both is `b:c`. `emitter.scope('b:c')` will
+    call up the associated scope.
 
-    To stop the emitting and any bubbling, set `evObj.stop === true` in the
-    handler . To do more
-    fine-controlled stopping, you need to manipulate `evObj.events` which is
-    an array consisting of `[string ev, handlers]`.
-
-
-    Once the event's turn on the queue occurs, the handlers for all the
-    scopes fire in sequence without interruption unless an `emit.now` is
-    emitted. To delay the handling, one needs to manipulate
-    `evObj.emitter._queue` and `._waiting`. 
-
+    Once an emit happens, all currently associated handlers will be called and
+    those with limited time handling will be decremented. There is no
+    supported methods for stopping the handling. 
 
     __example__
 
@@ -226,82 +175,75 @@ we are already in the loop).
 [example]()
 
     emitter.emit("text filled", someData);
-    emitter.now("urgent event");
-    emitter.later("whenever", otherData);
-    emitter.soon("i'll wait but not too long");
-    // generic:specific gets handled then generic
-    emitter.emit("generic:specific");
+    emitter.emit("general event:scope", data);
 
-[convenience method]()
+[setup event object]()
 
-This makes the now, later, ... methods. TIMING gets replaced with the timing.
-That's it!
+This takes the event, splits off the scope, finds the handler(s), and gets
+them. We want to make sure that we have all the handlers that are there at the
+time of the emitting. 
 
-    function (ev, data) {
-        var emitter = this;
-        emitter.emit(ev, data, "TIMING");
-        return emitter;
+The handlers could be the full event+scope which get executed first. 
+
+    let colIndex = ev.indexOf(":");
+    let actions;
+    const handlers = emitter._handlers;
+    if (colIndex === -1) {
+        actions = handlers.get(ev);
+        if (actions) {
+            evObj = [ev, null, data, actions.decrement(ev).slice(0)]; 
+        } else {
+            emitter.log("emit without action", ev, data);
+            return;
+        }
+    } else {
+        evObj = [ev.slice(0,colIndex), ev.slice(colIndex), data];
+        const specifics = handlers.get(ev);
+        const generals = handlers.get(evObj[0]);
+        if (specifics && generals) {
+            actions = specifics.decrement(ev).concat(generals.decrement(evObj[0]));
+        } else if (specifics) {
+            actions = specifics.decrement(ev).slice(0);
+        } else if (generals) {
+            actions = generals.decrement(evObj[0]).slice(0);
+        } else {
+            emitter.log("emit without action", ev, data);
+            return;
+        }
+        evObj.push(actions);
     }
 
-[create event object]()
-
-    scopes = {};
-    sep = emitter.scopeSep; 
-    pieces = ev.split(sep);
-
-    emitter.emitCount += 1;
-    evObj = {
-        emitter: emitter,
-        ev : ev,
-        data : data,
-        scopes : scopes, 
-        count : emitter.emitCount,
-        timing : timing,
-        unseen : true
-    };
-
-    events = evObj.events = [];
-
-Note we use the reduce function for the construction of each scope level,
-but we have no need for the finished string, just the intermediates.
-
-    pieces.reduce(function (prev, el) {
-        var ret = prev + (prev ? sep + el : el);            
-        scopes[ret] = emitter.scope(ret);
-        scopes[el] = emitter.scope(el);
-        var h = emitter._handlers[ret];
-        if (h) {
-            //unshifting does the bubbling up
-           events.unshift([ret, h.slice()]);
-        }
-        return ret;
-    }, ""); 
-
-    evObj.pieces = pieces.reverse();
 
 
-
-#### Emit Cache
+### Emit Cache
 
 This does a basic caching of events. It matches the whole event. It has the
 same signature as emit and, in fact, it just calls it. 
 
-    function (ev, data, timing) {
-        var emitter = this;
-        emitter._onceCache[ev] = data;
-        emitter.emit(ev, data, timing);
+The data is stored in an array. This allows for once methods to take the first
+n events, if needed, or even 'on' methods to read the events if desired. 
+
+    function (ev, data) {
+        const emitter = this;
+        let cache = emitter._onceCache.get(ev);
+        if (cache) {
+            cache.push(data);
+        } else {
+            emitter._onceCache.set(ev, [data]);           
+        }
+        emitter.emit(ev, data);
         return emitter;
     }
 
  [doc]() 
 
-    ### emitCache(str ev, obj data, str timing) --> emitter
+    ### emitCache(str ev, obj data) --> emitter
 
     Emit the event but cache it for once methods. Only the full exact event is
     cached, not subforms. If the same event is called
-    multiple times, it overwrites the previous data without comment. Once
-    methods check for the cache for the full event. On handlers are not
-    affected by this. 
+    multiple times, the data gets added in the order of emitting. On methods
+    can opt-in to taking in the cache history. Once methods can opt-out, but
+    they suck up the data by default the number of times.  
 
     __arguments__
 
@@ -310,16 +252,10 @@ same signature as emit and, in fact, it just calls it.
     * `ev`  A string that denotes the event. 
     * `data` Any value. It will be passed into the handler as the first
       argument. 
-    * `timing` One of "now", "momentary", "soon", "later" implying emission
-      first on queue, last on queue, first on waiting list, last on waiting
-      list, respectively. "Momentary" is the default if not provided as that
-      will preserve the order of emitting. The waiting list is shifted once
-      for each tick (or in the browser, setTimeout).
 
     __return__
 
-    The emitter for chaining. The events may or may not be already emitted
-    depending on the timing. 
+    The emitter for chaining. 
 
     __example__
 
@@ -333,286 +269,62 @@ same signature as emit and, in fact, it just calls it.
     });
 
 
-#### Event Object
 
-    Each emitted event calls the listener with the first argument as the data
-    and second argument as an event object. The event object consists of the
-    following properties: 
+### Scope
 
-    * `emitter` This is the emitter itself allowing one full access to
-      emitting, oning, offing, whatever.
-    * `ev` This is the full event string that has been emitted.
-    * `data` This is the data object that is passed into the emit. It is the
-      same as the first argument given to the handler. 
-    * `scopes` This is an object whose keys are the scope event strings and
-      whose values are the objects stored under that scope. 
-    * `pieces` This is the result of splitting `ev` on the scope separator,
-      reversed.
-    * `count` This is the value of the counter for which emit this was. 
-    * `timing` What the timing of the emit was.
-    * `events` This is an array that contains `[event substring, handlers]`.  The
-      handlers array is a copy of the handlers attached to the named event. 
-    * `cur` This is changed after each handler handling. It is an array of
-      `[event substring, handler]` It represents the current event and handler
-      being executed. 
-    * `stop` This is not set, but if set to true, this will halt any further
-      handlers from firing from this event object's events.
-    
-    __example__
-
-    If the event "file:bob" was emitted with data "neat" , then the event object emitted would
-    be something like: 
-
-        {emitter : emitter,
-         ev : "file:bob",
-         data : "neat",
-         scopes : {file: {}, bob: {}, "file:bob" : {} },
-         pieces : ["bob", "file"],
-         count : 102,
-         timing : "momentary",
-         events : [ ["file:bob" , [handler1]], ["file", [handler2]] ],
-         cur : ["file:bob", handler1]
-        }
+This manages the scopes object in a simple functional interface. One can
+directly access the scopes object, but this allows for a more unified access
+that can also be debugged easily enough. 
 
 
-#### Event Loader
-
-This loads the event object in the appropriate queue. 
-
-    function (timing, evObj) {
-        var emitter = this;
-
-        switch (timing) {
-            case "now" :
-                emitter._queue.unshift(evObj);
-            break;
-            case "later" :
-                emitter._waiting.push(evObj);
-            break;
-            case "soon" : 
-                emitter._waiting.unshift(evObj);
-            break;
-            case "momentary" :
-                emitter._queue.push(evObj);
-            break;
-            default : 
-                emitter._queue.unshift(evObj);
-        }
-    }
-
-#### Monitor
-
-Sometimes we may want to intercept/stop/inspect emit events. To do this, we
-provide the monitor method that takes in a filter and a handler function. The
-first assignment activates the wrapping and the passed in handler will be
-activated whenever the filter matches. 
-
-In the constructor, we add _monitor which contains `[filter function,
-listener]` types. 
-
-If you need to do something after the event finishes executing, you can
-attach a custom handler using once to the event. The listener fires
-immediately, regardless of the timer.
-
-If you wish to stop the event, the listener should return "stop".
-
-
-    function (filt, listener) {
-
-        var emitter = this,
-            mon = emitter._monitor, 
-            temp, ret;
-
+    function (key, obj) {
+        const emitter = this;
 
         if (arguments.length === 0) {
-            return mon;
+            return Array.from(emitter._scopes.keys());
         }
 
-        if (arguments.length === 1) {
-            _":remove listener"
-
-            if (mon.length === 0) {
-                emitter.log("restoring normal emit", filt.filt, filt); 
-                emitter.emit = emitter._emit;
-            }
-            
-            return emitter;
-        
-        } 
-
-        if (arguments.length === 2) {
-            if (Array.isArray(filt) && typeof filt[1] === "boolean") {
-               ret = [filter(filt[0], filt[1]), listener]; 
-            } else {
-                ret = [filter(filt), listener];
-            }
-            mon.push(ret);
-            ret.filt = filt;
-            emitter.log("wrapping emit", filt, listener, ret);
-            emitter.emit = emitter._emitWrap;
-            return ret;
-        }
-
-
-    }
-
-[remove listener]()
-
-This removes a listener. It should be an exact match to what is in the
-array. 
-
-    temp = mon.indexOf(filt);
-    if (temp !== -1) {
-        emitter.log("removing wrapper", filt);
-        mon.splice(temp, 1);
-    } else {
-        emitter.log("attempted removal of wrapper failed", filt);
-    }
-
-[wrapper]() 
-
-This is the wrapper around the normal emit event function that fires instead
-when there are monitors around. 
-
-    function (ev, data, timing) {
-        var emitter = this, 
-            mon = emitter._monitor,
-            go = true;
-       
-        mon.forEach(function (el) {
-            var filt = el[0],
-                fun = el[1], 
-                temp;
-
-            if (filt(ev)) {
-                emitter.log("intercepting event", ev, data, el);
-                temp = fun(ev, data, emitter); 
-                if (temp === "stop") {
-                    emitter.log("stopping event", ev, data, el);
-                    go = false;
-                }
-            }
-        });
-
-        if (go) {
-            emitter._emit(ev, data, timing);
-        }
-
-        return emitter;
-
-    }
-
-
-[doc]()
-
-    ### monitor(listener arr/filter, listener) --> [filt, listener]
-
-    If you want to react to events on a more coarse grain level, then you can
-    use the monitor method. 
-
-    __arguments__
-
-    * no args. returns array of active listeners.
-    * `filter` Of filter type. Any event that matches the filter will be
-      monitored. If an array of [filter, true] is passed in, that the filter
-      will be negated. 
-    * `listener` This is a function that will respond to the event. It will
-      receive the event being emitted, the data, and the emitter object
-      itself. It has no context other than what is bound to it using .bind. 
-    * `listener arr` If listener array is passed in as first (and only)
-      argument, then the array is removed from the relevant array. 
-
-    __returns__
-
-    Listener array of filter, function when assigning. Use this to remove the
-    monitoring. The returned array also has a `.orig` property containing the
-    original filter type.
-    
-    __example__
-
-        emitter.monitor(/bob/, function(ev, data, emitter) {
-            console.log("bob in ", ev, " with ", data);
-            emitter.emit("mischief managed");
-        });
-
-    Note if you were to emit "bob" in the above monitor, then we would have an
-    infinite loop.
-
-#### Scope
-
-The usefulness of scopes is twofold. One, it allows for a hierarchial calling
-of events, such as bubbling in the browser.  But the other use is in having
-scope-related objects that one can access. That is, context is given from an
-event perspective. So instead of each button listening for an event, we can
-have each event retaining a reference to the button. Beware memory leaks; use
-once and off! 
-
-This is where we define the function for adding/removing that context. Given
-an event string and a non-null value, that value will be stored under that
-string. A null value removes the string as a scope with context. If there is
-no second argument, then the scope object is returned. 
-
-Note that even with no context, the different scopes as events can be used. It
-is not necessary to give them context. 
-
-We return the event name so that it can then be used for something else. 
-
-    function (ev, obj) {
-        var emitter = this,
-            scope;
-
-        if (arguments.length === 0) {
-            return Object.keys(emitter._scopes);
-        }
-
-        scope = emitter._scopes[ev];
         
         if (arguments.length === 1) {
-            return scope; 
+            return emitter._scopes.get(key);
         }
 
         if ( obj === null ) {
-            emitter.log("deleting scope event", ev, scope);
-            delete emitter._scopes[ev];
-            return scope;
+            emitter.log("deleting scope event", key);
+            obj = emitter._scopes.get(key);
+            emitter._scopes.delete(key);
+            return obj;
         }
 
-        if (emitter._scopes.hasOwnProperty(ev) ) {
-            emitter.log("overwriting scope event", ev, obj, scope);
+        if (emitter._scopes.has(key) ) {
+            emitter.log("overwriting scope", key);
         } else {
-            emitter.log("creating scope event", ev, obj);
+            emitter.log("creating scope", key, obj);
         }
 
-        emitter._scopes[ev] = obj;
+        emitter._scopes.set(key, obj);
 
         return emitter;
     }
 
 [doc]()
 
-    ### scope(str ev, obj) --> scope keys/ obj / ev
+    ### scope(str key, obj) --> scope keys/ scope obj / emitter
 
     This manages associated data and other stuff for the scoped event ev. 
 
     __arguments__ 
 
-    * `ev` This is the full event to associate the information with. 
-    * `obj` This is whatever one wants to associate with the scope. 
+    * `key` This is the scope name 
+    * `obj` This is whatever one wants to associate with the scope. It
+      overwrites what is there if present. The value null for `obj` will
+      delete the scope. 
 
     __return__
 
     * 0 arguments. Leads to the scope keys being returned. 
     * 1 arguments. Leads to specified scope's object being returned.
     * 2 arguments. Emitter returned for chaining.
-
-    __note__ 
-
-    The scope is associated not only just the full scope, but also its parts.
-    For example, the event "file:bob" would have associated scopes of "file",
-    "bob", and "file:bob". In a handler with signature `(data, evObj)`, this
-    can be accessed by `evObj.scopes.bob`, `evObj.scopes.file`, and
-    `evObj.scopes["file:bob"]`,  assuming there are scopes associated with
-    those strings. 
 
     __example__
 
@@ -626,410 +338,245 @@ We return the event name so that it can then be used for something else.
 
     emitter.scope() === ["bob"];
 
-#### Scopes
-
-This will return an object with with key as scope, value as context. 
 
 
-    function (evfilt, neg) {
+### Looper
 
-        var emitter = this, 
-            f, keys, ret;
+This implements the looping over the queue. It is designed to avoid recursive
+stack calls. To do this, we keep track of whether we are looping or not in the
+`emitter._looping` variable. This should only get called if that flag is false. 
 
-        if (!evfilt) {
-            keys = Object.keys(emitter._scopes);
-        } else {
-            f = filter(evfilt, neg);
-            keys = Object.keys(emitter._scopes).filter(f);
+For example, A is emittted and starts the loop. A emits B which then sees that
+the loop is active and does not call the loop. B does get queued and after the
+first handler of A finishes, the queue is consulted again.  This continues
+progress through the queue. We use either setTimeout (browser) or setImmediate
+(node) to allow for other stuff to happen in between each 1000 calls. This is
+amusingly called nextTick. 
+
+As looper is called without context, we have bound its function to the
+emitter instance. 
+
+For the `.soon`, `.later` commands, we use a waiting queue. As soon as
+setImmediate is called, it unloads the first one onto the queue, regardless of
+whether there is something else there. This ensures that we make progress
+through the queue.
+
+    function () {
+        let emitter = this,
+            queue = emitter._queue,
+            loopMax = emitter.loopMax,
+            self = emitter.looper,
+            loop = 0, 
+            f, ev, evObj, events, cur, ind;
+
+
+        if (emitter._looping) {
+            return;
         }
 
-        ret = {};
-        keys.forEach(function (el) {
-            ret[el] = emitter._scopes[el];
-        });
-        return ret;
+
+        emitter._looping = true;
+
+        while ( (queue.length) && (loop < loopMax ) ) {
+            _"act"
+            loop += 1;
+        }
+
+        emitter._looping = false;
+
+        if (queue.length) {
+            emitter.log("looping hit max", loop);
+            emitter.nextTick(self);
+        } else {
+            emitter.queueEmpty();
+        }
+
+        return emitter;
+
+    }
+
+
+### Act
+
+This is to handle a single event on the event queue. 
+
+Event object is of the form `[event, scope, data, handlers]`
+
+    
+    evObj = queue.shift();
+    let actions = evObj.pop();
+    
+    let action; 
+    while ( ( action = actions.shift() ) ) {
+        action.execute(evObj[2], evObj[1], emitter);
     }
     
 
-[doc]()
-
-    ### scopes(arr/bool/fun/reg/str filter, bool neg) --> obj
-
-    This returns an object with keys of scopes and values of their contexts. 
-
-    __arguments__
-
-    * No argument or falsy first argument. Selects all scopes for
-      returning.      
-    * `filter` Anything of [filter](#filter) type. Selects all scopes matching
-      filter. 
-    * `neg` Negates the match semantics. 
-
-    __return__
-
-    An object whose keys match the selection and values are the corresponding
-    scope's value. If the value is an object, then that object is the same
-    object and modifications on one will reflect on the other. 
-
-    __example__
-
-    Following the example of bob in scope...
-
-        _":example"
-
-[example]()
-
-    emitter.scopes("bob") === {bob: {bd :"1/1"} }
-
-    emitter.scopes("bob", true) == {}
 
 
-#### On
+### NextTick
 
-It takes an event (a string) and a Handler or something that converts to a
-Handler.  To have segments that are always in order, use a Handler with an
-array value of handler-types that will be executed in order.
+The cede control function -- node vs browser.
+
+    (typeof setImmediate !== "undefined" ) ? setImmediate
+        : (function (f) {setTimeout(f, 0);})
+    
+
+## On
+
+It takes an event (a string) and an action to associate event with action. It
+can also take in a context string, an anonymous function, and an object. Those
+three can be in any order as their types dictate what they are used for. The
+context string is a scope to access, the object is a potential scope, and the
+function is what would be executed to call. 
 
 
-    function (ev, proto, context) {
-        var emitter = this,
-            handlers = emitter._handlers;
+    function (ev, action, f, context) {
+        const emitter = this;
 
-        var f = new Handler(proto, context); 
+        _":check for strings"
+        _":switch variables"
 
-        if (handlers.hasOwnProperty(ev)) {
-                handlers[ev].push(f);
+        const handlers = emitter._handlers;
+
+        const handler = new Handler(action, f, context, emitter); 
+
+        let handlerArr = handlers.get(ev);
+        if (handlerArr) {
+                handlerArr.push(handler);
         } else {
-            handlers[ev] = [f];
+            handlerArr = [handler];
+            handlers.set(ev, handlerArr);
             // contains is for searching the handler; it is a method
-            handlers[ev].contains = Handler.prototype.contains;
+            handlerArr.contains = Handler.prototype.contains;
+            // this decrements any once counters, calling removal as needed
+            // must return array.
+            handlerArr.decrement = Handler.prototype.decrement;
         }
 
-        emitter.log("on", ev, proto, context); 
+        emitter.log("on", ev, action, f, context); 
 
-        return f;
+        return handler;
 
     }
 
 [doc]() 
 
-    ### on(str ev, Handler f, obj context) --> Handler
+    ### on(str ev, str action, function f, str/obj context ) --> Handler
 
-    Associates handler f with event ev for firing when ev is emitted.
+    Associates action with event ev for firing when ev is emitted. The
+    optionals are detected based on kind so the order and relevance is
+    optional.
 
     __arguments__
 
-    * `ev` The event string on which to call handler f
-    * `f` The handler f. This can be a function, an action string, an array of
-      handler types, or a handler itself.
-    * `context` What the `this` should be set to when invoking f. Defaults to
-      `null`.
+    * `ev` The event string on which to call the action
+    * `action` This is a string and is what identifies the handler. It should be written as a "do this" while the event is "something is done". 
+    * `f`. If an action string is not already defined with a function, one can
+      associate a function with it by passing in one. The call signature is
+      `data, scope, emitter, context`. The name of the function, if none, will
+      be set to the action. 
+    * `context`. This is either a string that uses the named scope of emitter as the context or it is an object that can be used directly. 
 
     __return__
 
-    The Handler which should be used in `.off` to remove the handler, if
-    desired.
-
-    __f__
-
-    Ultimately handlers execute functions. These functions will be passed in
-    the data from the emit and an [event object](#event-object). It will be called in
-    the passed in context
+    The Handler which can be further manipulated, such as by once. It can be used to remove the
+    handler though the action string is preferred. 
 
     __example__
 
-        var record = {};
-        emitter.on("json received", function(data) {
-           this.json = JSON.parse(data);
-        }, record);
+    This takes in some json, 
 
-#### Off
-
-This removes handlers. The nowhen boolean, when true, will leave the when
-handlers on the when events. This effectively blocks those events from
-happening until some manual reworking on the event. Since the no argument
-function wipes out all handlers, period, we do not need to worry about nowhen.
+        emitter.on("json received", "parse json", function(data) {
+          this.json = JSON.parse(data);
+        }, record, {});
 
 
-    function (events, fun, nowhen) {
+[check for strings]()
 
-        var emitter = this;
-        
-        var handlers = emitter._handlers;
-        var h, f;
+Need strings for events and actions.
 
-        if ( (events == null) && (fun == null) ) {
-            emitter._handlers = {};
-            emitter.log("all handlers removed from all events");
-            return emitter;
+    if (typeof ev !== "string") {
+        emitter.error("bad event for 'on'", ev, action);
+        return;
+    } else if (typeof action !== "string") {
+        emitter.error("bad action for 'on'", ev, action);
+    }
+
+[switch variables]()
+
+It may be the case that a function is not passed in despite a context being
+passed in (as in the action gets the function and the on has the context
+specified) or the context and function might be switched up. 
+
+    if (typeof f === "string") {
+        if (typeof context === "function") {
+            let temp = f;
+            f = context;
+            context = temp;
+        } else {
+            context = f;
+            f = null;
         }
+    }
 
-        if (events == null) {
-            events = Object.keys(emitter._handlers);
-        } else if (typeof events === "string") {
-            events = [events];
-        } else if (typeof events === "function") {
-            events = Object.keys(emitter._handlers).filter(events);
-        } else if (events instanceof RegExp) {
-            events = Object.keys(emitter._handlers).filter(
-                function (el) {
-                    return events.test(el);
-            });
-        }
 
-        if ( typeof fun === "boolean") {
-            nowhen = fun;
-            fun = null;
-        }
+### Once
 
-        if (fun) {
-            events.forEach( function (ev) {
-                var removed = [];
-                _":remove handler"
-                emitter.log("handler for event removed", ev, removed);
-            });
-            return emitter;    
-        } 
+This attaches to a handler the count to be decremented. When the count reaches
+0, the handler is removed. 
 
-        events.forEach( function (ev) {
-            if (nowhen === true) {
-                delete handlers[ev];
-                emitter.log("removed handlers on event ignoring when", ev); 
-                return emitter;
-            } else {
-                _":remove handlers checking for when handlers"
-                emitter.log("removing all handlers on event", ev);
-            }            
-        });
-        
-        return emitter;
-    }          
- 
+If present, n, needs to be first. 
 
-[remove handler]()
+    function (ev, action, n, f, context) {
+        const emitter = this;
+        let handler;
 
-This will remove all handlers that are or contain the passed in fun. 
-
-Note that this could get messy in the case of multiple functions embedded in
-one handler; this will remove them if a single function is queued to be
-removed. Think of this more of as a partial match removal. Not sure if this is
-a good idea or not. Need to test how it interacts with .when. Probably bad if
-several handlers with same tracker in the list. 
-
-    if (handlers.hasOwnProperty(ev) ) {
-        handlers[ev] = handlers[ev].filter(function (handler) {
-            if (handler.contains(fun) ) {
-                removed.push(handler);
-                return false;
-            } else {
-                return true;
+        if (typeof n === "number") {
+            handler = emitter.on(ev, action, n, f, context);
+            if (handler) {
+                handler.count = n; 
+                emitter.log("once", ev, action, n);
             }
-        });
-        if (handlers[ev].length === 0) {
-            delete handlers[ev];
-        }
-    }
-    if (nowhen !== true)  {
-        removed.forEach(function (el) {
-            el.removal(ev, emitter);
-        });
-    }
-
-
-
-
-[remove handlers checking for when handlers]()
-
-The main issue here is removing .when trackers.
-    
-    h = handlers[ev];
-    while (h.length > 0) {
-        f = h.pop();
-        f.removal(ev, emitter);
-    }
-    delete handlers[ev];
-
-
-[doc]()
-
-    ### off(str/array/fun/reg events, handler fun, bool nowhen) --> emitter
-
-    This removes handlers.
-
-    __arguments__
-
-    This function behavior changes based on the number of arguments
-
-    * No arguments. This removes all handlers from all events. A complete
-      reset.
-    * `events`. This is the event string to remove the handlers from. If
-      nothing else is provided, all handlers for that event are removed. This
-      could also be an array of event strings in which case it is applied to
-      each one. Or it could be an Array.filter function or a RegExp that
-      should match the strings whose events should have their handlers
-      trimmed. Or it could be null, in which case all events are searched for
-      the removal of the given handler. 
-    * `fun` This an object of type Handler. Ideally, this is the handler
-      returned by `.on`. But it could also be a primitive, such as an action
-      string or function.
-
-        If fun is a boolean, then it is assumed to be `nowhen` for the whole
-        event removal. If it is null, then it is assumed all handlers of the
-        events should be removed. 
-
-    * `nowhen` If true, then it does not remove the handler associated with
-      the tracker handler. 
-
-    __return__
-
-    Emitter for chaining. 
-
-    __example__
-
-        _":example"
-
-[example]()
-
-    // removes f from "full:bob"
-    emitter.off("full:bob", f);
-    // removes all handlers to all events with :bob as last 
-    emitter.off(/\:bob$/);
-    // removes all listed events
-    emitter.off(["first", "second"], f);
-    // function filter
-    emitter.off(function (ev) { return (ev === "what");}, f);
-
-
-#### Once
-
-This method produces a wrapper around a provided handler that automatically
-removes the handler after a certain number of event firings (once is
-default).  The new handler is what is returned.
-
-The way it works is the f is put into a handler object. This handler object
-then has a function placed as the first to be invoked. When invoked, it will
-decrement the number of times and remove the handler if it is less than or
-equal to 0. That's it. No function wrapping in a function. If we hit 0, the
-return true value ceases that execution stream. We need to do this because f's
-exceution might lead to an event being emitted that could trigger it again. 
-
-We also have a function that will remove the handler if need be. 
-
-We allow for n and context to be switched. Minimal risk of unintended
-consequences. 
-
-    function (ev, f, n, context) {
-        var emitter = this, 
-            handler, g, h, temp;
-
-        handler = new Handler([f], context);
-
-        handler._label = "(once)" + (f._label || f.name ||'');
-
-        _":switch vars"
-
-        if (typeof n === "undefined") {
-            handler.n = n = 1;
         } else {
-            handler.n = n;
+            handler = emitter.on(ev, action, f, context);
+            if (handler) {
+                handler.count = 1;
+                emitter.log("once", ev, action, n);
+            }
         }
-        
+
         _":check cache"
-
-        if (f._label) { 
-            emitter._onces[f._label] = [ev, n, n];
-            g = function() {
-                if (handler.n >= 1) {
-                    handler.n -=1;
-                } else { //should rarely happen
-                    emitter.off(ev, handler);
-                    delete emitter._onces[f._label];
-                    return true; // prevents f from being executed
-                }
-            };
-
-            h = function () {
-                if (handler.n === 0) {
-                    emitter.off(ev, handler);
-                    delete emitter._onces[f._label];
-                } else {
-                    emitter._onces[f._label][2] -= 1;
-                }
-            };
-
-        } else {
-            g = function() {
-                if (handler.n >= 1) {
-                    handler.n -=1;
-                    if (handler.n === 0) {
-                        handler.value.push(function () {
-                            emitter.off(ev, handler);
-                        });
-                    } 
-                } else {
-                    emitter.off(ev, handler);
-                    return true;
-                }
-            };
-           
-           h = function () {
-                if (handler.n === 0) {
-                    emitter.off(ev, handler);
-                }
-            };
-
-        }
-
-        handler.value.unshift(g);
-        handler.value.push(h);
-
-        emitter.on(ev, handler); 
-
-        emitter.log("once", ev, n, f, context);
-
-        return handler;
+        
+        
+        return handler; 
     }
 
 [doc]()
 
-    ### once(str event, handler f, int n, obj context) --> handler h
+    ### once(str event, action, int n, f, context) --> handler h
 
-    This attaches the handler f to fire when event is emitted. But it is
+    This attaches the actopm to fire when event is emitted. But it is
     tracked to be removed after firing n times. Given its name, the default n
     is 1.
 
     __arguments__
 
     * event Any string. The event that is being listened for.
-    * f Anything of handler type. 
+    * action. A string to be listed as the action taken. 
     * n The number of times to fire. Should be a positive integer. 
-    * context The object whose `this` f should have. 
-
-    Both n and context are optional and their positioning can be either way. 
+    * f, context. These are on arguments. See on's optional arguments. Should be after n; if n is
+      not present, they can safely start in argument 3. 
 
     __return__
 
-    The handler that contains both f and the counter.
+    The handler produced by the underlying 'on' call; it has the additional
+    property of a count. 
 
     __example__
 
         _":example"
 
-    __note__
-
-    If you attach a `_label` property to your handler f, then the once will
-    get recorded in `emitter._onces` which one can use to monitor which onces
-    have fired and how many times remain. 
-
-[switch vars]()
-
-If needed, we switch n and context
-
-    if ( (typeof n !== "number") && (typeof context === "number") ) {
-        temp = n;
-        n = context;
-        context = temp;
-    }
 
 [example]()
 
@@ -1047,18 +594,655 @@ If needed, we switch n and context
  The handler.execute method is how we call things and it needs an event
  object, some of which is not needed as we are are avoiding the queue. 
 
-    var cache = emitter._onceCache;
-    var scopes, pieces, evObj, events;
-    if ( (n === 1) && (cache.hasOwnProperty(ev)) ) {
-        _"emit:create event object | sub 
-        : data, : cache[ev], 
-        : timing, : 'now' " 
-        handler.execute(cache[ev], evObj, context);
-        return;
+ We used up as much of the handler as the cache has, up to the limit of the
+ count. 
+
+    let cache = emitter._onceCache.get(ev);
+    if (cache) {
+        let n = Math.min(cache.length, handler.count);
+        let colIndex = ev.indexOf(":");
+        colIndex = (colIndex === -1) ?  ev.length : colIndex;
+        let scope = ev.slice(colIndex);
+        let i;
+        for (i = 0; i < n; i+=1) {
+            handler.count -=1;
+            handler.execute(cache[i], scope, emitter);
+        }
+        if (handler.count === 0) {
+            emitter.off(ev, handler);
+            return;
+        } else {
+            return handler;
+        }
     }
 
 
-#### When
+
+
+### Off
+
+This removes handlers. The nowhen boolean, when true, will leave the when
+handlers on the when events. This effectively blocks those events from
+happening until some manual reworking on the event. Since the no argument
+function wipes out all handlers, period, we do not need to worry about nowhen.
+
+
+    function (events, action, nowhen) {
+
+        const emitter = this; 
+        const handlers = emitter._handlers;
+        var h, f;
+
+        if ( (events == null) && (action == null) ) {
+            handlers.clear();
+            emitter.log("all handlers removed from all events");
+            return emitter;
+        }
+
+        if (events == null) {
+            events = Array.from(handlers.keys());
+        } else if (typeof events === "string") {
+            events = [events];
+        } else if (typeof events === "function") {
+            events = Array.from(handlers.keys()).filter(events);
+        } else if (events instanceof RegExp) {
+            events = Array.from(handlers.keys()).filter(
+                function (el) {
+                    return events.test(el);
+            });
+        }
+
+        if ( typeof action === "boolean") {
+            nowhen = action;
+            action = null;
+        }
+
+        if (action) {
+            events.forEach( function (ev) {
+                var removed = [];
+                _":remove handler"
+                emitter.log("handler for event removed", ev, removed);
+            });
+            return emitter;    
+        } 
+
+        events.forEach( function (ev) {
+            if (nowhen === true) {
+                handlers.delete(ev);
+                emitter.log("removed handlers on event ignoring when", ev); 
+                return emitter;
+            } else {
+                _":remove handlers checking for when handlers"
+                emitter.log("removing all handlers on event", ev);
+            }            
+        });
+        
+        return emitter;
+    }          
+ 
+
+[remove handler]()
+
+This will remove all handlers that are or contain the passed in action. 
+
+We try to maintain the same array for the handlers. Hence the forEach and
+splicing instead of filter. Splicing during the first forEach will result in
+skipping elements, etc., so we simply record the locations, in reverse order
+to not have a shift, and splice from there. 
+
+    if (handlers.has(ev) ) {
+        let place = [];
+        let arr = handlers.get(ev);
+        arr.forEach( (handler, ind) => {
+            if (handler.contains(action) ) {
+                removed.push(handler);
+                place.unshift(ind);
+            }
+        });
+        place.forEach( ind => arr.splice(ind, 1));
+        if (arr.length === 0) {
+            handlers.delete(ev);
+        }
+    }
+    if (nowhen !== true)  {
+        removed.forEach(function (el) {
+            el.removal(ev, emitter);
+        });
+    }
+
+
+[remove handlers checking for when handlers]()
+
+The main issue here is removing .when trackers.
+    
+    h = handlers.get(ev);
+    while (h.length > 0) {
+        f = h.pop();
+        f.removal(ev, emitter);
+    }
+    handlers.delete(ev);
+
+
+[doc]()
+
+    ### off(str/array/fun/reg events, str action, bool nowhen) --> emitter
+
+    This removes handlers.
+
+    __arguments__
+
+    This function behavior changes based on the number of arguments
+
+    * No arguments. This removes all handlers from all events. A complete
+      reset.
+    * `events`. This is the event string to remove the handlers from. If
+      nothing else is provided, all handlers for that event are removed. This
+      could also be an array of event strings in which case it is applied to
+      each one. Or it could be an Array.filter function or a RegExp that
+      should match the strings whose events should have their handlers
+      trimmed. Or it could be null, in which case all events are searched for
+      the removal of the given handler. 
+    * `action`. This should be an action string that identifies what to
+      remove. It is fed into the handler.contains function so whatever works
+      with that is fine. 
+
+        If action is a boolean, then it is assumed to be `nowhen` for the whole
+        event removal. If it is null, then it is assumed all handlers of the
+        events should be removed. 
+
+    * `nowhen` If true, then it does not remove the handler associated with
+      the tracker handler. 
+
+    __return__
+
+    Emitter for chaining. 
+
+    __example__
+
+        _":example"
+
+[example]()
+
+    // removes action `empty trash` from "full:bob"
+    emitter.off("full trash:bob", "empty trash");
+    // removes all handlers to all events with :bob as last 
+    emitter.off(/\:bob$/);
+    // removes all listed events that have action "whatever"
+    emitter.off(["first", "second"], "whatever");
+    // function filter
+    emitter.off(function (ev) { return (ev === "what");}, "action now");
+
+
+## Action
+
+This is for storing Handler type objects under a name string, generally some
+active description of what is supposed to take place. The Handler type can be
+anything that converts to Handler. 
+
+If just one argument is provided, then the handler is returned. 
+
+If two arguments are provided, but the second is null, then this is a signal
+to delete the action. 
+
+The handler should be a primitive type, namely an object with a function and
+possibly context information. 
+
+
+    function (name, f, context) {
+        const emitter = this;
+        const actions = emitter._actions;
+
+        if (arguments.length === 0) {
+            return Array.from(actions.keys());
+        }
+
+        if (arguments.length === 1) {
+            return actions.get(name);
+        }
+
+        if ( (arguments.length === 2) && (f === null) ) {
+            f =  actions.get(name);
+            actions.delete(name);
+            emitter.log("removed action", name);
+            return f;
+        }
+        
+        if (actions.has(name) ) {
+            emitter.log("overwriting action", name, f, context,
+                actions.get(name));
+        } else {
+            emitter.log("creating action", name, f, context); 
+        }
+
+        actions.set(name,  {
+            f : f,
+            context : context
+        });
+
+        return emitter;
+    }
+
+We return the name so that one can define an action and then use it. 
+
+
+[doc]() 
+
+    ### action(str name, f function, ) --> depends
+
+    This allows one to associate a string with handler primitive for easier naming. It
+    should be active voice to distinguish from event strings.
+
+    __arguments__
+
+    * `name` This is the action name.
+    * `f` The function action to take. 
+    * `context` Either a string to call the scope from the emitter when
+      invoking f or an object directly. 
+
+    __return__
+
+    * 0 arguments. Returns the whole list of defined actions.
+    * 1 argument. Returns the action object associated with the action.
+    * 2 arguments, second null. Deletes associated action. Returns that
+      deleted action object.
+    * 2, 3 arguments. Returns emitter. 
+
+    __example__
+
+    This example demonstrates that an action should be an action sentence
+    followed by something that does that action. Here the emit event sends a
+    doc string to be compiled. It does so, gets stored, and then the emitter
+    emits it when all done. Note files is the context that the handler is
+    called in. 
+
+        emitter.action("compile document", function (data, scope, emitter) {
+            var files = this;
+            var doneDoc = compile(data);
+            files.push(doneDoc);
+            emitter.emit("document compiled", doneDoc);
+        }, files);
+
+### Handler
+
+This is where we define handlers.
+
+The idea is that we will encapsulate all handlers into a handler object.
+When a function or something else is passed into .on and the others, it will
+be converted into a handler object and that object gets returned. The lead
+argument should be the action string. This is mandatory. The rest is an
+options argument which allows us to setup insulated handler instances.
+Otherwise, the action string gets used to look up the handler at the time of
+the emit. 
+
+
+    function (action, f, context, emitter) {
+        const handler = this;
+
+        handler.action = action;
+        handler.emitter = emitter;
+        if (typeof f === 'function') {
+            handler.f = f;
+        }
+        if (context) {
+            handler.context = context;
+        }
+
+        return handler;
+    }
+
+[prototype]()
+
+The prototype object.
+
+* contains Returns a boolean indicating whether the given handler type is
+  contained in the handler. 
+* execute Executes the handler
+* summarize Goes level by level summarizing the structure of the handler
+* removal Removes any of the handler bits that are attached to .when
+  trackers.
+* decrement. This  
+
+---
+    Handler.prototype.execute = _"execute"; 
+    Handler.prototype.contains = _"contains";
+    Handler.prototype.summarize = _"summarize";
+    Handler.prototype.removal = _"removal";
+    Handler.prototype.decrement = _"decrement";
+
+[doc]()
+
+    Handlers are the objects that respond to emitted events. Generally they
+    wrap handler type objects. 
+
+    ### Handler types
+
+    * function  `context -> f(data, evObj)` This is the foundation as
+      functions are the ones that execute.  They are called with parameters
+      `data` that can be passed into the emit call and `evObj` which has a
+      variety of properties. See <a href="#event-object">evObj</a>.
+    * string.  This is an action string. When executed, it will look up the
+      action associated with that string and execute that handler. If no
+      such action exists, that gets logged and nothing else happens.
+    * handler. Handlers can contain handlers.
+    * array of handler types. Each one gets executed. This is how `.once`
+      works.
+
+    ### Handler methods
+   
+    These are largely internally used, but they can be used externally.
+
+    * [summarize](#summarize)
+    * [execute](#execute)
+    * [removal](#removal)
+    * [contains](#contains)
+    * [decrement](#decrement)
+
+    ---
+    <a name="summarize"></a>
+    _"summarize:doc"
+    
+    ---
+    <a name="execute"></a>
+    _"execute:doc"
+    
+    ---
+    <a name="removal"></a>
+    _"removal:doc"
+
+    ---
+    <a name="contains"></a>
+    _"contains:doc"
+    
+    ---
+    <a name="decrement"></a>
+    _"decrement:doc"
+
+#### Removal
+
+This is to remove the tracking of a .when event in conjunction with the .off
+method.
+
+    function me (ev, emitter, htype) {
+        var actions = emitter._actions;
+        
+        htype = htype || this;
+
+        if ( htype.hasOwnProperty("tracker") ) {
+            htype.tracker._removeStr(ev);
+            emitter.log("untracked", ev, htype.tracker, htype);
+            return ;
+        }
+
+        if (typeof htype === "string") {
+            if (actions.hasOwnProperty(htype) ) {
+                actions[htype].removal(ev, emitter);
+            }
+            return;
+        }
+
+The tracker is not attached to a function, but to a Handler object.
+
+        if (typeof htype === "function") {
+            return; 
+        }
+
+        if ( Array.isArray(htype) ) {
+            htype.forEach(function (el) {
+                me.call(empty, ev, emitter, el);
+                return;
+            });
+        }
+
+
+        if ( htype.hasOwnProperty("value") ) {
+            me.call(empty, ev, emitter, htype.value); 
+            return;
+        } 
+
+        emitter.log("unreachable reached", "removal", ev, htype);
+
+        return;
+    }
+
+[doc]() 
+
+    #### removal(ev, emitter) --> 
+
+    This removes the handlers from .when trackers. Used by .off.
+
+    __arguments__
+
+    * `this` This is called in the context of the handler.
+    * `ev` The event string to remove from the .when tracker.
+    * `emitter` The emitter object is passed in for actions and log ability.
+    
+    __return__
+
+    Nothing.
+
+    __example__
+
+        handler.removal("whened", emitter); 
+
+#### Contains
+
+This will search for the given possible target to determine if the Handler
+contains it. 
+
+This is used as a method of proper Handler types, but we can't call it as a
+method in general because strings become objectified if they are called in
+context. 
+
+
+    function me (target, htype) {
+
+        if ( (htype === target) || (this === target) ) {
+            return true;
+        }
+
+        htype = htype || this;
+               
+        if ( Array.isArray(htype) ) {
+            return htype.some(function (el) {
+                return me.call(empty, target, el);
+            });
+        }
+
+        if ( htype.hasOwnProperty("value")) {
+            return me.call(empty, target, htype.value);
+        } 
+
+        return false;
+
+    }
+
+[doc]() 
+
+    #### contains(target, htype) --> bool
+
+    This checks to see whether target is contained in the handler type at
+    some point.
+    
+    __arguments__
+
+    * `target` Anything of handler type that is to be matched.
+    * `htype` Anything of handler type. This is the current level. If
+      `htype` is not provided (typically the case in external calling), then
+      the `this` becomes `htype`. 
+
+    __return__ 
+    
+    It returns true if found; false otherwise.
+
+    __example__
+
+        handler.contains(f);
+        handler.contains("act");
+
+#### Execute
+
+Here we handle executing a handler. We could have a variety of values here.
+
+* string. This should be an action. We lookup the action and use the
+  function. 
+* function. Classic. It gets called.
+* handler. This is an object of type handler and how we will always start.
+  We iterate through handlers to find executable types.
+* [possible handler types...]. The array form gets executed in order, be it
+  functions, actions, or Handlers. The array can contain Handler objects
+  that are then handled. 
+
+We pass in data, event object, and context; the value is for internal
+calling, for the most part. 
+
+All of the handlers are encapsulated in a try...catch that then calls the
+emitter's .error method (which can be overwritten). The default will rethrow
+the error with more information. The error is likely to be called multiple
+times if throwing is kept being done. Maybe should think about that.  
+
+evObj.stop is the flag to set to stop execution for the rest of the event's
+handlers. To just stop the cascade for a given handler (see once), return
+true. 
+
+    function me (data, scope, emitter) {
+        
+        const handler = this;
+        const raw = emitter._actions.get(handler.action) || empty;
+
+        const f = this.f || raw.f;
+        if (typeof f !== "function") {
+            emitter.error("bad function for handler", action);
+        }
+
+        let context = this.context || raw.context || empty;
+
+        if (typeof context === "string") {
+            context = emitter.scope(context);
+        }
+
+        emitter.log("executing action", handler.action);
+
+        f.call(context, data, scope, emitter, context);
+
+    }
+
+[doc]()
+
+    #### execute(data, evObj, context, value) --> 
+
+    This executes the handler. 
+
+    __arguments__
+
+    * `data`, `evObj` get passed into the functions as first and second
+      arguments. This is generated by the emit. 
+    * `context` The closest context will be used. If the function is bound,
+      that obviously takes precedence.
+    * `value` This is largely internally used. 
+
+    __return__
+
+    Nothing. 
+
+    __example__
+
+        handler = new Handler(function () {console.log(this.name, data);},
+            {name: "test"});
+        handler.execute("cool", {emitter:emitter});
+
+
+#### Summarize
+
+This tries to report the structure of the handlers. We use the property
+name "\_label" for the tag to return for any given level.
+
+For functions, we use their given name 
+
+    function me (value) {
+        var ret, lead;
+
+        if (typeof value === "undefined" ) {     
+            value = this;
+        }
+
+       if (typeof value === "string") {
+            return "a:" + value;
+        }
+
+        if (typeof value === "function") {
+            return serial(value);
+        }
+
+        if ( Array.isArray(value) ) {
+            ret = value.map(function (el) {
+                return me.call(empty, el);
+            });
+            lead = value._label || "";
+            return lead + "[" + ret.join(", ") + "]";
+        }
+
+        if ( value && typeof value.summarize === "function" ) {
+            ret = me.call(empty, value.value);
+            lead = value._label || "";
+            return "h:" + lead + " " + ret;
+        } 
+
+        return "unknown";
+
+        }
+
+[doc]()
+
+    #### summarize(value) --> str
+
+    This takes a handler and summarizes its structure. To give a meaningful
+    string to handlers for a summarize, one can add `._label` properties to
+    any of the value types except action strings which are their own "label". 
+
+    __arguments__
+
+     * `value` or `this` is to be of handler type and is what is being
+      summarized. 
+
+    __return__
+
+    The summary string.
+
+    __example__
+
+        handler.summarize();
+
+
+#### Decrement
+
+This decrements the once handlers and removes them if 
+
+    function (ev) {
+        const arr = this;
+        const n = arr.length;
+        if (n) {
+           let i;
+            for (i = 0; i<n; i +=1) {
+                if (arr[i].hasOwnProperty('count') ) {
+                    arr[i].count -=1; 
+                    if (arr[i].count === 0) {
+                        //remove once!!!!!!!
+                    }
+                }
+            }
+        }
+        
+
+        return this; 
+    
+    }
+
+
+[doc]()
+
+    some docs
+
+## When
 
 This is a key innovation. The idea is that once this is called, a handler is
 created that attaches to all the listed events and takes care of figuring
@@ -1125,6 +1309,9 @@ it repeatedly, then there are separate entries in data for each one, in the
 order of adding. In the event of no initialOrdering, then we simply pop on
 data with the event name whenever the data is defined; ignoring it otherwise.
 With initialOrdering, we add the data as null. 
+
+Create a default when action. Use context to create individual whens. The
+tracker can be the context. 
 
 
         var handler = new Handler (function (data, evObj) {
@@ -1301,7 +1488,7 @@ sure that properly written, but unordered, is okay.
     emitter.emit("something more");
    
 
-#### Flat When
+### Flat When
 
 This is a convenience method that simply flips the tracker to flatten. But it
 has a radical difference on the emitted values. 
@@ -1312,7 +1499,7 @@ has a radical difference on the emitted values.
        return tracker;
     }
 
-#### Flat Array When
+### Flat Array When
 
 This is a convenience method that will always return an array of values. 
 
@@ -1323,7 +1510,8 @@ This is a convenience method that will always return an array of values.
     }
 
 
-#### Cache
+
+### Cache
 
 This solves the problem of needing a resource that one would ideally call only
 once. For example, reading a file into memory or getting a web request. 
@@ -1478,1133 +1666,6 @@ is emitted.
     emitter.cache("need file:jack", "got file:jack", emitDiffWords);
     emitter.cache("need file:jack", "got file:jack", "jack's text");
 
-
-#### Action
-
-This is for storing Handler type objects under a name string, generally some
-active description of what is supposed to take place. The Handler type can be
-anything that converts to Handler. 
-
-If just one argument is provided, then the handler is returned. 
-
-If two arguments are provided, but the second is null, then this is a signal
-to delete the action. 
-
-
-    function (name, handler, context) {
-        var emitter = this;
-
-        if (arguments.length === 0) {
-            return Object.keys(emitter._actions);
-        }
-
-        if (arguments.length === 1) {
-            return emitter._actions[name];
-        }
-
-        if ( (arguments.length === 2) && (handler === null) ) {
-            delete emitter._actions[name];
-            emitter.log("removed action", name);
-            return name;
-        }
-        
-        var action = new Handler(handler, context); 
-
-        if (emitter._actions.hasOwnProperty(name) ) {
-            emitter.log("overwriting action", name, handler,
-                emitter._actions[name], action);
-        } else {
-            emitter.log("creating action", name, handler, 
-                context, action); 
-        }
-
-        emitter._actions[name] = action;
-
-        return action;
-    }
-
-We return the name so that one can define an action and then use it. 
-
-[filter]()
-
-This allows for filtering of the action handlers.
-
-    filter(emitter._actions, name)
-
-[doc]() 
-
-    ### action(str name, handler, obj context) --> action handler
-
-    This allows one to associate a string with a handler for easier naming. It
-    should be active voice to distinguish from event strings.
-
-    __arguments__
-
-    * `name` This is the action name.
-    * `handler` This is the handler-type object to associate with the action. 
-    * `context` The context to call the handler in. 
-
-    __return__
-
-    * 0 arguments. Returns the whole list of defined actions.
-    * 1 argument. Returns the handler associated with the action.
-    * 2 arguments, second null. Deletes associated action.
-    * 2, 3 arguments. Returns created handler that is now linked to action
-      string. 
-
-    __example__
-
-    This example demonstrates that an action should be an action sentence
-    followed by something that does that action. Here the emit event sends a
-    doc string to be compiled. It does so, gets stored, and then the emitter
-    emits it when all done. Note files is the context that the handler is
-    called in. 
-
-        emitter.action("compile document", function (doc, evObj) {
-            var files = this;
-            var doneDoc = compile(doc);
-            files.push(doneDoc);
-            evObj.emitter.emit("document compiled", doneDoc);
-        }, files);
-
-#### Actions
-
-This will return an object with with key as action, value as handler. 
-
-
-    function (evfilt, neg) {
-
-        var emitter = this, 
-            f, keys, ret;
-
-        if (!evfilt) {
-            keys = Object.keys(emitter._actions);
-        } else {
-            f = filter(evfilt, neg);
-            keys = Object.keys(emitter._actions).filter(f);
-        }
-
-        ret = {};
-        keys.forEach(function (el) {
-            ret[el] = emitter._actions[el];
-        });
-        return ret;
-    }
-
-[doc]()
-
-    
-    ### actions(arr/bool/fun/reg/str filter, bool neg) --> obj
-
-    This returns an object with keys of actions and values of their handlers. 
-
-    __arguments__
-
-    * No argument or falsy first argument. Selects all actions for
-      returning.      
-    * `filter` Anything of [filter](#filter) type. Selects all actions
-      matching filter. 
-    * `neg` Negates the match semantics. 
-
-    __return__
-
-    An object whose keys match the selection and values are the corresponding
-    actions's value. If the value is an object, then that object is the same
-    object and modifications on one will reflect on the other. 
-
-    __example__
-
-    The following are various ways to return all actions that contain the
-    word bob. 
- 
-        emitter.actions("bob"); 
-        emitter.actions(/bob/);
-        emitter.actions(function (str) {
-            return str.indexOf("bob") !== -1;
-        });
-
-    In contrast, the following only returns the action with bob as the exact
-    name.
-
-        emitter.actions(["bob"]);
-        emitter.action("bob");
-
-    The first one returns an object of the form `{bob: handler}` while the
-    second returns the handler. 
-
-
-#### Looper
-
-This implements the looping over the queue. It is designed to avoid recursive
-stack calls. To do this, we keep track of whether we are looping or not in the
-`emitter._looping` variable. This should only get called if that flag is false. 
-
-For example, A is emittted and starts the loop. A emits B which then sees that
-the loop is active and does not call the loop. B does get queued and after the
-first handler of A finishes, the queue is consulted again.  This continues
-progress through the queue. We use either setTimeout (browser) or nextTick
-(node) to allow for other stuff to happen in between each 1000 calls.
-
-As looper is called without context, we have bound it function to the
-emitter instance. 
-
-For the `.soon`, `.later` commands, we use a waiting queue. As soon as next
-tick is called, it unloads the first one onto the queue, regardless of
-whether there is something else there. This ensures that we make progress
-through the queue.
-
-    function (caller) {
-        var emitter = this,
-            queue = emitter._queue,
-            waiting = emitter._waiting,
-            loopMax = emitter.loopMax,
-            self = emitter.looper,
-            loop = 0, 
-            f, ev, evObj, events, cur, ind;
-
-
-        if (emitter._looping) {
-            emitter.log("looping called again", caller);
-            return;
-        }
-
-        if ( (queue.length === 0) && (waiting.length > 0) ) {
-            queue.push(waiting.shift());
-        }
-
-
-        emitter._looping = true;
-
-        while ( (queue.length) && (loop < loopMax ) ) {
-            _"act"
-            loop += 1;
-        }
-
-        emitter._looping = false;
-
-        if (queue.length) {
-            emitter.log("looping hit max", loop);
-            queue[0].again = true;
-            emitter.nextTick(self);
-        } else if ( waiting.length ) {
-            emitter.nextTick(self);
-        } else {
-            emitter.queueEmpty();
-        }
-
-        if (caller) {
-            emitter.log("loop ended", caller, loop);
-        }
-
-        return emitter;
-
-    }
-
-
-#### Act
-
-This is to execute a single handler on the event queue. 
-
-!! Consider the impact of evObj.unseen and again checks on performance.
-Presumably okay, but does happen on every loop. 
-    
-    evObj = queue[0];
-    events = evObj.events;
-
-    if (evObj.unseen) {
-        emitter.log("seeing new event", evObj.ev, evObj);
-        delete evObj.unseen;
-        delete evObj.again;
-    } else if (evObj.again) {
-        emitter.log("seeing event again", evObj.ev, evObj);
-        delete evObj.again; 
-    }
-
-    
-
-    if (events.length === 0) {
-        queue.shift();
-        continue;
-    }
-
-
-    cur = events[0]; 
-
-    if (events[0][1].length === 0) {
-        events.shift();
-        continue;
-    }
-
-    ev = cur[0];
-    f = cur[1].shift();
-    if (f) {
-        evObj.cur = [ev, f];
-        emitter.log("firing", ev, f, evObj);
-        f.execute(evObj.data, evObj);
-        emitter.log("fired", ev, f, evObj);
-        _":deal with stopping"
-
-    }
-
-
-[deal with stopping]()
-
-If f modifies the passed in second argument to include stop:true, then the
-event emission stops. This includes the current remaining handlers for that
-scope's events as well as all remaining bubbling up levels. 
-
-We remove the event from the queue. Since the queue may have changed, we find
-it carefully.
-
-    if ( evObj.stop === true ) {
-        emitter.log("emission stopped", ev, evObj);
-        ind = queue.indexOf(evObj);
-        if (ind !== -1) {
-            queue.splice(ind, 1);
-        }
-        continue;
-    }
-
-
-#### NextTick
-
-The cede control function -- node vs browser.
-
-    (typeof process !== "undefined" && process.nextTick) ? process.nextTick 
-        : (function (f) {setTimeout(f, 0);})
-    
-
-#### Stop
-
-Clear queued up events. 
-
-    function (a, neg) {
-        var queue = this._queue,
-            waiting = this._waiting,
-            emitter = this,
-            ev, rw, rq; 
-
-        if (arguments.length === 0) {
-            rq = queue.splice(0, queue.length);
-            rw = waiting.splice(0, waiting.length);
-            emitter.log("queue cleared of all events", rw, rq);
-            return emitter; 
-        }
-
-        if (a === true) {
-            ev = queue.shift();
-            ev.stop = true;
-            emitter.log("event cleared", ev);
-            return emitter;
-        }
-        
-        _":splice queue waiting"
-        return emitter;
-    }
-
-[splice queue waiting]()
-
-This should handle the various cases of string/array of strings/function in
-determining whether an event should be removed. 
- 
-The queues consist of event objects.
-
-We filter both queue and waiting, storing the ones we wish to keep. After
-going through it, we then use splice to insert the array of ones to keep (in
-temp) and remove all of the old elements. I do not about this being efficient,
-but it should work. 
-    
-    var filt, f, temp=[];
-
-    f = filter(a, neg);
-    filt = function (el, ind, arr) {
-        if ( f(el.ev, el, ind, arr) ) {
-            el.stop = true;
-        } else {
-            temp.push(el);
-        }
-    };
-    queue.forEach(filt);
-    temp.unshift(0, queue.length);
-    rq = queue.splice.apply(queue, temp);
-    temp.splice(0, temp.length);
-    waiting.forEach(filt);
-    temp.unshift(0, waiting.length);
-    rw = waiting.splice.apply(waiting, temp);
-    emitter.log("some events stopped", a, rq, rw);
-
-
-
-[doc]() 
-
-    ### stop(filter toRemove, bool neg) --> emitter
-
-    This is a general purpose maintainer of the queue/waiting lists. It will
-    remove the events that match the first argument in some appropriate way.
-
-    __arguments__
-
-    * No argument. Removes all queued events.
-    * `toRemove` as boolean true. Current event on queue gets removed, any
-      active handler is stopped.  
-    * `toRemove` Any [filter](#filter) type. If an event matches, it is
-      removed. 
-    * `neg`. Reverse match semantics of filter type. 
-        
-    __returns__
-
-    Emitter for chaining.
-
-    __example__
-
-        _":example"
-
-[example]()
-    
-    // stop crazy from acting
-    emitter.stop("crazy");
-    // stop all events
-    emitter.stop();
-    // stop next event on queue
-    emitter.stop(true);
-    // stop all events with button in title
-    emitter.stop(/^button/);
-    
-
-#### Error
-
-All handler execution are encapsulated in a try..catch. This allows for easy
-error handling from controlling the emitter.error method. It is passed in
-the error object, the handler value, emit data, event object, and the
-executing context. 
-
-What is done here is a default and suitable for development. In production,
-one might want to think whether throwing an error is a good thing or not. 
-
-Since we are throwing an error, we need to make sure emitter.looping is set
-to false so that if the error is handled and path resumes, we still get a
-flow of the emitter. 
-
-    function (e, handler, data, evObj, context) {
-        var emitter = this;
-        emitter._looping = false;
-        var s = emitter.serial;
-        _"logs:error"
-        console.log(err);
-        emitter.log("error raised", e, handler, data, evObj, context);
-        throw Error(e);
-    }
-
-[doc]() 
-
-    ### error()
-
-    This is where errors can be dealt with when executing handlers. It is
-    passed in the error object as well as the handler value, emit data,
-    event object, and executing context. The current full handler can be
-    found in the second entry of the cur array in the event object. 
-
-    If you terminate the flow by throwing an error, be sure to set
-    `emitter._looping` to false. 
-    
-    This is a method to be overwritten, not called. 
-
-    __example__
-
-        _":example"
-
-[example]()
-
-    emitter.error = function (e, handler, data, evObj, context) {
-        console.log( "Found error: " + e + 
-            " while executing " + handler + 
-            " with data " + data + 
-            " in executing the event " + evObj.cur[0] + 
-            " with context " + context ); 
-        emitter._looping = false; 
-        throw Error(e); 
-    };
-
-
-#### MakeLog
-
-This creates a sample log function, storing simple descriptions in `_logs`
-and the full data in `_full`, both attached to the log function as
-properties. It uses the functions stored in the functions fdesc property to
-create the simple descriptions. 
-
-    function (len) {
-    
-
-        var emitter = this;
-        
-        var s;
-        _":how to serialize"
-        var se = emitter.serial;
-
-
-        var logs = [],
-            full = [], 
-            fdesc = {_"logs"},
-            temp;
-
-        var ret = function (desc) {
-            var args = Array.prototype.slice.call(arguments, 0);
-
-            if ( ret.fdesc.hasOwnProperty(desc) ) {
-                temp = fdesc[desc].apply( emitter, args.slice(1) );
-                if (temp) {
-                    logs.push( fdesc[desc].apply( emitter, args.slice(1) ) );
-                }
-            }
-
-            full.push(emitter.serial(args));
-        };
-
-        ret._logs = logs;
-        ret._full = full;
-        ret.fdesc = fdesc;
-
-        ret.full = function (filt, neg) {
-            _":array filt"
-            var f = filter(filt, neg);
-            return full.filter(f); 
-        };
-
-        ret.logs = function (filt, neg) {
-            _":array filt"
-            var f = filter(filt, neg);
-            return logs.filter(f); 
-        };
-
-        emitter.log = ret; 
-        return ret;
-    }
-
-[array filt]()
-
-The array of matching exact strings in the logs is not useful. So instead, we
-make it do partial matches. For this, we define a function to pass into
-filter. 
-
-    var arr;
-    if (Array.isArray(filt) ) {
-        arr = filt;
-        filt = function (el) {
-            return arr.some(function (partial) {
-                return ( el.indexOf(partial) !== -1 );     
-            });
-        };
-    } 
-   
-[how to serialize]() 
-
-This should facilitate different serialization schemes. 
-
-    switch (typeof len) {
-        case "number" : 
-            s = function () {
-                var str =  emitter.serial.apply({}, 
-                    Array.prototype.slice.call(arguments, 0) );
-
-                var ret = str.slice(0,len);
-
-                return ret;
-            };
-        break;
-        case "function" : 
-            s = len;
-        break;
-        default :
-            s = emitter.serial;
-    }
-
-
-[doc]()
-
-    ### makeLog() --> fun
-
-    This creates a log function. It is a convenient form, but the log
-    property should often be overwritten. If this is not invoked, then the
-    log is a noop for performance/memory. 
-
-    `emitter.log` expects a description as a first argument and then
-    whatever else varies. 
-
-    The log has various properties/methods of interest: 
-
-    * `_logs` This is where the carefully crafted logs are stored. This should
-      be the most useful and meaningful statements for each logged event. 
-    * `_full`. This is a complete dumping of all passed in data to the log,
-      including the description. 
-    * `fdesc` This is the object whose keys are the emitter.log descriptions
-      and whose values are functions that produce the log input. This is not
-      prototyped; if you delete a function, it is gone. This allows for easy
-      removal of unwanted descriptions.
-    * `full` This produces the logs. Its arguments get passed to the filter
-      function so strings match as substrings, regexs, arrays of substrings to
-      match (exact matches did not seem useful for this), general function
-      filters, and the ability to reverse the matches (maybe the array is
-      useful for that). 
-    * `logs` This acts on the logs array instead of the full array.  Otherwise
-      same as the full function. 
-      
-    __example__
-
-    You should run the example in the example directory to get a feeling for
-    what the logs produce. 
-
-        emitter.makeLog();
-
-        ...
-
-        emitter.log.logs(["emitted", "Executing"]);
-
-
-#### Events
-
-This allows us to see what events have handlers and the number of handlers
-they have. 
-
-We can pass in a function as first argument that should return true/false
-when fed an event string to indicate include/exclude. Alternatively, we can
-pass in a string that will be used as a regex to determine that. Given a
-string, we can include a negate boolean which will negate the match
-semantics. 
-
-If nothing is passed in, then we return all the events that have handlers.
-
-    function (partial, negate) {
-        var emitter = this, 
-            handlers = emitter._handlers,
-            keys = Object.keys(handlers), 
-            filt;
-
-        filt = filter(partial, negate);
-
-        return keys.filter(filt);
-    }
-
-
-[doc]()
-
-    ### events( arr/fun/reg/str partial, bool negate) --> arr keys
-
-    This returns a list of defined events that match the passed in partial
-    condition. 
-
-    __arguments__
-    
-    The behavior depends on the nature of the first argument:
-
-    * String. Any event with the argument as a substring will match.
-    * RegExp. Any event matching the regex will, well, match.
-    * Function. The function should accept event strings and return true if
-      matched. 
-    * Array. Any events that match a string in the passed in array will be
-      returned. 
-
-    The second argument negates the match conditions. 
-
-    __returns__
-
-    An array of event strings that match the passed in criteria.
-
-    __example__
-
-        _":example"
-
-[example]()
-
-    // will match events gre, great, green...
-    emitter.events("gre");
-    // will match events ending with :bob
-    emitter.events(/\:bob$/);
-    // will match if only great. Could also pass in ["great"] instead.
-    emitter.events(function (ev) {
-        return ev === "great";
-    });
-    // grab events from emitter2 and match those in emitter1
-    keys = emitter2.events();
-    emitter1.events(keys);
-
-#### Handlers
-
-Given a list of events, such as given by event listing, produce an object
-with those events as keys and the values as the handlers. 
-
-    function (events, empty) {
-        var emitter = this, 
-            handlers = emitter._handlers, 
-            ret = {}; 
-
-        if (!events) {
-            events = Object.keys(handlers);
-        } else if (!Array.isArray(events)) {
-            events = emitter.events(events);
-        } else if (events[1] === true) {
-            events = emitter.events(events[0], events[1]);
-        }
-
-        events.forEach(function (event) {
-            if ( handlers.hasOwnProperty(event) ) {
-                ret[event] = handlers[event].slice();
-            } else {
-                if (empty) {
-                    ret[event] = null;
-                }
-            }
-        });
-
-        return ret;
-
-    }
-
-[doc]() 
-
-    ### handlers(arr/fun/reg/str events, bool empty) --> obj evt:handlers
-
-    Get listing of handlers per event.
-    
-    __arguments__
-    
-    * `events`. Array of events of interest. 
-    * `events`. If function, reg, or string, then events are genertaed by
-      events method. Note string is a substring match; to get exact, enclose
-      string in an array. 
-    * `events`. If an array of `[filter, true]`, then it reverses the filter
-      selection. 
-    * `events`. Falsy. The events array used is that of all events.
-    * `empty`. If true, it includes undefined events with handlers of null
-      type. This will only happen if an array of events is passed in and
-      there are non-matching strings in that array. 
-
-    __return__
-
-    Object with keys of events and values of arrays of Handlers.
-    
-    __example__
-
-    Let's say we have handlers for the events "bob wakes up" and "bob sleeps".
-
-        _":example"
-
-[example]()
-
-    emitter.handlers("bob") === {
-        "bob wakes up" : [handler1],
-        "bob sleeps" : [handler2, handler3]
-        }
-
-
-### Handler
-
-This is where we define handlers.
-
-The idea is that we will encapsulate all handlers into a handler object.
-When a function or something else is passed into .on and the others, it will
-be converted into a handler object and that object gets returned. If a
-handler object is passed in, then it may get wrapped or it may not.
-
-This is a constructor and it should return `this` in most cases. 
-
-If the passed in is a handler with no new context, then it gets returned as
-is.  Otherwise, we take the handler's value and use it as the value but give
-it a new context.
-
-A handler can have a context. The closest context to an executing handler
-will be used. This is why if it is a handler, we need to grab the value and
-attach it to the new handler with its own context. 
-
-    function (value, context) {
-        if (value instanceof Handler) { 
-             if (typeof context === "undefined") {
-                return value;
-             } else {
-                this.value = value.value;
-                if (value.hasOwnProperty("_label")) {
-                    this._label = value._label;
-                }
-                this.context = context;
-                return this;
-             }
-        }
-
-        var handler = this;
-
-        handler.value = value;
-        if (value.hasOwnProperty("_label")) {
-                    handler._label = value._label;
-                }
-
-        handler.context = context;
-
-        return handler;
-    }
-
-[prototype]()
-
-The prototype object.
-
-* contains Returns a boolean indicating whether the given handler type is
-  contained in the handler. 
-* execute Executes the handler
-* summarize Goes level by level summarizing the structure of the handler
-* removal Removes any of the handler bits that are attached to .when
-  trackers.
-
----
-    Handler.prototype.execute = _"execute"; 
-    Handler.prototype.contains = _"contains";
-    Handler.prototype.summarize = _"summarize";
-    Handler.prototype.removal = _"removal";
-
-[doc]()
-
-    Handlers are the objects that respond to emitted events. Generally they
-    wrap handler type objects. 
-
-    ### Handler types
-
-    * function  `context -> f(data, evObj)` This is the foundation as
-      functions are the ones that execute.  They are called with parameters
-      `data` that can be passed into the emit call and `evObj` which has a
-      variety of properties. See <a href="#event-object">evObj</a>.
-    * string.  This is an action string. When executed, it will look up the
-      action associated with that string and execute that handler. If no
-      such action exists, that gets logged and nothing else happens.
-    * handler. Handlers can contain handlers.
-    * array of handler types. Each one gets executed. This is how `.once`
-      works.
-
-    ### Handler methods
-   
-    These are largely internally used, but they can be used externally.
-
-    * [summarize](#summarize)
-    * [execute](#execute)
-    * [removal](#removal)
-    * [contains](#contains)
-
-    ---
-    <a name="summarize"></a>
-    _"summarize:doc"
-    
-    ---
-    <a name="execute"></a>
-    _"execute:doc"
-    
-    ---
-    <a name="removal"></a>
-    _"removal:doc"
-
-    ---
-    <a name="contains"></a>
-    _"contains:doc"
-
-#### Removal
-
-This is to remove the tracking of a .when event in conjunction with the .off
-method.
-
-    function me (ev, emitter, htype) {
-        var actions = emitter._actions;
-        
-        htype = htype || this;
-
-        if ( htype.hasOwnProperty("tracker") ) {
-            htype.tracker._removeStr(ev);
-            emitter.log("untracked", ev, htype.tracker, htype);
-            return ;
-        }
-
-        if (typeof htype === "string") {
-            if (actions.hasOwnProperty(htype) ) {
-                actions[htype].removal(ev, emitter);
-            }
-            return;
-        }
-
-The tracker is not attached to a function, but to a Handler object.
-
-        if (typeof htype === "function") {
-            return; 
-        }
-
-        if ( Array.isArray(htype) ) {
-            htype.forEach(function (el) {
-                me.call(empty, ev, emitter, el);
-                return;
-            });
-        }
-
-
-        if ( htype.hasOwnProperty("value") ) {
-            me.call(empty, ev, emitter, htype.value); 
-            return;
-        } 
-
-        emitter.log("unreachable reached", "removal", ev, htype);
-
-        return;
-    }
-
-[doc]() 
-
-    #### removal(ev, emitter) --> 
-
-    This removes the handlers from .when trackers. Used by .off.
-
-    __arguments__
-
-    * `this` This is called in the context of the handler.
-    * `ev` The event string to remove from the .when tracker.
-    * `emitter` The emitter object is passed in for actions and log ability.
-    
-    __return__
-
-    Nothing.
-
-    __example__
-
-        handler.removal("whened", emitter); 
-
-#### Contains
-
-This will search for the given possible target to determine if the Handler
-contains it. 
-
-This is used as a method of proper Handler types, but we can't call it as a
-method in general because strings become objectified if they are called in
-context. 
-
-
-    function me (target, htype) {
-
-        if ( (htype === target) || (this === target) ) {
-            return true;
-        }
-
-        htype = htype || this;
-               
-        if ( Array.isArray(htype) ) {
-            return htype.some(function (el) {
-                return me.call(empty, target, el);
-            });
-        }
-
-        if ( htype.hasOwnProperty("value")) {
-            return me.call(empty, target, htype.value);
-        } 
-
-        return false;
-
-    }
-
-[doc]() 
-
-    #### contains(target, htype) --> bool
-
-    This checks to see whether target is contained in the handler type at
-    some point.
-    
-    __arguments__
-
-    * `target` Anything of handler type that is to be matched.
-    * `htype` Anything of handler type. This is the current level. If
-      `htype` is not provided (typically the case in external calling), then
-      the `this` becomes `htype`. 
-
-    __return__ 
-    
-    It returns true if found; false otherwise.
-
-    __example__
-
-        handler.contains(f);
-        handler.contains("act");
-
-#### Execute
-
-Here we handle executing a handler. We could have a variety of values here.
-
-* string. This should be an action. We lookup the action and use the
-  function. 
-* function. Classic. It gets called.
-* handler. This is an object of type handler and how we will always start.
-  We iterate through handlers to find executable types.
-* [possible handler types...]. The array form gets executed in order, be it
-  functions, actions, or Handlers. The array can contain Handler objects
-  that are then handled. 
-
-We pass in data, event object, and context; the value is for internal
-calling, for the most part. 
-
-All of the handlers are encapsulated in a try...catch that then calls the
-emitter's .error method (which can be overwritten). The default will rethrow
-the error with more information. The error is likely to be called multiple
-times if throwing is kept being done. Maybe should think about that.  
-
-evObj.stop is the flag to set to stop execution for the rest of the event's
-handlers. To just stop the cascade for a given handler (see once), return
-true. 
-
-    function me (data, evObj, context, value) {
-        if (evObj.stop) {
-            return;
-        }
-
-        var handler = this,
-            emitter = evObj.emitter,                
-            actions = emitter._actions;
-
-        value = value || handler.value;
-        context = value.context || this.context || context || empty;
-
-        try {
-            if (typeof value === "string") {
-                if ( actions.hasOwnProperty(value) ) {
-                    emitter.log("executing action", value, context, evObj);
-                    return actions[value].execute(data, evObj, context);
-                } else {
-                    emitter.log("action not found", value, evObj);
-                    return false;
-                }
-            }
-
-            if (typeof value === "function") {
-                emitter.log("executing function", value, context, 
-                    evObj);
-                return value.call(context, data, evObj);
-            }
-
-            if ( Array.isArray(value) ) {
-                return value.some(function (el) {
-                    return me.call(empty, data, evObj, context, el); 
-                });
-            }
-
-            if ( typeof value.execute === "function" ) {
-                return value.execute(data, evObj, context);
-            }   
-
-            emitter.log("value not executable", value, evObj);
-
-        } catch (e) {
-            emitter.error(e, value, data, evObj, context);
-        }
-
-        return false;
-    }
-
-[doc]()
-
-    #### execute(data, evObj, context, value) --> 
-
-    This executes the handler. 
-
-    __arguments__
-
-    * `data`, `evObj` get passed into the functions as first and second
-      arguments. This is generated by the emit. 
-    * `context` The closest context will be used. If the function is bound,
-      that obviously takes precedence.
-    * `value` This is largely internally used. 
-
-    __return__
-
-    Nothing. 
-
-    __example__
-
-        handler = new Handler(function () {console.log(this.name, data);},
-            {name: "test"});
-        handler.execute("cool", {emitter:emitter});
-
-
-#### Summarize
-
-This tries to report the structure of the handlers. We use the property
-name "\_label" for the tag to return for any given level.
-
-For functions, we use their given name 
-
-    function me (value) {
-        var ret, lead;
-
-        if (typeof value === "undefined" ) {     
-            value = this;
-        }
-
-       if (typeof value === "string") {
-            return "a:" + value;
-        }
-
-        if (typeof value === "function") {
-            return serial(value);
-        }
-
-        if ( Array.isArray(value) ) {
-            ret = value.map(function (el) {
-                return me.call(empty, el);
-            });
-            lead = value._label || "";
-            return lead + "[" + ret.join(", ") + "]";
-        }
-
-        if ( value && typeof value.summarize === "function" ) {
-            ret = me.call(empty, value.value);
-            lead = value._label || "";
-            return "h:" + lead + " " + ret;
-        } 
-
-        return "unknown";
-
-        }
-
-[doc]()
-
-    #### summarize(value) --> str
-
-    This takes a handler and summarizes its structure. To give a meaningful
-    string to handlers for a summarize, one can add `._label` properties to
-    any of the value types except action strings which are their own "label". 
-
-    __arguments__
-
-     * `value` or `this` is to be of handler type and is what is being
-      summarized. 
-
-    __return__
-
-    The summary string.
-
-    __example__
-
-        handler.summarize();
-
-#### Make Handler
-
-This is a simple wrapper for new Handler
-
-    function (value, context) {
-        return new Handler(value, context);
-    }
-
-[doc]()
-
-    ### makeHandler(value, context) --> handler
-
-    Create a handler. 
-
-    __arguments__
-
-    * `value` The handler type to wrap.
-    * `context` What the `this` should be for calling the handler.
-
-    __example__
-
-        emitter.makeHandler(function yay () {}, obj);
 
 ### Tracker
 
@@ -3009,7 +2070,7 @@ We restore tracker.go if it has been silenced.
     replaced with the original events array. All data is wiped. No arguments.  
     
 
-### Silence
+#### Silence
 
 This sets up events to be not emitted. Each argument is an event to ignore. If
 no arguments, then it ignores the most recent event.
@@ -3030,7 +2091,388 @@ no arguments, then it ignores the most recent event.
     it will not appear in the list of events. If an event is applied multiple
     times and silenced, it will be silent for the  
 
-### Logs 
+## Goodies
+
+These are tools that help with event-when, but are not core to its
+functioning. 
+
+### Filter
+
+This is a utility function for construction filter functions for checking
+string matches of various forms. In particular, it can accept the passing in
+of a string for substring matching, array of strings for exact matches,
+regex, null for all, and a function that does its own matching. It takes an
+optional second boolean argument for negating. 
+
+It also suppots [condition, negate] semantics.
+
+    function (condition, negate) {
+        
+        if ( (Array.isArray(condition)) && (typeof condition[1] === "boolean") ) {
+            negate = condition[1];
+            condition = condition[0];
+        }
+
+        if (typeof condition === "string") {
+           
+           if (negate) {
+                return function (el) {
+                    return el.indexOf(condition) === -1;  
+                };
+            } else {
+                return function (el) {
+                    return el.indexOf(condition) !== -1;  
+                }; 
+            }
+
+        } else if ( Array.isArray(condition) ) {
+          
+            if (negate) {
+                return function (el) {
+                    return condition.indexOf(el) === -1;
+                };
+            } else {
+                return function (el) {
+                   return condition.indexOf(el) !== -1;
+                };
+            }
+
+        } else if ( condition instanceof RegExp ) {
+
+            if (negate) {
+                return function (el) {
+                    return !condition.test(el);
+                };
+            } else {
+                return function (el) {
+                    return condition.test(el);
+                };
+            }
+
+        } else if ( typeof condition === "function" ) {
+            
+            if (negate) {
+                return function () {
+                    var self = this;
+                    return ! condition.apply(self, arguments);  
+                };
+            } else {
+                return condition;
+            }
+
+        } else {
+    
+            return function () {return true;};
+            
+        }
+
+    }
+
+[doc]()
+
+
+    Several of the methods accept something of filter type. This could be a
+    string, an array of strings, a regex, or a function. All of them are
+    being used to filter strings based on matching. Most of the methods also
+    allow for a negation boolean that will reverse the matching results. 
+
+    * String. These will match as a substring of the being tested string. So
+      if "bob" is the filter object, it will match any string containing
+      "bob". 
+    * Array of strings. If the string is in the array, it will match. This
+      is an exact match. So if we have ["bob", "jane"], then this will match
+      "bob" or "jane" and no other strings.
+    * Regex. If the string matches the regex, it matches. So /bob/ will
+      match any string containing bob. 
+    * Function. If the function returns true, then it matches. 
+    * Array of `[filter type, boolean]` for functions that don't accept the
+      second argument of negate. 
+[fdoc]()
+
+    #### filter(filter type) --> function
+
+    This takes in something of [filter type](#filter) and outputs a function
+    that accepts a string and returns a boolean whose value depends on whether
+    a matching has occurred. 
+
+
+
+
+
+### Monitor
+
+Sometimes we may want to intercept/stop/inspect emit events. To do this, we
+provide the monitor method that takes in a filter and a handler function. The
+first assignment activates the wrapping and the passed in handler will be
+activated whenever the filter matches. 
+
+In the constructor, we add `_monitor` which contains `[filter function,
+listener]` types. 
+
+If you need to do something after the event finishes executing, you can
+attach a custom handler using once to the event. The listener fires
+immediately, regardless of the timer.
+
+If you wish to stop the event, the listener should return "stop".
+
+
+    function (filt, listener) {
+
+        var emitter = this,
+            mon = emitter._monitor, 
+            temp, ret;
+
+
+        if (arguments.length === 0) {
+            return mon;
+        }
+
+        if (arguments.length === 1) {
+            _":remove listener"
+
+            if (mon.length === 0) {
+                emitter.log("restoring normal emit", filt.filt, filt); 
+                emitter.emit = emitter._emit;
+            }
+            
+            return emitter;
+        
+        } 
+
+        if (arguments.length === 2) {
+            if (Array.isArray(filt) && typeof filt[1] === "boolean") {
+               ret = [filter(filt[0], filt[1]), listener]; 
+            } else {
+                ret = [filter(filt), listener];
+            }
+            mon.push(ret);
+            ret.filt = filt;
+            emitter.log("wrapping emit", filt, listener, ret);
+            emitter.emit = emitter._emitWrap;
+            return ret;
+        }
+
+
+    }
+
+[remove listener]()
+
+This removes a listener. It should be an exact match to what is in the
+array. 
+
+    temp = mon.indexOf(filt);
+    if (temp !== -1) {
+        emitter.log("removing wrapper", filt);
+        mon.splice(temp, 1);
+    } else {
+        emitter.log("attempted removal of wrapper failed", filt);
+    }
+
+[wrapper]() 
+
+This is the wrapper around the normal emit event function that fires instead
+when there are monitors around. 
+
+    function (ev, data, timing) {
+        var emitter = this, 
+            mon = emitter._monitor,
+            go = true;
+       
+        mon.forEach(function (el) {
+            var filt = el[0],
+                fun = el[1], 
+                temp;
+
+            if (filt(ev)) {
+                emitter.log("intercepting event", ev, data, el);
+                temp = fun(ev, data, emitter); 
+                if (temp === "stop") {
+                    emitter.log("stopping event", ev, data, el);
+                    go = false;
+                }
+            }
+        });
+
+        if (go) {
+            emitter._emit(ev, data, timing);
+        }
+
+        return emitter;
+
+    }
+
+
+[doc]()
+
+    ### monitor(listener arr/filter, listener) --> [filt, listener]
+
+    If you want to react to events on a more coarse grain level, then you can
+    use the monitor method. 
+
+    __arguments__
+
+    * no args. returns array of active listeners.
+    * `filter` Of filter type. Any event that matches the filter will be
+      monitored. If an array of [filter, true] is passed in, that the filter
+      will be negated. 
+    * `listener` This is a function that will respond to the event. It will
+      receive the event being emitted, the data, and the emitter object
+      itself. It has no context other than what is bound to it using .bind. 
+    * `listener arr` If listener array is passed in as first (and only)
+      argument, then the array is removed from the relevant array. 
+
+    __returns__
+
+    Listener array of filter, function when assigning. Use this to remove the
+    monitoring. The returned array also has a `.orig` property containing the
+    original filter type.
+    
+    __example__
+
+        emitter.monitor(/bob/, function(ev, data, emitter) {
+            console.log("bob in ", ev, " with ", data);
+            emitter.emit("mischief managed");
+        });
+
+    Note if you were to emit "bob" in the above monitor, then we would have an
+    infinite loop.
+
+### MakeLog
+
+This creates a sample log function, storing simple descriptions in `_logs`
+and the full data in `_full`, both attached to the log function as
+properties. It uses the functions stored in the functions fdesc property to
+create the simple descriptions. 
+
+    function (len) {
+    
+
+        var emitter = this;
+        
+        var s;
+        _":how to serialize"
+        var se = emitter.serial;
+
+
+        var logs = [],
+            full = [], 
+            fdesc = {_"logs"},
+            temp;
+
+        var ret = function (desc) {
+            var args = Array.prototype.slice.call(arguments, 0);
+
+            if ( ret.fdesc.hasOwnProperty(desc) ) {
+                temp = fdesc[desc].apply( emitter, args.slice(1) );
+                if (temp) {
+                    logs.push( fdesc[desc].apply( emitter, args.slice(1) ) );
+                }
+            }
+
+            full.push(emitter.serial(args));
+        };
+
+        ret._logs = logs;
+        ret._full = full;
+        ret.fdesc = fdesc;
+
+        ret.full = function (filt, neg) {
+            _":array filt"
+            var f = filter(filt, neg);
+            return full.filter(f); 
+        };
+
+        ret.logs = function (filt, neg) {
+            _":array filt"
+            var f = filter(filt, neg);
+            return logs.filter(f); 
+        };
+
+        emitter.log = ret; 
+        return ret;
+    }
+
+[array filt]()
+
+The array of matching exact strings in the logs is not useful. So instead, we
+make it do partial matches. For this, we define a function to pass into
+filter. 
+
+    var arr;
+    if (Array.isArray(filt) ) {
+        arr = filt;
+        filt = function (el) {
+            return arr.some(function (partial) {
+                return ( el.indexOf(partial) !== -1 );     
+            });
+        };
+    } 
+   
+[how to serialize]() 
+
+This should facilitate different serialization schemes. 
+
+    switch (typeof len) {
+        case "number" : 
+            s = function () {
+                var str =  emitter.serial.apply({}, 
+                    Array.prototype.slice.call(arguments, 0) );
+
+                var ret = str.slice(0,len);
+
+                return ret;
+            };
+        break;
+        case "function" : 
+            s = len;
+        break;
+        default :
+            s = emitter.serial;
+    }
+
+
+[doc]()
+
+    ### makeLog() --> fun
+
+    This creates a log function. It is a convenient form, but the log
+    property should often be overwritten. If this is not invoked, then the
+    log is a noop for performance/memory. 
+
+    `emitter.log` expects a description as a first argument and then
+    whatever else varies. 
+
+    The log has various properties/methods of interest: 
+
+    * `_logs` This is where the carefully crafted logs are stored. This should
+      be the most useful and meaningful statements for each logged event. 
+    * `_full`. This is a complete dumping of all passed in data to the log,
+      including the description. 
+    * `fdesc` This is the object whose keys are the emitter.log descriptions
+      and whose values are functions that produce the log input. This is not
+      prototyped; if you delete a function, it is gone. This allows for easy
+      removal of unwanted descriptions.
+    * `full` This produces the logs. Its arguments get passed to the filter
+      function so strings match as substrings, regexs, arrays of substrings to
+      match (exact matches did not seem useful for this), general function
+      filters, and the ability to reverse the matches (maybe the array is
+      useful for that). 
+    * `logs` This acts on the logs array instead of the full array.  Otherwise
+      same as the full function. 
+      
+    __example__
+
+    You should run the example in the example directory to get a feeling for
+    what the logs produce. 
+
+        emitter.makeLog();
+
+        ...
+
+        emitter.log.logs(["emitted", "Executing"]);
+
+
+### Logs
 
 This is where we keep track of the log statements and what to do with them. 
 
@@ -3236,14 +2678,11 @@ This code is also present in default error method with the string being
 console.logged.
 
     var err = "error " + e + "\n\n" +
-        "event " + 
-        ( (evObj.ev === evObj.cur[0] ) ?
-            s(evObj.ev) :
-            s(evObj.ev, evObj.cur[0]) ) + 
+        "event " + s(evObj) +  
         "\nhandler " + s(handler) + 
         "\ndata " + s(data) + 
         "\ncontext " + s(context) + 
-        "\nscopes " + s(evObj.scopes) + 
+        "\nscopes " + s('scopes') + 
         "\nstack " + e.stack;
 
 [emergency logs]() 
@@ -3264,104 +2703,414 @@ library is going smoothly. They will be captured in the full log.
 
 
 
-### Filter
 
-This is a utility function for construction filter functions for checking
-string matches of various forms. In particular, it can accept the passing in
-of a string for substring matching, array of strings for exact matches,
-regex, null for all, and a function that does its own matching. It takes an
-optional second boolean argument for negating. 
 
-It also suppots [condition, negate] semantics.
+### Error
 
-    function (condition, negate) {
-        
-        if ( (Array.isArray(condition)) && (typeof condition[1] === "boolean") ) {
-            negate = condition[1];
-            condition = condition[0];
-        }
+All handler execution are encapsulated in a try..catch. This allows for easy
+error handling from controlling the emitter.error method. It is passed in
+the error object, the handler value, emit data, event object, and the
+executing context. 
 
-        if (typeof condition === "string") {
-           
-           if (negate) {
-                return function (el) {
-                    return el.indexOf(condition) === -1;  
-                };
-            } else {
-                return function (el) {
-                    return el.indexOf(condition) !== -1;  
-                }; 
-            }
+What is done here is a default and suitable for development. In production,
+one might want to think whether throwing an error is a good thing or not. 
 
-        } else if ( Array.isArray(condition) ) {
-          
-            if (negate) {
-                return function (el) {
-                    return condition.indexOf(el) === -1;
-                };
-            } else {
-                return function (el) {
-                   return condition.indexOf(el) !== -1;
-                };
-            }
+Since we are throwing an error, we need to make sure emitter.looping is set
+to false so that if the error is handled and path resumes, we still get a
+flow of the emitter. 
 
-        } else if ( condition instanceof RegExp ) {
+    function (e, handler, data, evObj, context) {
+        var emitter = this;
+        emitter._looping = false;
+        var s = emitter.serial;
+        _"logs:error"
+        console.log(err);
+        emitter.log("error raised", e, handler, data, evObj, context);
+        //throw Error(e);
+    }
 
-            if (negate) {
-                return function (el) {
-                    return !condition.test(el);
-                };
-            } else {
-                return function (el) {
-                    return condition.test(el);
-                };
-            }
+[doc]() 
 
-        } else if ( typeof condition === "function" ) {
-            
-            if (negate) {
-                return function () {
-                    var self = this;
-                    return ! condition.apply(self, arguments);  
-                };
-            } else {
-                return condition;
-            }
+    ### error()
 
-        } else {
+    This is where errors can be dealt with when executing handlers. It is
+    passed in the error object as well as the handler value, emit data,
+    event object, and executing context. The current full handler can be
+    found in the second entry of the cur array in the event object. 
+
+    If you terminate the flow by throwing an error, be sure to set
+    `emitter._looping` to false. 
     
-            return function () {return true;};
-            
+    This is a method to be overwritten, not called. 
+
+    __example__
+
+        _":example"
+
+[example]()
+
+    emitter.error = function (e, handler, data, evObj, context) {
+        console.log( "Found error: " + e + 
+            " while executing " + handler + 
+            " with data " + data + 
+            " in executing the event " + evObj.cur[0] + 
+            " with context " + context ); 
+        emitter._looping = false; 
+        throw Error(e); 
+    };
+
+
+
+### Events
+
+This allows us to see what events have handlers and the number of handlers
+they have. 
+
+We can pass in a function as first argument that should return true/false
+when fed an event string to indicate include/exclude. Alternatively, we can
+pass in a string that will be used as a regex to determine that. Given a
+string, we can include a negate boolean which will negate the match
+semantics. 
+
+If nothing is passed in, then we return all the events that have handlers.
+
+    function (partial, negate) {
+        var emitter = this, 
+            handlers = emitter._handlers,
+            keys = Object.keys(handlers), 
+            filt;
+
+        filt = filter(partial, negate);
+
+        return keys.filter(filt);
+    }
+
+
+[doc]()
+
+    ### events( arr/fun/reg/str partial, bool negate) --> arr keys
+
+    This returns a list of defined events that match the passed in partial
+    condition. 
+
+    __arguments__
+    
+    The behavior depends on the nature of the first argument:
+
+    * String. Any event with the argument as a substring will match.
+    * RegExp. Any event matching the regex will, well, match.
+    * Function. The function should accept event strings and return true if
+      matched. 
+    * Array. Any events that match a string in the passed in array will be
+      returned. 
+
+    The second argument negates the match conditions. 
+
+    __returns__
+
+    An array of event strings that match the passed in criteria.
+
+    __example__
+
+        _":example"
+
+[example]()
+
+    // will match events gre, great, green...
+    emitter.events("gre");
+    // will match events ending with :bob
+    emitter.events(/\:bob$/);
+    // will match if only great. Could also pass in ["great"] instead.
+    emitter.events(function (ev) {
+        return ev === "great";
+    });
+    // grab events from emitter2 and match those in emitter1
+    keys = emitter2.events();
+    emitter1.events(keys);
+
+### Scopes
+
+This will return an object with with key as scope, value as context. 
+
+
+    function (evfilt, neg) {
+
+        var emitter = this, 
+            f, keys, ret;
+
+        keys = emitter.scope();
+
+        if (evfilt) {
+            f = filter(evfilt, neg);
+            keys = keys.filter(f);
         }
 
+        ret = {};
+        keys.forEach(function (el) {
+            ret[el] = emitter.scope(el);
+        });
+        return ret;
+    }
+    
+
+[doc]()
+
+    ### scopes(arr/bool/fun/reg/str filter, bool neg) --> obj
+
+    This returns an object with keys of scopes and values of their contexts. 
+
+    __arguments__
+
+    * No argument or falsy first argument. Selects all scopes for
+      returning.      
+    * `filter` Anything of [filter](#filter) type. Selects all scopes matching
+      filter. 
+    * `neg` Negates the match semantics. 
+
+    __return__
+
+    An object whose keys match the selection and values are the corresponding
+    scope's value. If the value is an object, then the returned object values
+    are live and modifications on one will reflect on the other. 
+
+    __example__
+
+    Following the example of bob in scope...
+
+        _":example"
+
+[example]()
+
+    emitter.scopes("bob") === {bob: {bd :"1/1"} }
+
+    emitter.scopes("bob", true) == {}
+
+### Actions
+
+This will return an object with with key as action, value as handler. 
+
+
+    function (evfilt, neg) {
+
+        var emitter = this, 
+            f, keys, ret;
+
+        if (!evfilt) {
+            keys = Object.keys(emitter._actions);
+        } else {
+            f = filter(evfilt, neg);
+            keys = Object.keys(emitter._actions).filter(f);
+        }
+
+        ret = {};
+        keys.forEach(function (el) {
+            ret[el] = emitter._actions[el];
+        });
+        return ret;
     }
 
 [doc]()
 
+    
+    ### actions(arr/bool/fun/reg/str filter, bool neg) --> obj
 
-    Several of the methods accept something of filter type. This could be a
-    string, an array of strings, a regex, or a function. All of them are
-    being used to filter strings based on matching. Most of the methods also
-    allow for a negation boolean that will reverse the matching results. 
+    This returns an object with keys of actions and values of their handlers. 
 
-    * String. These will match as a substring of the being tested string. So
-      if "bob" is the filter object, it will match any string containing
-      "bob". 
-    * Array of strings. If the string is in the array, it will match. This
-      is an exact match. So if we have ["bob", "jane"], then this will match
-      "bob" or "jane" and no other strings.
-    * Regex. If the string matches the regex, it matches. So /bob/ will
-      match any string containing bob. 
-    * Function. If the function returns true, then it matches. 
-    * Array of `[filter type, boolean]` for functions that don't accept the
-      second argument of negate. 
-[fdoc]()
+    __arguments__
 
-    #### filter(filter type) --> function
+    * No argument or falsy first argument. Selects all actions for
+      returning.      
+    * `filter` Anything of [filter](#filter) type. Selects all actions
+      matching filter. 
+    * `neg` Negates the match semantics. 
 
-    This takes in something of [filter type](#filter) and outputs a function
-    that accepts a string and returns a boolean whose value depends on whether
-    a matching has occurred. 
+    __return__
+
+    An object whose keys match the selection and values are the corresponding
+    actions's value. If the value is an object, then that object is the same
+    object and modifications on one will reflect on the other. 
+
+    __example__
+
+    The following are various ways to return all actions that contain the
+    word bob. 
+ 
+        emitter.actions("bob"); 
+        emitter.actions(/bob/);
+        emitter.actions(function (str) {
+            return str.indexOf("bob") !== -1;
+        });
+
+    In contrast, the following only returns the action with bob as the exact
+    name.
+
+        emitter.actions(["bob"]);
+        emitter.action("bob");
+
+    The first one returns an object of the form `{bob: handler}` while the
+    second returns the handler. 
+
+
+### Handlers
+
+Given a list of events, such as given by event listing, produce an object
+with those events as keys and the values as the handlers. 
+
+    function (events, empty) {
+        var emitter = this, 
+            handlers = emitter._handlers, 
+            ret = {}; 
+
+        if (!events) {
+            events = Object.keys(handlers);
+        } else if (!Array.isArray(events)) {
+            events = emitter.events(events);
+        } else if (events[1] === true) {
+            events = emitter.events(events[0], events[1]);
+        }
+
+        events.forEach(function (event) {
+            if ( handlers.hasOwnProperty(event) ) {
+                ret[event] = handlers[event].slice();
+            } else {
+                if (empty) {
+                    ret[event] = null;
+                }
+            }
+        });
+
+        return ret;
+
+    }
+
+[doc]() 
+
+    ### handlers(arr/fun/reg/str events, bool empty) --> obj evt:handlers
+
+    Get listing of handlers per event.
+    
+    __arguments__
+    
+    * `events`. Array of events of interest. 
+    * `events`. If function, reg, or string, then events are genertaed by
+      events method. Note string is a substring match; to get exact, enclose
+      string in an array. 
+    * `events`. If an array of `[filter, true]`, then it reverses the filter
+      selection. 
+    * `events`. Falsy. The events array used is that of all events.
+    * `empty`. If true, it includes undefined events with handlers of null
+      type. This will only happen if an array of events is passed in and
+      there are non-matching strings in that array. 
+
+    __return__
+
+    Object with keys of events and values of arrays of Handlers.
+    
+    __example__
+
+    Let's say we have handlers for the events "bob wakes up" and "bob sleeps".
+
+        _":example"
+
+[example]()
+
+    emitter.handlers("bob") === {
+        "bob wakes up" : [handler1],
+        "bob sleeps" : [handler2, handler3]
+        }
+
+
+### Stop
+
+Clear queued up events. 
+
+    function (a, neg) {
+        var queue = this._queue,
+            emitter = this,
+            ev, rw, rq; 
+
+        if (arguments.length === 0) {
+            rq = queue.splice(0, queue.length);
+            emitter.log("queue cleared of all events", rw, rq);
+            return emitter; 
+        }
+
+        if (a === true) {
+            ev = queue.shift();
+            ev.stop = true;
+            emitter.log("event cleared", ev);
+            return emitter;
+        }
+        
+        _":splice queue waiting"
+        return emitter;
+    }
+
+[splice queue waiting]()
+
+This should handle the various cases of string/array of strings/function in
+determining whether an event should be removed. 
+ 
+The queues consist of event objects.
+
+We filter both queue and waiting, storing the ones we wish to keep. After
+going through it, we then use splice to insert the array of ones to keep (in
+temp) and remove all of the old elements. I do not about this being efficient,
+but it should work. 
+    
+    var filt, f, temp=[];
+
+    f = filter(a, neg);
+    filt = function (el, ind, arr) {
+        if ( f(el.ev, el, ind, arr) ) {
+            el.stop = true;
+        } else {
+            temp.push(el);
+        }
+    };
+    queue.forEach(filt);
+    temp.unshift(0, queue.length);
+    rq = queue.splice.apply(queue, temp);
+    temp.splice(0, temp.length);
+    emitter.log("some events stopped", a, rq, rw);
+
+
+
+[doc]() 
+
+    ### stop(filter toRemove, bool neg) --> emitter
+
+    This is a general purpose maintainer of the queue. It will
+    remove the events that match the first argument in some appropriate way.
+
+    __arguments__
+
+    * No argument. Removes all queued events.
+    * `toRemove` as boolean true. Current event on queue gets removed, any
+      active handler is stopped.  
+    * `toRemove` Any [filter](#filter) type. If an event matches, it is
+      removed. 
+    * `neg`. Reverse match semantics of filter type. 
+        
+    __returns__
+
+    Emitter for chaining.
+
+    __example__
+
+        _":example"
+
+[example]()
+    
+    // stop crazy from acting
+    emitter.stop("crazy");
+    // stop all events
+    emitter.stop();
+    // stop next event on queue
+    emitter.stop(true);
+    // stop all events with button in title
+    emitter.stop(/^button/);
+    
 
 ### Cycle
 
@@ -3531,6 +3280,14 @@ remove the added quotes.
     encapsulated in an array. 
 
 
+### Graphical Representation
+
+This option institutes converting the emits, actions, whens, whatever, into a
+graphical structure. 
+
+Current thought is to use [vis.js](visjs.org) as the target output.
+
+
 ## README
 
 The readme for this. A lot of the pieces come from the doc sections.
@@ -3656,10 +3413,6 @@ The readme for this. A lot of the pieces come from the doc sections.
     _"makelog:doc"
     
     ---
-    <a name="makehandler"></a>
-    _"make handler:doc"
-
-    ---
     <a name="filt"></a>
     _"filter:fdoc"
     
@@ -3682,11 +3435,6 @@ The readme for this. A lot of the pieces come from the doc sections.
     ### Tracker
     <a name="tracker"></a>
     _"tracker:doc"
-
-    ___
-    ### Event Object
-    <a name="#event-object"></a>
-    _"event object"
 
     ___
     ### Filter Type

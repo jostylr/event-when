@@ -38,20 +38,19 @@ file.
       a webpage, then we can do something like 
         
         ```   
-        emitter.when(["file parsed:jack", "database returned:jack"],
-            "all data retrieved:jack");
+        emitter.when([["file parsed, "jack"], ["database returned", "jack"]],
+            ["all data retrieved","jack"]);
+
+        emitter.when(["file parsed, "database returned"],
+            "all data retrieved", {scope: "jack"});
+
         ``` 
         
         This is why the idea of a central emitter is particularly useful to
         this library's intent.
     * [Scope](#scope). Events can be scoped. In the above example, each of
-      the events are scoped based on the user jack. It bubbles up from the
-      most specific to the least specific. Each level can access the
-      associated data at all levels. For example, we can store data at the
-      specific jack event level while having the handler at "all data
-      retrieved" access it. Works the other way too. One can stash the
-      scope into scope jack and the handler for `database returned` can
-      access the name jack and its scope.  
+      the events are scoped based on the user jack. The emitter hosts a scope
+      object where data for scopes can be stashed. 
     * [Actions](#action). Events should be statements of fact. Actions can be
       used to call functions and are statements of doing. "Compile document"
       is an action and is a nice way to represent a function handler.
@@ -69,9 +68,6 @@ file.
     about making it easier to develop the flow of an application. If you need
     something that handles large number of events quickly, this may not be the
     right library. Benchmarking a simple emit can be found in benchmark.js.
-    On my MBA mid-2011, it does 5e4 emits in a half a second, 5e5 emits in
-    about 4.5 seconds while the native emitter does 5e5 in about a tenth of a
-    second.
 
     ### Using
 
@@ -114,7 +110,7 @@ the rest are all ancillary files. We read in most of the stuff from
 This is the main structure of the module file.
 
 
-    /*jshint eqnull:true*/
+    /*jshint eqnull:true,esversion:6 */
     /*global setTimeout, process, module, console */
 
     ;(function () {
@@ -158,7 +154,7 @@ the most number of operations occurs.
     
     /*global require, process, console */
     
-    var n = process.argv[2] || 1e3;
+    var n = parseFloat(process.argv[2], 10) || 5e5;
 
     var i, time, c;
 
@@ -167,12 +163,20 @@ the most number of operations occurs.
         console.log("##", tag);
         console.log("count", count);
         console.log('benchmark took ' + diff[0] + ' seconds and ' +
-            diff[1]/1e6 + ' milliseconds');
+            diff[1]*1e-6 + ' milliseconds');
     };
 
+    console.log(process.memoryUsage());
+
+
     _":first"
+    console.log(process.memoryUsage());
    
+    _":evw scope"
+    console.log(process.memoryUsage());
+
     _":second"
+    console.log(process.memoryUsage());
 
 [first]()
 
@@ -184,7 +188,7 @@ the most number of operations occurs.
 
     c = 0;
 
-    emitter.on("go", function () {
+    emitter.on("go", "add 1", function count () {
         c += 1;
     });
         
@@ -195,6 +199,32 @@ the most number of operations occurs.
     }
 
     log(time, c, "event-when");
+
+
+[evw scope]()
+
+
+    emitter = new EvW();
+
+    emitter.loopMax = 2*n;
+
+    emitter.scope('c', 0);
+
+    emitter.on("go", "add 1", function count (num, scope, emitter) {
+        emitter.scope('c', emitter.scope('c')+num);
+    });
+        
+    time = process.hrtime();
+    
+    for (i = 0; i < n; i += 1) {
+        emitter.emit("go:c", 1);
+    }
+
+    log(time, emitter.scope('c'), "event-when scope");
+
+
+
+
 
 [second]()
 
@@ -220,6 +250,57 @@ Native event emitter
 
 
 ## Change Log
+
+
+### Version 2
+
+Version 1 had many events and scopes being fired from one emit. This was to
+model it like the bubbling up of DOM events in the browser. But that is needed
+in the browser because when one clicks on something, one is clicking on
+multiple items and there is no way to see which one is the target. 
+
+After working with event-when for awhile, such options are not needed. If they
+are, one can always fire another event up the chain. 
+
+Instead, we will drop to one event being emitted with one scope. The actions
+can be triggered by the event and, optionally, in conjunction with a match of
+the scope, either exact or not. 
+
+This impacts the .when function to include those options as well.
+
+The .when tracker should also end up with some functional enhancements that
+allow one to manipulate the data array before it is sent along as an emitter.
+This includes flattening it in some ways, reducing, mapping, etc. 
+
+Actions should be emphasized with the written description action being
+associated with a handler that takes in the data, the scope, the emitter, and
+a context if provided. On and once need to have actions listed; a named
+context is just a scope name as well. 
+
+Debugging is hoped to be augmented with a better tracking of the relationships
+between the events and actions. 
+
+Also would like to add an ability to have a wait queue for (external) events
+that adds to the queue of events for deciding when to emit an empty queue
+event. 
+
+The handlers are treated differently. Handlers that are attached at the time
+of the emit will be used; there is no stopping them. As soon as the event is
+emitted, once handlers will decrement even before they are fired. This ensures
+they are called in the exact order of emitting. 
+
+Timing will be removed as well. All emit events are emitted in the order they
+are encountered with the handlers being called in the order, from most
+specific to general. 
+
+Benchmark from version 1 on my 2017 iMac was 5e5 events at 430ms while native
+events was 16 ms as done in benchmark.js (after converting the argument to a
+number in the initialize phase instead of having it do that every iteration of
+the loop -- oops). Also did a bit of memory investigation. For 5e5, the memory
+increased by a third from before the event emitting; the native one had no
+increase. 
+
+
 
 ### Version 1.3.0
 

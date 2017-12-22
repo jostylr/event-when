@@ -1,4 +1,4 @@
-# [event-when](# "version: 1.7.0; An event library that allows for the blocking of event firing thus dealing with many-to-one event firing")
+# [event-when](# "version: 2.0.0-alpha; An event library that allows for the blocking of event firing thus dealing with many-to-one event firing")
 
 This sets up the literate programming environment and other tools. 
 
@@ -10,7 +10,6 @@ This sets up the literate programming environment and other tools.
 * [.npmignore](#npmignore "save:")
 * [.travis.yml](#travis "save:")
 * [](# "cd: save")
-
 
 ## lprc.js
 
