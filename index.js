@@ -527,7 +527,7 @@
                 return;
             }
         } else {
-            evObj = [ev.slice(0,colIndex), ev.slice(colIndex), data];
+            evObj = [ev.slice(0,colIndex), ev.slice(colIndex+1), data];
             const specifics = handlers.get(ev);
             const generals = handlers.get(evObj[0]);
             if (specifics && generals) {

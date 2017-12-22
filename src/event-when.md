@@ -197,7 +197,7 @@ The handlers could be the full event+scope which get executed first.
             return;
         }
     } else {
-        evObj = [ev.slice(0,colIndex), ev.slice(colIndex), data];
+        evObj = [ev.slice(0,colIndex), ev.slice(colIndex+1), data];
         const specifics = handlers.get(ev);
         const generals = handlers.get(evObj[0]);
         if (specifics && generals) {
@@ -911,22 +911,33 @@ The prototype object.
 
 [doc]()
 
-    Handlers are the objects that respond to emitted events. Generally they
-    wrap handler type objects. 
+    Handlers are the objects that respond to emitted events. They consist of
+    an action string that describes and names the handler, a function to
+    execute, and a context in which to execute. Handlers may also have various
+    properties added to them, such as once handlers having a count. 
 
-    ### Handler types
+    In defining a handler, neither a function nor context is strictly
+    required. If a function is not provided, it is assumed that the action
+    string names a function in the action table to use. This is a dynamic
+    lookup at the time of the emit. 
 
-    * function  `context -> f(data, evObj)` This is the foundation as
-      functions are the ones that execute.  They are called with parameters
-      `data` that can be passed into the emit call and `evObj` which has a
-      variety of properties. See <a href="#event-object">evObj</a>.
-    * string.  This is an action string. When executed, it will look up the
-      action associated with that string and execute that handler. If no
-      such action exists, that gets logged and nothing else happens.
-    * handler. Handlers can contain handlers.
-    * array of handler types. Each one gets executed. This is how `.once`
-      works.
+    A useful setup is to have a function in the action table, but to create a
+    handler to respond to specific events with a given context. The context
+    can either be a string, in which case it is taken to be a scope object in
+    the emitter, or an object which will store the data. 
+    
 
+    ### new Handler (str action, fun f, str/obj context, emitter) -> handler
+
+    * `action`. A descriptive text saying what will happen. 
+    * `f`. The function to execute. This is optional in the definition of a
+      handler, but ultimately required to do something with it. The signature
+      of the function is `f(data, scope, emitter, context)` called with a
+      `this` that also points to the context. 
+    * `context`. String to name the scope to use for the function as `this` 
+    
+
+   
     ### Handler methods
    
     These are largely internally used, but they can be used externally.

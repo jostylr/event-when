@@ -210,10 +210,12 @@ the most number of operations occurs.
 
     emitter.scope('c', 0);
 
-    emitter.on("go", "add 1", function count (num, scope, emitter) {
-        emitter.scope('c', emitter.scope('c')+num);
+    emitter.action('add', function count (num, scope, emitter) {
+        emitter.scope(scope, emitter.scope(scope)+num);
     });
-        
+
+    emitter.on("go", "add");
+    
     time = process.hrtime();
     
     for (i = 0; i < n; i += 1) {
