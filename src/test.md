@@ -66,7 +66,7 @@ This tests that the once removes itself. We do a case with no number and one wit
     emitter.emit("second ready");
     emitter.emit("done");
 
-## checking labels and onces
+## Not firing more than required 
 
 This test has some onces with and without labels and checking that the onces
 work. It also does a once with two handlers to make sure that works correctly. 
@@ -79,44 +79,43 @@ work. It also does a once with two handlers to make sure that works correctly.
 [expected]() 
 
 
-     {\"for first\":[\"first ready\",1,1],\"sec sec\":[\"second ready\",1,1]} 
      first fires
      second fires
      second second fires 
-     {} 
      second fires
-     {} 
+     always on
+     always on
+     always on
 
 [code]()
 
-    var l = function (label, f) {
-        f._label = label; 
-        return f;
-    };
 
-    var ao = function () {actual.push(JSON.stringify(emitter._onces));};
-
-    emitter.once("first ready", l("for first", function () {
+    emitter.action("fire first",function () {
         actual.push("first fires");
         emitter.emit("second ready");
-    }));
+        emitter.on("second ready", "fire always", function () {
+            actual.push("always on");
+        });
+    });
 
-
-    emitter.once("second ready", function () {
+    emitter.action("fire second",  function () {
         actual.push("second fires");
-    }, 2);
+    });
 
-    emitter.once("second ready", l("sec sec", function () {
+    emitter.once("first ready", "fire first");
+
+    emitter.once("second ready", "fire second", 2);
+
+    emitter.once("second ready", "double fire", function () {
         actual.push("second second fires");
-    }));
+    });
 
 
-    ao();
     emitter.emit("first ready");
-    ao();
     emitter.emit("first ready");    
     emitter.emit("second ready");
-    ao();
+    emitter.emit("second ready");
+    emitter.emit("second ready");
     emitter.emit("done");
 
 
@@ -141,12 +140,12 @@ This tests that we can remove handlers.
 
 [code]()    
 
-    var h = emitter.on("first ready", function () {
+    var h = emitter.on("first ready", "fire first", function () {
         actual.push("first fires");
         emitter.emit("second ready");
     });
 
-    emitter.on("first ready", function () {
+    emitter.on("second ready", "fire second", function () {
         actual.push("second fires");
     });
 
@@ -154,8 +153,55 @@ This tests that we can remove handlers.
     emitter.off("first ready", h);
     emitter.emit("first ready");    
     emitter.emit("second ready");
+    emitter.off("second ready", "fire second");
+    emitter.emit("second ready");
 
     emitter.emit("done");
+
+
+## max loop 
+
+A test to check that the max loop is working correctly. Uses setImmediate to
+emit an event to turn off the listener. 
+
+
+[name]() 
+
+    max loop
+
+[expected]() 
+
+    start
+    stopping
+    1000
+
+
+[code]() 
+    
+    let count = 0;
+
+    emitter.on("start", "emit loop", function () {
+        actual.push("start");
+        setImmediate( () => {
+            actual.push("stopping");
+            emitter.off("loop") 
+            emitter.emit("loop");
+            emitter.emit("stopped");
+        });
+        emitter.emit("loop");
+    });
+
+    emitter.on("loop", "keep it going", function () {
+        count += 1;
+        emitter.emit("loop");
+    });
+
+    emitter.on("stopped", "store count", () => {
+        actual.push(count.toString());
+        emitter.emit("done");
+    });
+
+    emitter.emit("start");
 
 
 ## when waiting for 2 events
@@ -1447,11 +1493,13 @@ We define a command that takes a list of items separated by returns and makes an
 
     _"test template | compile simple once test";
     
-[not yet]()
-
-    _"test template | compile checking labels and onces";
+    _"test template | compile Not firing more than required";
 
     _"test template | compile turning off a handler";
+    
+    _"test template | compile max loop";
+
+[not yet]()
 
 
     _"test template | compile when waiting for 2 events";

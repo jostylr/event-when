@@ -205,8 +205,6 @@
             return ;
         }
     
-         emitter.log("unreachable reached", "removal", ev, handler);
-    
         return;
     };
     Handler.prototype.decrement = function (arr, ev) {
@@ -417,12 +415,11 @@
         this._scopes = new Map();
         this._actions = new Map();
         this._onceCache = new Map();
-        this._onces = {};
         this._queue = [];
         this._monitor = [];
-        this.scopeSep = ":";
         this._looping = false;
         this.loopMax = 1000;
+        this.loop = 0;
         this.emitCount = 0;
         this.whens = {};
         this._cache = {};
@@ -985,7 +982,6 @@
             queue = emitter._queue,
             loopMax = emitter.loopMax,
             self = emitter.looper,
-            loop = 0, 
             f, ev, evObj, events, cur, ind;
     
     
@@ -996,7 +992,7 @@
     
         emitter._looping = true;
     
-        while ( (queue.length) && (loop < loopMax ) ) {
+        while ( (queue.length) && (emitter.loop < loopMax ) ) {
             evObj = queue.shift();
             let actions = evObj.pop();
             
@@ -1005,13 +1001,14 @@
                 emitter.log("will execute handler", evObj[0], evObj[1]);
                 action.execute(evObj[2], evObj[1], emitter);
             }
-            loop += 1;
+            emitter.loop += 1;
         }
     
         emitter._looping = false;
     
         if (queue.length) {
-            emitter.log("looping hit max", loop);
+            emitter.log("looping hit max", [emitter.loop, queue]);
+            emitter.loop = 0;
             emitter.nextTick(self);
         } else {
             emitter.queueEmpty();

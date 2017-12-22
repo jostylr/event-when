@@ -13,12 +13,11 @@ passed in without context via setImmediate.
         this._scopes = new Map();
         this._actions = new Map();
         this._onceCache = new Map();
-        this._onces = {};
         this._queue = [];
         this._monitor = [];
-        this.scopeSep = ":";
         this._looping = false;
         this.loopMax = 1000;
+        this.loop = 0;
         this.emitCount = 0;
         this.whens = {};
         this._cache = {};
@@ -368,7 +367,6 @@ through the queue.
             queue = emitter._queue,
             loopMax = emitter.loopMax,
             self = emitter.looper,
-            loop = 0, 
             f, ev, evObj, events, cur, ind;
 
 
@@ -379,15 +377,16 @@ through the queue.
 
         emitter._looping = true;
 
-        while ( (queue.length) && (loop < loopMax ) ) {
+        while ( (queue.length) && (emitter.loop < loopMax ) ) {
             _"act"
-            loop += 1;
+            emitter.loop += 1;
         }
 
         emitter._looping = false;
 
         if (queue.length) {
-            emitter.log("looping hit max", loop);
+            emitter.log("looping hit max", [emitter.loop, queue]);
+            emitter.loop = 0;
             emitter.nextTick(self);
         } else {
             emitter.queueEmpty();
@@ -1030,8 +1029,6 @@ method.
             emitter.log("untracked", ev, handler.tracker, handler);
             return ;
         }
-
-         emitter.log("unreachable reached", "removal", ev, handler);
 
         return;
     }
