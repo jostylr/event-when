@@ -222,7 +222,7 @@ Testing the when capabilities.
     emitter.when(["first ready", "second ready"], "both ready");
 
 
-    emitter.on("both ready", function () {
+    emitter.on("both ready", "actual push", function () {
         actual.push("when fired");
     });
 
@@ -1499,11 +1499,10 @@ We define a command that takes a list of items separated by returns and makes an
     
     _"test template | compile max loop";
 
-[not yet]()
-
-
     _"test template | compile when waiting for 2 events";
     
+[not yet]()
+
     _"test template | compile flat when";
 
     _"test template | compile silent when";

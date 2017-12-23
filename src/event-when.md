@@ -424,7 +424,7 @@ Event object is of the form `[event, scope, data, handlers]`
     let action; 
     while ( ( action = actions.shift() ) ) {
         emitter.log("will execute handler", evObj[0], evObj[1]);
-        action.execute(evObj[2], evObj[1], emitter, evObj[3]);
+        action.execute(evObj[2], evObj[1], emitter, evObj);
     }
     
 
@@ -1089,7 +1089,6 @@ No error catching for the function.
             context = emitter.scope(true, context);
         }
 
-        let scopeObj;
         if (typeof scope === 'string') {
             scope = emitter.scope(true, scope);
         }
@@ -1236,7 +1235,7 @@ object.
     }
 
     if (typeof options !== 'object') {
-        option = {};
+        options = {};
     }
 
 
@@ -1487,10 +1486,11 @@ This is where we handle when when it is called.
 The context holds all the long term data that when needs. 
 
 
-    function (data, scope, emitter, context) {
+    function (data, scope, emitter, context, event) {
         var handler = this;
+        var tracker = context;
 
-
+        
 
         if (handler.count === 0) {
             handlers.delete(handler.event);
@@ -1514,9 +1514,9 @@ This is a convenience method that simply flips the tracker to flatten. But it
 has a radical difference on the emitted values. 
 
     function () {
-       var tracker = this.when.apply(this, arguments); 
-       tracker.flatten = true;
-       return tracker;
+        let tracker = this.when.apply(this, arguments);
+        tracker.preparer = tracker.flatten;
+        return tracker;
     }
 
 ### Flat Array When
@@ -1524,8 +1524,6 @@ has a radical difference on the emitted values.
 This is a convenience method that will always return an array of values. 
 
     function () {
-        let emitter = this;
-        let ev = args[1];
         let tracker = this.when.apply(this, arguments);
         tracker.preparer = tracker.flatArr;
         return tracker;
@@ -1538,12 +1536,12 @@ This is a convenience method that will always return an array of values.
 The tracker object is used to track all the data and what events are
 available. Controlling it controls the queue of the when emit. 
 
-    function () {
+    function (options, emitter, action) {
         let tracker = this;
     
         tracker.emitter = emitter;
         tracker.events = [];
-        tracker.original = events.slice(0);
+        tracker.originals = [];
         tracker.handlers = new Map();
         tracker.pipes = new Map();
         tracker.values = new Map();
@@ -1690,7 +1688,7 @@ data object and the value.
         let emitter = tracker.emitter;
         let action = tracker.action;
         
-        events.map( event => {
+        tracker.originals = tracker.originals.concat(events.map( event => {
             let n, pipe, initial, arr;
             if (Array.isArray(event) ) {
                 arr = event;
@@ -1706,7 +1704,7 @@ data object and the value.
             tracker.pipes.set(event, (typeof pipe !== 'undefined') ?  pipe : identity);
             tracker.values.set(event, initial);
             return event;
-        });
+        }));
     }
 
 [junk]()
@@ -1729,7 +1727,7 @@ data object and the value.
         newEvents.forEach(function (el) {
             var num, str, order;
             if (typeof el === "string") {
-                str = el;
+                str = elet scope = options.sco;
                 num = 1;
             }
             if (Array.isArray(el) ) {

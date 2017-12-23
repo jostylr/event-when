@@ -233,12 +233,12 @@
     
     };
 
-    var Tracker = function () {
+    var Tracker = function (options, emitter, action) {
         let tracker = this;
     
         tracker.emitter = emitter;
         tracker.events = [];
-        tracker.original = events.slice(0);
+        tracker.originals = [];
         tracker.handlers = new Map();
         tracker.pipes = new Map();
         tracker.values = new Map();
@@ -255,7 +255,7 @@
         let emitter = tracker.emitter;
         let action = tracker.action;
         
-        events.map( event => {
+        tracker.originals = tracker.originals.concat(events.map( event => {
             let n, pipe, initial, arr;
             if (Array.isArray(event) ) {
                 arr = event;
@@ -271,7 +271,7 @@
             tracker.pipes.set(event, (typeof pipe !== 'undefined') ?  pipe : identity);
             tracker.values.set(event, initial);
             return event;
-        });
+        }));
     };
     Tracker.prototype.remove = Tracker.prototype.rem = function (byeEvents) {
         var tracker = this,
@@ -821,7 +821,7 @@
         }
         
         if (typeof options !== 'object') {
-            option = {};
+            options = {};
         }
     
         let scope = options.scope;
@@ -860,10 +860,11 @@
         
         return tracker;
     };
-    EvW.prototype.whenf = function (data, scope, emitter, context) {
+    EvW.prototype.whenf = function (data, scope, emitter, context, event) {
         var handler = this;
+        var tracker = context;
     
-    
+        
     
         if (handler.count === 0) {
             handlers.delete(handler.event);
@@ -874,13 +875,11 @@
     
     };
     EvW.prototype.flatWhen = function () {
-       var tracker = this.when.apply(this, arguments); 
-       tracker.flatten = true;
-       return tracker;
+        let tracker = this.when.apply(this, arguments);
+        tracker.preparer = tracker.flatten;
+        return tracker;
     };
     EvW.prototype.flatArrWhen = function () {
-        let emitter = this;
-        let ev = args[1];
         let tracker = this.when.apply(this, arguments);
         tracker.preparer = tracker.flatArr;
         return tracker;
@@ -973,7 +972,7 @@
             let action; 
             while ( ( action = actions.shift() ) ) {
                 emitter.log("will execute handler", evObj[0], evObj[1]);
-                action.execute(evObj[2], evObj[1], emitter, evObj[3]);
+                action.execute(evObj[2], evObj[1], emitter, evObj);
             }
             emitter.loop += 1;
         }

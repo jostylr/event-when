@@ -214,3 +214,39 @@ test('max loop', function (s) {
     emitter.emit("start");
 
 });
+
+test('when waiting for 2 events', function (s) {
+    s.plan(1);
+
+    var emitter = new EventWhen();
+
+    /*emitter.log = function () {
+        console.log(arguments);
+    }*/
+
+    var expected = [
+    "when fired"
+    ],
+        actual = [];
+
+    emitter.on("done", "check equals", function () {
+        s.deepEqual(actual, expected);
+    });
+
+    emitter.when(["first ready", "second ready"], "both ready");
+    
+    
+    emitter.on("both ready", "actual push", function () {
+        actual.push("when fired");
+    });
+    
+    emitter.emit("first ready");
+    
+    emitter.emit("first ready");
+    emitter.emit("second ready");
+    emitter.emit("first ready");    
+    emitter.emit("second ready");
+    
+    emitter.emit("done");
+
+});
