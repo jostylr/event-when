@@ -47,6 +47,7 @@ The various prototype methods on the event emitter.
     EvW.prototype.once = _"once";
     EvW.prototype.decrement = _"decrement";
     EvW.prototype.when = _"when";
+    EvW.prototype.whenf = _"handling when";
     EvW.prototype.flatWhen = _"flat when";
     EvW.prototype.flatArrWhen = _"flat array when";
     EvW.prototype.cache = _"cache";
@@ -191,13 +192,13 @@ The handlers could be the full event+scope which get executed first.
     if (colIndex === -1) {
         actions = handlers.get(ev);
         if (actions) {
-            evObj = [ev, null, data, emitter.decrement(actions.slice(0), ev)]; 
+            evObj = [ev, null, data, ev, emitter.decrement(actions.slice(0), ev)]; 
         } else {
             emitter.log("emit without action", ev, data);
-            return;
+            return emitter;
         }
     } else {
-        evObj = [ev.slice(0,colIndex), ev.slice(colIndex+1), data];
+        evObj = [ev.slice(0,colIndex), ev.slice(colIndex+1), data, ev];
         const specifics = handlers.get(ev);
         const generals = handlers.get(evObj[0]);
         if (specifics && generals) {
@@ -209,7 +210,7 @@ The handlers could be the full event+scope which get executed first.
             actions = emitter.decrement(generals.slice(0), evObj[0]);
         } else {
             emitter.log("emit without action", ev, data);
-            return;
+            return emitter;
         }
         evObj.push(actions);
     }
@@ -297,6 +298,18 @@ that can also be debugged easily enough.
             return obj;
         }
 
+For two arguments, first being true, we grab the scope and/or create one. 
+
+        if (key === true) {
+            key = obj;
+            obj = emitter._scopes.get(key);
+            if (typeof obj === 'undefined') {
+                obj = new Map();
+                emitter._scopes.set(key, obj);
+            }
+            return obj;
+        }
+
         if (emitter._scopes.has(key) ) {
             emitter.log("overwriting scope", key);
         } else {
@@ -325,7 +338,9 @@ that can also be debugged easily enough.
 
     * 0 arguments. Leads to the scope keys being returned. 
     * 1 arguments. Leads to specified scope's object being returned.
-    * 2 arguments. Emitter returned for chaining.
+    * 2 arguments (str, whatever). Stores obj as scope. Emitter returned for chaining.
+    * 2 arguments (true, key). This returns a scope, creating a new Map() if
+      needed. 
 
     __example__
 
@@ -366,9 +381,8 @@ through the queue.
         let emitter = this,
             queue = emitter._queue,
             loopMax = emitter.loopMax,
-            self = emitter.looper,
-            f, ev, evObj, events, cur, ind;
-
+            self = emitter.looper;
+           
 
         if (emitter._looping) {
             return;
@@ -410,11 +424,9 @@ Event object is of the form `[event, scope, data, handlers]`
     let action; 
     while ( ( action = actions.shift() ) ) {
         emitter.log("will execute handler", evObj[0], evObj[1]);
-        action.execute(evObj[2], evObj[1], emitter);
+        action.execute(evObj[2], evObj[1], emitter, evObj[3]);
     }
     
-
-
 
 ### NextTick
 
@@ -442,6 +454,7 @@ function is what would be executed to call.
         const handlers = emitter._handlers;
 
         const handler = new Handler(action, f, context, emitter); 
+        handler.event = ev;
 
         let handlerArr = handlers.get(ev);
         if (handlerArr) {
@@ -449,9 +462,6 @@ function is what would be executed to call.
         } else {
             handlerArr = [handler];
             handlers.set(ev, handlerArr);
-            // this decrements any once counters, calling removal as needed
-            // must return array.
-            handlerArr.decrement = Handler.prototype.decrement;
         }
 
         emitter.log("on", ev, action, f, context); 
@@ -509,15 +519,13 @@ It may be the case that a function is not passed in despite a context being
 passed in (as in the action gets the function and the on has the context
 specified) or the context and function might be switched up. 
 
-    if (typeof f === "string") {
-        if (typeof context === "function") {
-            let temp = f;
-            f = context;
-            context = temp;
-        } else {
-            context = f;
-            f = null;
-        }
+We switch them whenever f is passed in and is not a function. A null will get
+switched. 
+
+    if ( (typeof f !== 'undefined') && (typeof f !== "function")) {
+        let temp = f;
+        f = context;
+        context = temp;
     }
 
 
@@ -1064,7 +1072,7 @@ call either it being in the handler or using the action lookup.
 
 No error catching for the function. 
  
-    function me (data, scope, emitter) {
+    function me (data, scope, emitter, event) {
         
         const handler = this;
         const raw = emitter._actions.get(handler.action) || empty;
@@ -1078,32 +1086,49 @@ No error catching for the function.
         let context = this.context || raw.context || empty;
 
         if (typeof context === "string") {
-            context = emitter.scope(context);
+            context = emitter.scope(true, context);
+        }
+
+        let scopeObj;
+        if (typeof scope === 'string') {
+            scope = emitter.scope(true, scope);
         }
 
         emitter.log("executing action", handler.action);
 
-        f.call(context, data, scope, emitter, context);
+        f.call(handler, data, scope, emitter, context, event);
+
+        return handler;
 
     }
 
 [doc]()
 
-    #### execute(data, evObj, context, value) --> 
+    #### execute(data, str scope, emitter, str event) --> 
 
     This executes the handler. 
 
     __arguments__
 
-    * `data`, `evObj` get passed into the functions as first and second
-      arguments. This is generated by the emit. 
-    * `context` The closest context will be used. If the function is bound,
-      that obviously takes precedence.
-    * `value` This is largely internally used. 
+    * `data`. This is the data from an emit event.
+    * `scope`. The colonated part of the event. It gets evaluated into a scope
+      object from emitter and that is passed along. A new map is created if
+      there is no scope. 
+    * `emitter` The emitter object.
+    * `event` The full event string that was called in the emit. Usually not
+      needed, but could be useful. This is passed along into the function
+      handler as the fifth argumet. 
+
+    __note__
+
+    The handler will find a function to call or emit an error. This is either
+    from when the `on` event was created or from an action item. The context
+    object, also from one of those things, will be sent along as the fourth
+    argument in the call of the function. 
 
     __return__
 
-    Nothing. 
+    Handler for chaining. 
 
     __example__
 
@@ -1117,17 +1142,113 @@ No error catching for the function.
 
 This is a key innovation. The idea is that once this is called, a handler is
 created that attaches to all the listed events and takes care of figuring
-when they have all called. 
+when they have all been called. 
 
 When all the events have fired, then the given event emits with a data
 object that is an array  of all the fired event's data, specifically the
 array elements are arrays of the form `[event name, data]`. 
 
-The return is the tracker which contains all things that might need to be
-accessed. It also contains the remove methods to cancel the `.when`.
+The return is the emitter for chaining. To retrieve the action, use
+`emitter.action('tick when:'+ev)` 
 
-It has the argument of timing used to time the emitting of the event to be
-fired. The argument reset allows for reseting to the initial state once
+The function must provide the events to listen for and the event to emit. The
+rest is optional. 
+
+
+    function (events, ev, options) {
+        const emitter = this;
+
+        _":check inputs"
+
+        _":deal with scope"
+
+        let action = 'tick when:'+ ev;
+        let proto = emitter.action(action);
+        let tracker;
+        if (!proto) {
+            tracker = new Tracker (options, emitter, action, events);
+            proto.context = tracker;
+        } else { 
+            tracker = proto.context;
+        }
+
+        tracker.add(events);
+        
+        
+        return tracker;
+    }
+
+
+
+
+
+[deal with scope]()
+
+We want to enable the option of scoping all the events to the same scope. The
+convention will be that if an event ends in a ":", then we add the scope,
+which is either from the options.scope or from the scope of the emitting
+event. 
+
+If there is no scope, then we remove any ending colons. To avoid this, one can
+pass in `options.scope = ''` which will end up adding an empty string at the
+end of the colon and preserving it all. 
+
+
+    let scope = options.scope;
+    if (typeof scope === 'undefined') {
+        let evInd = ev.indexOf(':');
+        if (evInd !== -1) {
+            scope =  ev.slice(evInd+1);
+        }
+    }
+    if (scope) {
+        events = events.map( a => {
+            return (a[a.length-1] === ':') ?
+                a + scope : 
+                a;
+        });
+    } else {
+        events = events.map( a=> {
+            return (a[a.length-1] === ':') ?
+                a.slice(0, -1) :
+                a;
+        });
+    }
+
+
+        
+[check inputs]()
+
+The inputs should be an array of strings (events), a string, and an optional
+object. 
+
+    if (typeof events === 'string') {
+        events = [events];
+    } else if (! Array.isArray(events) ) {
+        emitter.error('events for when must be an array or a string',
+            events, ev);
+        return emitter;
+    }
+
+    if (typeof ev !== 'string') {
+        emitter.error('emit event must be string for when', events, ev);
+        return emitter;
+    }
+
+    if (typeof options !== 'object') {
+        option = {};
+    }
+
+
+
+
+
+
+no immutable -- emiting an event from a when links them all. 
+
+[junk]()
+
+The argument reset allows for reseting to the initial state once
 fired. 
 
 Emitting scoped events will count also as a firing of the parents, e.g.,
@@ -1145,7 +1266,7 @@ the .when data should be presented in the order of creation of the .when or in
 the event emitting. The global default is in the order of data;  
 
 
-    function (events, ev, timing, reset, immutable, initialOrdering) {    
+    function (events, ev, options timing, reset, immutable, initialOrdering) {    
 
         var emitter = this;
         var tracker; 
@@ -1357,7 +1478,35 @@ sure that properly written, but unordered, is okay.
     emitter.emit("db returned", dbobj);
     emitter.emit("file read:some", fileobj);
     emitter.emit("something more");
-   
+  
+
+### Handling When
+
+This is where we handle when when it is called. 
+
+The context holds all the long term data that when needs. 
+
+
+    function (data, scope, emitter, context) {
+        var handler = this;
+
+
+
+        if (handler.count === 0) {
+            handlers.delete(handler.event);
+            if (Array.from(handlers.keys()).length === 0) {
+                _":emit done"
+            }
+        }
+
+    }
+
+
+[emit done]()
+
+This is where we assemble the data 
+
+
 
 ### Flat When
 
@@ -1375,167 +1524,13 @@ has a radical difference on the emitted values.
 This is a convenience method that will always return an array of values. 
 
     function () {
-       var tracker = this.when.apply(this, arguments); 
-       tracker.flatArr = true;
-       return tracker;
+        let emitter = this;
+        let ev = args[1];
+        let tracker = this.when.apply(this, arguments);
+        tracker.preparer = tracker.flatArr;
+        return tracker;
     }
 
-
-
-### Cache
-
-This solves the problem of needing a resource that one would ideally call only
-once. For example, reading a file into memory or getting a web request. 
-
-We use the following form: 
-
-`gcd.cache(event to initiate, event response, function to process, event to
-emit)`  
-
-The initiation event could be a string or an array of `[event, data,
-when]` . The event response
-can be a string or an array of events which becomes a when. The function's
-return will be what is passed into the event string in the fourth argument; it
-could also do its own emitting. If the fourther string is empty, no emitting
-is done. To deal with multiple possible responses (think success, errror,
-...), one can do sets of three arguments, replicating what was above. If the
-function argument slot is a string, that is emitted with the passed in data
-object. 
-
-    function (req, ret, fun, emit) {
-        
-        var gcd = this;
-        var cache = gcd._cache;
-        var start, end, data, timing, cached;
-
-        _":prep req"
-
-        _":prep proc"
-
-At this point req should be an array of event, data, timing and we should have
-an array of arrays of  `[ret, fun, emit]` to iterate over in dealing with
-responses. 
-        
-        if (cache.hasOwnProperty(start) ) {
-            cached = cache[start];
-            if (cached.hasOwnProperty("done")) {
-                end = cached.done;
-                _":do the emit"
-            } else {
-                cached.waiting.push([fun, emit]);
-            }
-        } else {
-            cache[start] = cached = { waiting : [[fun, emit]]};
-            gcd.on(ret, _":setup the handler");
-            gcd.emit(start, data, timing);
-        }
-    }
-
-[prep req]()
-
-Convert the request into an array to get a definite form and apply to emit. 
-
-    if (typeof req === "string") {
-        start = req;
-        data = null;
-        timing = timing ||gcd.timing || "momentary";
-    } else if (Array.isArray(req))  {
-        start = req[0];
-        data = req[1];
-        timing = req[3] ||gcd.timing || "momentary"; 
-    } else {
-        gcd.log("bad cache request", req);
-        return;
-    }
-
-[prep proc]()
-
-    if (typeof ret !== "string") {
-        gcd.log("bad cache return signal", ret);
-        return;
-    }
-
-    if (typeof fun === "string") {
-        emit = fun;
-        fun = null; 
-    }
-
-[do the emit]()
-
-    if (fun) {
-        end = fun(end);
-    } 
-    if (emit) {
-        gcd.emit(emit, end, timing);    
-    }
-                 
-[setup the handler]()
-
-This is the meat of the argument. So the handler acts when the string in ret
-is emitted. 
-
-    function (original) {
-        var i, n, waiting, proc, end;
-
-        cached.done = original;
-        waiting = cached.waiting;
-        
-        n = waiting.length;
-        for (i = 0; i < n; i +=1) {
-           end = original;
-           proc = waiting.shift();
-           fun = proc[0];
-           emit = proc[1];
-           _":do the emit"
-        }
-    }
-    
-[doc]() 
-
-    ### cache(str request/arr [ev, data, timing], str returned, fun process/str emit, str emit) -->  emitter
-
-    This is how to cache an event request. This will ensure that the given
-    event will only be called once. The event string should be unique and the
-    assumption is that the same data would be used. If not, one will have
-    problems. 
-
-    __arguments__
-
-    * `request` This is an event to be emitted. It can be either a string or
-      an array with data and timing. If multiple events are needed, use a
-      single event to trigger them. 
-    * `returned` This is the event to wait for indicating that the process is
-      complete. Both request and returned should be the same for caching the
-      request. But only the request is the cache key.
-    * `res` This takes in the data from the returned event and processes it.
-      The return value is the data used by the final emit. If the emit string
-      is empty, then the return value is not used and it is expected that res
-      will do the emitting. It is a function that takes (data, cache args)
-      called in the context of the event emitter. 
-    * `emit` This is what gets emitted upon obtaining the value. If res is not
-      present, this can be the third argument and the data will simply be
-      passed along.
-
-
-[example]()
-
-    var readfile = function (data, evObj) {
-        var file = evObj.pieces[0];
-        var gcd = evObj.emitter;
-        fs.readfile(file, function (err, text) {
-            if (err) {
-                gcd.emit("file read error:jack", err);
-            } else {
-                gcd.emit("got file:jack", text);
-            }
-        });
-    };
-    emitter.on("need file", readfile);
-
-
-    emitter.cache("need file:jack",  "got file:jack", diffLines, "lines gotten");
-    emitter.cache("need file:jack", "got file:jack", emitDiffWords);
-    emitter.cache("need file:jack", "got file:jack", "jack's text");
 
 
 ### Tracker
@@ -1544,8 +1539,19 @@ The tracker object is used to track all the data and what events are
 available. Controlling it controls the queue of the when emit. 
 
     function () {
-        this.events = {};
-        this.silent = [];
+        let tracker = this;
+    
+        tracker.emitter = emitter;
+        tracker.events = [];
+        tracker.original = events.slice(0);
+        tracker.handlers = new Map();
+        tracker.pipes = new Map();
+        tracker.values = new Map();
+        tracker.emits = [];
+        tracker.silents = new Set(options.silents);
+        
+        tracker.reset = options.reset || false;
+        
         return this;
     }
 
@@ -1666,6 +1672,44 @@ passed in or a bunch of strings passed in as parameters.
 The events get added to events for removal; that way we can see what is left.
 But they also get added to data so that input order is preserved. We could do
 a flag. 
+
+
+
+
+We have an action and we want to basically use it in handlers.
+
+An event could be a string or it could be an array with
+`event, n, pipe, initial value`  where pipe transforms the data and the
+initial value might be the value used. This can be a kind of reduce setup. 
+
+The pipe and the value will be stored in the tracker. The pipe expects the
+data object and the value. 
+
+    function (events) {
+        let tracker = this;
+        let emitter = tracker.emitter;
+        let action = tracker.action;
+        
+        events.map( event => {
+            let n, pipe, initial, arr;
+            if (Array.isArray(event) ) {
+                arr = event;
+                [event, n, pipe, initial] = arr;
+            }
+            if (typeof event !== 'string') {
+                emitter.error('event to listen for should be string', events, ev);
+                return null;
+            }
+            n = (typeof n === 'number') ? n : 1;
+            let handler = emitter.once(event, action, n);
+            tracker.handlers.set(event, handler);
+            tracker.pipes.set(event, (typeof pipe !== 'undefined') ?  pipe : identity);
+            tracker.values.set(event, initial);
+            return event;
+        });
+    }
+
+[junk]()
 
     function (newEvents) {
         var tracker = this,
@@ -1966,6 +2010,162 @@ no arguments, then it ignores the most recent event.
 
 These are tools that help with event-when, but are not core to its
 functioning. 
+
+### Cache
+
+This solves the problem of needing a resource that one would ideally call only
+once. For example, reading a file into memory or getting a web request. 
+
+We use the following form: 
+
+`gcd.cache(event to initiate, event response, function to process, event to
+emit)`  
+
+The initiation event could be a string or an array of `[event, data,
+when]` . The event response
+can be a string or an array of events which becomes a when. The function's
+return will be what is passed into the event string in the fourth argument; it
+could also do its own emitting. If the fourther string is empty, no emitting
+is done. To deal with multiple possible responses (think success, errror,
+...), one can do sets of three arguments, replicating what was above. If the
+function argument slot is a string, that is emitted with the passed in data
+object. 
+
+    function (req, ret, fun, emit) {
+        
+        var gcd = this;
+        var cache = gcd._cache;
+        var start, end, data, timing, cached;
+
+        _":prep req"
+
+        _":prep proc"
+
+At this point req should be an array of event, data, timing and we should have
+an array of arrays of  `[ret, fun, emit]` to iterate over in dealing with
+responses. 
+        
+        if (cache.hasOwnProperty(start) ) {
+            cached = cache[start];
+            if (cached.hasOwnProperty("done")) {
+                end = cached.done;
+                _":do the emit"
+            } else {
+                cached.waiting.push([fun, emit]);
+            }
+        } else {
+            cache[start] = cached = { waiting : [[fun, emit]]};
+            gcd.on(ret, _":setup the handler");
+            gcd.emit(start, data, timing);
+        }
+    }
+
+[prep req]()
+
+Convert the request into an array to get a definite form and apply to emit. 
+
+    if (typeof req === "string") {
+        start = req;
+        data = null;
+        timing = timing ||gcd.timing || "momentary";
+    } else if (Array.isArray(req))  {
+        start = req[0];
+        data = req[1];
+        timing = req[3] ||gcd.timing || "momentary"; 
+    } else {
+        gcd.log("bad cache request", req);
+        return;
+    }
+
+[prep proc]()
+
+    if (typeof ret !== "string") {
+        gcd.log("bad cache return signal", ret);
+        return;
+    }
+
+    if (typeof fun === "string") {
+        emit = fun;
+        fun = null; 
+    }
+
+[do the emit]()
+
+    if (fun) {
+        end = fun(end);
+    } 
+    if (emit) {
+        gcd.emit(emit, end, timing);    
+    }
+                 
+[setup the handler]()
+
+This is the meat of the argument. So the handler acts when the string in ret
+is emitted. 
+
+    function (original) {
+        var i, n, waiting, proc, end;
+
+        cached.done = original;
+        waiting = cached.waiting;
+        
+        n = waiting.length;
+        for (i = 0; i < n; i +=1) {
+           end = original;
+           proc = waiting.shift();
+           fun = proc[0];
+           emit = proc[1];
+           _":do the emit"
+        }
+    }
+    
+[doc]() 
+
+    ### cache(str request/arr [ev, data, timing], str returned, fun process/str emit, str emit) -->  emitter
+
+    This is how to cache an event request. This will ensure that the given
+    event will only be called once. The event string should be unique and the
+    assumption is that the same data would be used. If not, one will have
+    problems. 
+
+    __arguments__
+
+    * `request` This is an event to be emitted. It can be either a string or
+      an array with data and timing. If multiple events are needed, use a
+      single event to trigger them. 
+    * `returned` This is the event to wait for indicating that the process is
+      complete. Both request and returned should be the same for caching the
+      request. But only the request is the cache key.
+    * `res` This takes in the data from the returned event and processes it.
+      The return value is the data used by the final emit. If the emit string
+      is empty, then the return value is not used and it is expected that res
+      will do the emitting. It is a function that takes (data, cache args)
+      called in the context of the event emitter. 
+    * `emit` This is what gets emitted upon obtaining the value. If res is not
+      present, this can be the third argument and the data will simply be
+      passed along.
+
+
+[example]()
+
+    var readfile = function (data, evObj) {
+        var file = evObj.pieces[0];
+        var gcd = evObj.emitter;
+        fs.readfile(file, function (err, text) {
+            if (err) {
+                gcd.emit("file read error:jack", err);
+            } else {
+                gcd.emit("got file:jack", text);
+            }
+        });
+    };
+    emitter.on("need file", readfile);
+
+
+    emitter.cache("need file:jack",  "got file:jack", diffLines, "lines gotten");
+    emitter.cache("need file:jack", "got file:jack", emitDiffWords);
+    emitter.cache("need file:jack", "got file:jack", "jack's text");
+
 
 ### Filter
 
