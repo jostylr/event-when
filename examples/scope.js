@@ -11,8 +11,8 @@ emitter.scope("jane", {n:8});
 emitter.scope("number requested", {count: 0});
 
 emitter.on("number requested", function (data, scope, emitter) {
-    const scope = emitter.scope(scope);
-    const hscope = emitter.scope("number requested");
+    scope = emitter.scope(scope);
+    var hscope = emitter.scope("number requested");
 
     console.log(scope.n, hscope);
 

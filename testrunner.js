@@ -1,4 +1,5 @@
-/*global require, process*/
+/*jshint esversion: 6*/
+/*global require, setImmediate, console*/
 var EventWhen = require('./index.js'),
     test = require('tape');
 
@@ -194,7 +195,7 @@ test('max loop', function (s) {
         actual.push("start");
         setImmediate( () => {
             actual.push("stopping");
-            emitter.off("loop") 
+            emitter.off("loop");
             emitter.emit("loop");
             emitter.emit("stopped");
         });

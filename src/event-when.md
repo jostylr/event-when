@@ -7,11 +7,17 @@ We set some variables; see the doc section.
 We bind `looper` which is the execution loop to the instance since it will be
 passed in without context via setImmediate.
 
+There are a couple of default actions, one for caching events and one for
+dealing with `.when`. They have a leading `_` to denote that
+it is kind of private. 
+
     function () {
 
         this._handlers = new Map();
         this._scopes = new Map();
         this._actions = new Map();
+        this._actions.set("_cache", _"cache function");
+        this._actions.set("_when", _"handling when");
         this._onceCache = new Map();
         this._queue = [];
         this._monitor = [];
@@ -139,7 +145,8 @@ we are already in the loop).
     __arguments__
 
     * `ev`  A string that denotes the event. The string up to the first colon
-      is the actual event and after the first colon is the scope. 
+      is the actual event and after the first colon is the scope. To pass
+      along an object named by the scope, end the scope with a `~`.  
     * `data` Any value. It will be passed into the handler as the first
       argument. 
 
@@ -159,7 +166,9 @@ we are already in the loop).
     up).
 
     In what follows, it is important to know that the handler signature 
-    is `(data, scope, emitter, context, event)`.
+    is `(data, scope, emitter, context, event)`. Note that scope and context
+    will generally be strings, but if those strings end in `~`, then they get
+    replaced with their corresponding object, created if necessary. 
 
     As an example, if the event `a:b:c` is emitted, then `a:b:c` fires,
     followed by `a`. The scope for both is `b:c`. `emitter.scope('b:c')` will
@@ -177,6 +186,7 @@ we are already in the loop).
 
     emitter.emit("text filled", someData);
     emitter.emit("general event:scope", data);
+    emitter.emit("general event:scope~", data);
 
 [setup event object]()
 
@@ -217,61 +227,6 @@ The handlers could be the full event+scope which get executed first.
 
 
 
-### Emit Cache
-
-This does a basic caching of events. It matches the whole event. It has the
-same signature as emit and, in fact, it just calls it. 
-
-The data is stored in an array. This allows for once methods to take the first
-n events, if needed, or even 'on' methods to read the events if desired. 
-
-    function (ev, data) {
-        const emitter = this;
-        let cache = emitter._onceCache.get(ev);
-        if (cache) {
-            cache.push(data);
-        } else {
-            emitter._onceCache.set(ev, [data]);           
-        }
-        emitter.emit(ev, data);
-        return emitter;
-    }
-
- [doc]() 
-
-    ### emitCache(str ev, obj data) --> emitter
-
-    Emit the event but cache it for once methods. Only the full exact event is
-    cached, not subforms. If the same event is called
-    multiple times, the data gets added in the order of emitting. On methods
-    can opt-in to taking in the cache history. Once methods can opt-out, but
-    they suck up the data by default the number of times.  
-
-    __arguments__
-
-    Same as emit.
-
-    * `ev`  A string that denotes the event. 
-    * `data` Any value. It will be passed into the handler as the first
-      argument. 
-
-    __return__
-
-    The emitter for chaining. 
-
-    __example__
-
-        _":example"
-
-[example]()
-
-    emitter.emitCache("text filled", someData);
-    emitter.once("text filled", function (data) {
-        //do something
-    });
-
-
-
 ### Scope
 
 This manages the scopes object in a simple functional interface. One can
@@ -279,7 +234,7 @@ directly access the scopes object, but this allows for a more unified access
 that can also be debugged easily enough. 
 
 
-    function (key, obj) {
+    function (key, obj, tobj) {
         const emitter = this;
 
         if (arguments.length === 0) {
@@ -298,14 +253,25 @@ that can also be debugged easily enough.
             return obj;
         }
 
-For two arguments, first being true, we grab the scope and/or create one. 
+For two arguments, first being true, we grab the scope and/or create one. A
+third argument in this case will be assumed to be the desired new object and
+returns it. 
+
+A newly created scope will be a plain object with no properties. Chose this
+over a Map to ensure that we can do `s.c` for accessing it; this is about
+convenience of code. 
 
         if (key === true) {
             key = obj;
             obj = emitter._scopes.get(key);
             if (typeof obj === 'undefined') {
-                obj = new Map();
-                emitter._scopes.set(key, obj);
+                if (typeof tobj !== 'undefined') {
+                    emitter._scopes.set(key, tobj);
+                    return tobj;
+                } else {
+                    obj = Object.create(null);
+                    emitter._scopes.set(key, obj);
+                }
             }
             return obj;
         }
@@ -418,7 +384,7 @@ This is to handle a single event on the event queue.
 Event object is of the form `[event, scope, data, handlers]`
 
     
-    evObj = queue.shift();
+    let evObj = queue.shift();
     let actions = evObj.pop();
     
     let action; 
@@ -456,6 +422,10 @@ function is what would be executed to call.
         const handler = new Handler(action, f, context, emitter); 
         handler.event = ev;
 
+        _":context"
+
+        _":scope"
+
         let handlerArr = handlers.get(ev);
         if (handlerArr) {
                 handlerArr.push(handler);
@@ -480,13 +450,15 @@ function is what would be executed to call.
 
     __arguments__
 
-    * `ev` The event string on which to call the action
+    * `ev` The event string on which to call the action. If this ends in `~`,
+      then this signals that there shold be a scope object, which will be
+      created now if it does not exist. 
     * `action` This is a string and is what identifies the handler. It should be written as a "do this" while the event is "something is done". 
     * `f`. If an action string is not already defined with a function, one can
       associate a function with it by passing in one. The call signature is
       `data, scope, emitter, context`. The name of the function, if none, will
       be set to the action. 
-    * `context`. This is either a string that uses the named scope of emitter as the context or it is an object that can be used directly. 
+    * `context`. This is either a string that uses the named scope of emitter as the context or it is an object that can be used directly. If it ends in `~`, then it will be called in as the object and created now if necessary. 
 
     __return__
 
@@ -605,6 +577,11 @@ If present, n, needs to be first.
  We used up as much of the handler as the cache has, up to the limit of the
  count. 
 
+We need to check for a tilde first. 
+
+    if (ev[ev.length-1] === '~') {
+        ev = ev.slice(0,-1);
+    }
     let cache = emitter._onceCache.get(ev);
     if (cache) {
         let n = Math.min(cache.length, handler.count);
@@ -614,7 +591,7 @@ If present, n, needs to be first.
         let i;
         for (i = 0; i < n; i+=1) {
             handler.count -=1;
-            handler.execute(cache[i], scope, emitter);
+            handler.execute(cache[i][0], scope, emitter, cache[i]);
         }
         if (handler.count === 0) {
             emitter.off(ev, handler);
@@ -819,6 +796,125 @@ This decrements the once handlers and removes them if
 
     some docs
 
+### Cache Event
+
+This does a basic caching of events. It is a handler for it and stores
+whatever is needed to call it again. 
+
+
+
+    function (ev, off) {
+        if (off !== false) {
+            const emitter = this;
+            emitter.on(ev, "_cache:*~");
+        } else {
+            emitter.off(ev, "_cache");
+            emitter.scope("_cache").delete(ev);
+        }      
+
+        return emitter;
+    }
+
+
+ [doc]() 
+
+    ### storeEvent(str ev, off) --> emitter
+
+    This will setup a handler for the event `ev` which will cache its data and
+    event object. This will be stored in the scope `_cache` value. 
+
+    __arguments__
+
+    Same as emit.
+
+    * `ev` A string that denotes the event. 
+    * `off` If set to true, this turns off the caching and eliminates it. To
+      turn it off without deleting the cache, use `emitter.off(ev, "_cache")`.
+      
+    
+    __return__
+
+    The emitter for chaining. 
+
+    __example__
+
+        _":example"
+
+[example]()
+
+    emitter.storeEvent("text filled");
+    emitter.once("text filled", function (data) {
+        //do something
+    });
+
+
+#### Cache Function
+
+This handles a cache event. 
+
+    function (data, ev, scope, emitter, context, evObj) {
+        let cache = context.get(ev);
+        if (!cache) {
+            cache = [];
+            context.set(ev, cache);
+        }
+        cache.push(data, evObj);
+
+        return emitter;
+    }
+
+
+
+The data is stored in an array. This allows for once methods to take the first
+n events, if needed, or even 'on' methods to read the events if desired. 
+
+    function (ev, data) {
+        const emitter = this;
+        let cache = emitter._onceCache.get(ev);
+        if (cache) {
+            cache.push(data);
+        } else {
+            emitter._onceCache.set(ev, [data]);           
+        }
+        emitter.emit(ev, data);
+        return emitter;
+    }
+
+ [doc]() 
+
+    ### emitCache(str ev, obj data) --> emitter
+
+    Emit the event but cache it for once methods. Only the full exact event is
+    cached, not subforms. If the same event is called
+    multiple times, the data gets added in the order of emitting. On methods
+    can opt-in to taking in the cache history. Once methods can opt-out, but
+    they suck up the data by default the number of times.  
+
+    __arguments__
+
+    Same as emit.
+
+    * `ev`  A string that denotes the event. 
+    * `data` Any value. It will be passed into the handler as the first
+      argument. 
+
+    __return__
+
+    The emitter for chaining. 
+
+    __example__
+
+        _":example"
+
+[example]()
+
+    emitter.emitCache("text filled", someData);
+    emitter.once("text filled", function (data) {
+        //do something
+    });
+
+
+
 ## Action
 
 This is for storing Handler type objects under a name string, generally some
@@ -860,10 +956,23 @@ possibly context information.
             emitter.log("creating action", name, f, context); 
         }
 
-        let o =  {
-            f : f,
-            context : context
-        };
+        _"on:switch variables"
+
+        let o = {};
+
+        if (f) {
+            o.f = f;
+        }
+
+        let contextStr;
+
+        if ( (typeof context === 'string') &&
+                (context[context.length -1] === '~') ) {
+            o.contextStr = contextStr = context.slice(0,-1);
+            o.context = emitter.scope(true, contextStr);
+        } else {
+            o.context = context;
+        }
         
         if (typeof f === 'function') {
       
@@ -883,8 +992,6 @@ object will not be part of the name.
         return emitter;
     }
 
-We return the name so that one can define an action and then use it. 
-
 
 [doc]() 
 
@@ -898,7 +1005,9 @@ We return the name so that one can define an action and then use it.
     * `name` This is the action name.
     * `f` The function action to take. 
     * `context` Either a string to call the scope from the emitter when
-      invoking f or an object directly. 
+      invoking f or an object directly. If the string ends in `~`, then the
+      context will be called in as an object; it will make the object at this
+      point (using emitter.scope) if it does not already exist. 
 
     __return__
 
@@ -1028,8 +1137,6 @@ This is to remove the tracking of a .when event in conjunction with the .off
 method.
 
     function me (ev, emitter) {
-        var actions = emitter._actions;
-        
         let handler =  this;
 
         if ( handler.hasOwnProperty("tracker") ) {
@@ -1075,7 +1182,7 @@ No error catching for the function.
     function me (data, scope, emitter, event) {
         
         const handler = this;
-        const raw = emitter._actions.get(handler.action) || empty;
+        const raw = emitter._actions.get(handler.action) || {};
 
         const f = this.f || raw.f;
         if (typeof f !== "function") {
@@ -1083,13 +1190,9 @@ No error catching for the function.
             return;
         }
 
-        let context = this.context || raw.context || empty;
+        let context = this.context || raw.context || {};
 
-        if (typeof context === "string") {
-            context = emitter.scope(true, context);
-        }
-
-        if (typeof scope === 'string') {
+        if (handler['~']) {
             scope = emitter.scope(true, scope);
         }
 
@@ -1110,9 +1213,10 @@ No error catching for the function.
     __arguments__
 
     * `data`. This is the data from an emit event.
-    * `scope`. The colonated part of the event. It gets evaluated into a scope
-      object from emitter and that is passed along. A new map is created if
-      there is no scope. 
+    * `scope`. The colonated part of the event. If the scope endsin a `~`,
+      then it gets evaluated into a scope
+      object from emitter and that is passed along; this is created as a plain
+    object to facilitate easy manipulations if it does not already exist. 
     * `emitter` The emitter object.
     * `event` The full event string that was called in the emit. Usually not
       needed, but could be useful. This is passed along into the function
@@ -1123,7 +1227,9 @@ No error catching for the function.
     The handler will find a function to call or emit an error. This is either
     from when the `on` event was created or from an action item. The context
     object, also from one of those things, will be sent along as the fourth
-    argument in the call of the function. 
+    argument in the call of the function. If the context string ends in a `~`,
+    then a scope object is retrieved and passed in, being created as a plain
+    object to facilitate easy manipulations. 
 
     __return__
 
@@ -1165,13 +1271,14 @@ rest is optional.
         let proto = emitter.action(action);
         let tracker;
         if (!proto) {
-            tracker = new Tracker (options, emitter, action, events);
-            proto.context = tracker;
+            tracker = new Tracker (options, emitter, action, events, ev);
+            emtter.scope("_tracking "+ev, tracker);
+            emitter.action(action, "_when", tracker); 
         } else { 
             tracker = proto.context;
         }
 
-        tracker.add(events);
+        tracker.add(events, ev);
         
         
         return tracker;
@@ -1485,15 +1592,15 @@ This is where we handle when when it is called.
 
 The context holds all the long term data that when needs. 
 
-
     function (data, scope, emitter, context, event) {
-        var handler = this;
-        var tracker = context;
+        let handler = this;
+        let tracker = context;
+        let handlers = tracker.handlers;
 
         
 
         if (handler.count === 0) {
-            handlers.delete(handler.event);
+            emitter.handlers.delete(handler.event);
             if (Array.from(handlers.keys()).length === 0) {
                 _":emit done"
             }
@@ -1513,9 +1620,14 @@ This is where we assemble the data
 This is a convenience method that simply flips the tracker to flatten. But it
 has a radical difference on the emitted values. 
 
-    function () {
-        let tracker = this.when.apply(this, arguments);
-        tracker.preparer = tracker.flatten;
+    function (events, ev, options) {
+        if (options) {
+           options.flatten = true; 
+        } else {
+            options = {flatten:true};
+        }
+        return this.when(events, ev, options);
+        tracker.flatten = true;
         return tracker;
     }
 
@@ -1525,7 +1637,7 @@ This is a convenience method that will always return an array of values.
 
     function () {
         let tracker = this.when.apply(this, arguments);
-        tracker.preparer = tracker.flatArr;
+        tracker.flatArr = true;
         return tracker;
     }
 
@@ -1556,7 +1668,7 @@ available. Controlling it controls the queue of the when emit.
 
 [prototype]()
 
-THe various prototype methods for the tracker object. 
+The various prototype methods for the tracker object. 
 
     Tracker.prototype.add = _"add";
     Tracker.prototype.remove = Tracker.prototype.rem = _"remove";
@@ -1695,7 +1807,7 @@ data object and the value.
                 [event, n, pipe, initial] = arr;
             }
             if (typeof event !== 'string') {
-                emitter.error('event to listen for should be string', events, ev);
+                emitter.error('event to listen for should be string', event);
                 return null;
             }
             n = (typeof n === 'number') ? n : 1;
@@ -2425,7 +2537,11 @@ create the simple descriptions.
 
         var logs = [],
             full = [], 
-            fdesc = {_"logs"},
+            fdesc = {           
+            
+`_"logs"`
+
+            },
             temp;
 
         var ret = function (desc) {
@@ -3061,7 +3177,7 @@ with those events as keys and the values as the handlers.
     __arguments__
     
     * `events`. Array of events of interest. 
-    * `events`. If function, reg, or string, then events are genertaed by
+    * `events`. If function, reg, or string, then events are generated by
       events method. Note string is a substring match; to get exact, enclose
       string in an array. 
     * `events`. If an array of `[filter, true]`, then it reverses the filter

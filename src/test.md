@@ -184,7 +184,7 @@ emit an event to turn off the listener.
         actual.push("start");
         setImmediate( () => {
             actual.push("stopping");
-            emitter.off("loop") 
+            emitter.off("loop");
             emitter.emit("loop");
             emitter.emit("stopped");
         });
@@ -1484,8 +1484,8 @@ We define a command that takes a list of items separated by returns and makes an
 
 ## Testrunner
 
-
-    /*global require, process*/
+    /*jshint esversion: 6*/
+    /*global require, setImmediate, console*/
     var EventWhen = require('./index.js'),
         test = require('tape');
 

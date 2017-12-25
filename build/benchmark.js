@@ -1,3 +1,4 @@
+/*jshint eqnull:true,esversion:6 */
 /*global require, process, console */
 
 var n = parseFloat(process.argv[2], 10) || 5e5;
@@ -54,6 +55,29 @@ for (i = 0; i < n; i += 1) {
 }
 
 log(time, emitter.scope('c'), "event-when scope");
+console.log(process.memoryUsage());
+
+emitter = new EvW();
+
+emitter.loopMax = 2*n;
+
+emitter.scope('numbers', {c:0});
+
+emitter.action('add', function count (num, s) {
+    s.c += 1; 
+});
+
+emitter.on("go", "add");
+
+time = process.hrtime();
+
+let a = {c:1};
+
+for (i = 0; i < n; i += 1) {
+    emitter.emit("go:numbers~", a);
+}
+
+log(time, emitter.scope('numbers').c, "event-when embedded scope");
 console.log(process.memoryUsage());
 
     var EE = require("events").EventEmitter; 

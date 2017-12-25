@@ -111,12 +111,14 @@ This is the main structure of the module file.
 
 
     /*jshint eqnull:true,esversion:6 */
-    /*global setTimeout, process, module, console */
+    /*global setTimeout, setImmediate, module, console */
 
     ;(function () {
         var empty = {};
 
         var noop = function () {};
+
+        let identity = a=>a;
 
         var filter = _"fevw::filter";
 
@@ -152,6 +154,7 @@ Here we benchmark the basic emit, handler code. This is presumably where
 the most number of operations occurs. 
 
     
+    /*jshint eqnull:true,esversion:6 */
     /*global require, process, console */
     
     var n = parseFloat(process.argv[2], 10) || 5e5;
@@ -173,6 +176,9 @@ the most number of operations occurs.
     console.log(process.memoryUsage());
    
     _":evw scope"
+    console.log(process.memoryUsage());
+
+    _":evw embedded scope"
     console.log(process.memoryUsage());
 
     _":second"
@@ -224,6 +230,32 @@ the most number of operations occurs.
 
     log(time, emitter.scope('c'), "event-when scope");
 
+
+
+[evw embedded scope]()
+
+
+    emitter = new EvW();
+
+    emitter.loopMax = 2*n;
+
+    emitter.scope('numbers', {c:0});
+
+    emitter.action('add~', function count (num, s) {
+        s.c += 1; 
+    });
+
+    emitter.on("go", "add");
+    
+    time = process.hrtime();
+
+    letv a = {c:1};
+    
+    for (i = 0; i < n; i += 1) {
+        emitter.emit("go:numbers", a);
+    }
+
+    log(time, emitter.scope('numbers').c, "event-when embedded scope");
 
 
 

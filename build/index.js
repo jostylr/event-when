@@ -1,10 +1,12 @@
 /*jshint eqnull:true,esversion:6 */
-/*global setTimeout, process, module, console */
+/*global setTimeout, setImmediate, module, console */
 
 ;(function () {
     var empty = {};
 
     var noop = function () {};
+
+    let identity = a=>a;
 
     var filter = function (condition, negate) {
         
@@ -185,13 +187,17 @@
     
         let context = this.context || raw.context || empty;
     
-        if (typeof context === "string") {
-            context = emitter.scope(true, context);
+        handler.lastContext = context;
+        handler.lastScope = scope;
+    
+        if (typeof context === "string" && 
+            context[context.length-1] === '~') {
+            context = emitter.scope(true, context.slice(0,-1));
         }
     
-        let scopeObj;
-        if (typeof scope === 'string') {
-            scope = emitter.scope(true, scope);
+        if (typeof scope === "string" && 
+            scope[scope.length-1] === '~') {
+            scope = emitter.scope(true, scope.slice(0,-1));
         }
     
         emitter.log("executing action", handler.action);
@@ -202,8 +208,6 @@
     
     }; 
     Handler.prototype.removal = function me (ev, emitter) {
-        var actions = emitter._actions;
-        
         let handler =  this;
     
         if ( handler.hasOwnProperty("tracker") ) {
@@ -262,7 +266,7 @@
                 [event, n, pipe, initial] = arr;
             }
             if (typeof event !== 'string') {
-                emitter.error('event to listen for should be string', events, ev);
+                emitter.error('event to listen for should be string', event);
                 return null;
             }
             n = (typeof n === 'number') ? n : 1;
@@ -556,7 +560,7 @@
     
     
     };
-    EvW.prototype.scope = function (key, obj) {
+    EvW.prototype.scope = function (key, obj, tobj) {
         const emitter = this;
     
         if (arguments.length === 0) {
@@ -578,8 +582,13 @@
             key = obj;
             obj = emitter._scopes.get(key);
             if (typeof obj === 'undefined') {
-                obj = new Map();
-                emitter._scopes.set(key, obj);
+                if (typeof tobj !== 'undefined') {
+                    emitter._scopes.set(key, tobj);
+                    return tobj;
+                } else {
+                    obj = Object.create(null);
+                    emitter._scopes.set(key, obj);
+                }
             }
             return obj;
         }
@@ -861,13 +870,14 @@
         return tracker;
     };
     EvW.prototype.whenf = function (data, scope, emitter, context, event) {
-        var handler = this;
-        var tracker = context;
+        let handler = this;
+        let tracker = context;
+        let handlers = tracker.handlers;
     
         
     
         if (handler.count === 0) {
-            handlers.delete(handler.event);
+            emitter.handlers.delete(handler.event);
             if (Array.from(handlers.keys()).length === 0) {
                 
             }
@@ -966,7 +976,7 @@
         emitter._looping = true;
     
         while ( (queue.length) && (emitter.loop < loopMax ) ) {
-            evObj = queue.shift();
+            let evObj = queue.shift();
             let actions = evObj.pop();
             
             let action; 
@@ -1057,206 +1067,8 @@
     
         var logs = [],
             full = [], 
-            fdesc = {"emit" : function (ev, data, timing, evObj) {
-                return evObj.count + ". EMITTING " + se(ev)  + 
-                    ( (typeof data !== "undefined") ? 
-                        " DATA " + s(data) :
-                        "" ) +
-                    ( (timing !== emitter.timing) ? " TIMING " + 
-                        se(timing) : "" );
+            fdesc = {           
             },
-            
-            "restoring normal emit" : function () {
-                return "Last monitor removed, emit restored";
-            },
-            
-            "wrapping emit" : function (filt, listener) {
-                return "ADD MONITOR " + s(filt, listener);
-            },
-            
-            
-            "removing wrapper" : function (filt) {
-                return "SUB MONITOR " + s(filt.filt, filt[1]);
-            },
-            
-            "attempted removal of wrapper failed": function(filt){
-                return "NO SUCH MONITORY " + s(filt);
-            },
-            
-            "intercepting event" : function ( ev, data, filt){
-                return "INTERCEPTING " + se(ev) +
-                       ( (typeof data !== "undefined") ? 
-                        " DATA " + s(data) :
-                        "" ) +
-                    " MONITOR " + s(filt.filt, filt[1]);
-            },
-            
-            "stopping event" : function(ev, data, filt) {
-                return "STOP " + se(ev) +
-                    " MONITOR " + s(filt.filt, filt[1]);
-            },
-            
-            "deleting scope event" : function (ev, scope) {
-                return "REMOVING SCOPE FOR " + se(ev); // + " " + s(scope);
-            },
-            
-            "overwriting scope event" : function(ev, obj, scope) {
-                return "OVERWRITING SCOPE FOR " + se(ev); 
-                // + " from " + s(scope) + " to " + s(obj);
-            }, 
-            
-            "creating scope event" : function (ev, obj) {
-                return "CREATING SCOPE FOR " + se(ev); // + " now has a scope " + s(obj); 
-            },
-            
-            "on" : function (ev, proto, context) {
-               if (proto.hasOwnProperty('_label') ) {
-                    proto = proto._label;
-                    if ( (proto.indexOf("(when)" ) === 0) ||
-                    (proto.indexOf("(once)") === 0 ) ) {
-                        return;
-                    }
-                }
-                return "ATTACH " + s(proto) + " TO " + se(ev); 
-                //+ ( (context && context.hasOwnProperty('_label') ) ? 
-                //        " CONTEXT " + s(context._label) : "" ); 
-            },
-            
-            "all handlers removed from all events" : function () {
-                return "ALL HANDLERS WIPED";
-            }, 
-            
-            "handler for event removed" : function (ev, removed) {
-                var ident = s(removed._label) ||
-                    se(removed.map(function (el) {return el.action;}));
-                return "REMOVING HANDLER " + ident +
-                    " FROM " + se(ev);
-            },
-            
-            "removed handlers on event ignoring when" : function (ev) {
-                return "REMOVING NOT WHEN HANDLERS FROM " + se(ev);
-            },
-            
-            "removing all handlers on event" : function (ev) {
-                return "REMOVING ALL HANDLERS FROM " + se(ev);
-            },
-            
-            "once" : function(ev, n, proto, context) {
-                if (proto.hasOwnProperty('_label') ) {
-                    proto = proto._label;
-                }
-                return "ATTACH " + s(proto) + " TO " + se(ev) + 
-                    " FOR " + se(n);
-                    // + ( (context && context.hasOwnProperty('_label') ) ?  " CONTEXT " + s(context._label) : "" ); 
-            },
-            
-            
-            "when" : function (events, ev, timing, reset) {
-                return "WHEN: " + se(ev) + 
-                    " AFTER: " + 
-                    se(events) + 
-                    ( timing ? " TIMING " + s(timing) : "" ) +
-                    ( reset ? " (RESET ON) " : "" ); 
-            },
-            
-            "when add" : function (events, ev) {
-                return "WHEN: " + se(ev) + 
-                    " AFTER: " + 
-                    se(events) + "(PLUS OTHERS)";
-            },
-            
-            
-            "removed action" : function(name) {
-                return "ACTION DELETE: " + se(name);
-            },
-            
-            "overwriting action" : function (name, proto) {
-                return "ACTION: " + se(name) + " OVERWRITTEN BY " + s(proto);
-            },
-            
-            "creating action" : function(name, proto, context) {
-                if (proto.hasOwnProperty("_label") ) {
-                    proto = proto._label;
-                }
-                return "NEW ACTION " + se(name) +
-                    " FUN " + s(proto) + 
-                    ( context ?  " CON " + s(context) : "" ); 
-            },
-            
-            
-            "emission stopped" : function (ev) {
-                return "STOPPING " + se(ev); 
-            },
-            
-            "queue cleared of all events" : function () {
-                return "EVENT QUEUE CLEARED";
-            },
-            
-            "event cleared" : function (ev) {
-                return "EVENT" + se(ev) + " CLEARED";
-            },
-            
-            "some events stopped" : function(a, rq, rw) {
-                
-                var qlist = rq.map(function (el) {
-                    return el.ev;
-                }); 
-            
-                var wlist = rw.map(function (el) {
-                    return el.ev;
-                });  
-            
-                return "STOPING EVENTS " + s(qlist) + s(wlist) + " PER FILTER " + se(a);
-            },
-            
-            "error raised" : function(e, handler, data, evObj, context) {
-                var err = "error " + e + "\n\n" +
-                    "event " + s(evObj) +  
-                    "\nhandler " + s(handler) + 
-                    "\ndata " + s(data) + 
-                    "\ncontext " + s(context) + 
-                    "\nscopes " + s('scopes') + 
-                    "\nstack " + e.stack;
-                return err;
-            },
-            
-            "executing action" : function ( value, context, evObj) {
-                var event = evObj.ev;
-                var l = evObj.cur[0].length;
-                event = "'" + event.slice(0, l) + "'" + event.slice(l);
-                return evObj.count + ") " + 
-                    "ACTING " + se(value) +
-                    " EVENT " + event;
-                    //se(evObj.cur[0]);
-                    //+ ( context ?  " CON " + s(context) : "" ); 
-            },
-            
-            "action not found" : function (value, evObj) {
-                return  evObj.count + ") " + 
-                    " EVENT " +
-                    se(evObj.cur[0]); 
-                    //+ " NO ACTION " + se(value);
-            },
-            
-            "executing function" : function (value, context, evObj) {
-                /*var f = se(value);
-                if (f === "``") {
-                    return ;
-                }*/
-                var n = value._label || value.name;
-                if (!n) {
-                    return ;
-                }
-                return evObj.count + ") " + 
-                    "EXECUTING " + n + 
-                    " EVENT " + 
-                    se(evObj.cur[0]); 
-                    //+ ( context ?  " with context " + s(context) : "" ); 
-            },
-            
-            "canceling tracker" : function (tracker) {
-                return "CANCEL " + s(tracker._label);
-            }},
             temp;
     
         var ret = function (desc) {
