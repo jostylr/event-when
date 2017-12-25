@@ -93,12 +93,12 @@ emitter = new EventWhen();
 These are methods on the emitter object. 
 
 * [emit](#emit)
-* [emitCache](#emitCache)
 * [monitor](#monitor)
 * [when](#when)
 * [on](#on)
 * [off](#off)
 * [once](#once)
+* [storeEvent](#storeEvent)
 * [stop](#stop)
 * [cache](#cache)
 * [action](#action)
@@ -123,9 +123,13 @@ Emit the event.
 __arguments__
 
 * `ev`  A string that denotes the event. The string up to the first colon
-  is the actual event and after the first colon is the scope. 
+  is the actual event and after the first colon is the scope. To pass
+  along an object named by the scope, the handler needs to have a `~` at
+  the end of the action.
 * `data` Any value. It will be passed into the handler as the first
   argument. 
+* `target` Any value, usually an object that the handler takes the data
+  and uses to modify target.
 
 __return__
 
@@ -143,7 +147,9 @@ order of handling is from the most specific to the general (bubbling
 up).
 
 In what follows, it is important to know that the handler signature 
-is `(data, scope, emitter, context, event)`.
+is `(data, scope, emitter, context, event)`. Note that scope and context
+will generally be strings, but if those strings end in `~`, then they get
+replaced with their corresponding object, created if necessary. 
 
 As an example, if the event `a:b:c` is emitted, then `a:b:c` fires,
 followed by `a`. The scope for both is `b:c`. `emitter.scope('b:c')` will
@@ -157,24 +163,24 @@ __example__
 
     emitter.emit("text filled", someData);
     emitter.emit("general event:scope", data);
+    emitter.on("genera event", "respond with scoped target~");
+    emitter.emit("general event:scope", data);
 
 ---
-<a name="emitCache"></a>
-### emitCache(str ev, obj data) --> emitter
+<a name="storeEvent"></a>
+### storeEvent(str ev, off) --> emitter
 
-Emit the event but cache it for once methods. Only the full exact event is
-cached, not subforms. If the same event is called
-multiple times, the data gets added in the order of emitting. On methods
-can opt-in to taking in the cache history. Once methods can opt-out, but
-they suck up the data by default the number of times.  
+This will setup a handler for the event `ev` which will cache its data and
+event object. This will be stored in the scope `_cache` value. 
 
 __arguments__
 
 Same as emit.
 
-* `ev`  A string that denotes the event. 
-* `data` Any value. It will be passed into the handler as the first
-  argument. 
+* `ev` A string that denotes the event. 
+* `off` If set to true, this turns off the caching and eliminates it. To
+  turn it off without deleting the cache, use `emitter.off(ev, "_cache")`.
+  
 
 __return__
 
@@ -182,7 +188,7 @@ The emitter for chaining.
 
 __example__
 
-    emitter.emitCache("text filled", someData);
+    emitter.storeEvent("text filled");
     emitter.once("text filled", function (data) {
         //do something
     });
@@ -308,7 +314,7 @@ full event name is placed in the third slot.
 
 ---
 <a name="on"></a>
-### on(str ev, str action, function f, str/obj context ) --> Handler
+### on(str ev, str action, function f, obj context ) --> Handler
 
 Associates action with event ev for firing when ev is emitted. The
 optionals are detected based on kind so the order and relevance is
@@ -316,18 +322,31 @@ optional.
 
 __arguments__
 
-* `ev` The event string on which to call the action
-* `action` This is a string and is what identifies the handler. It should be written as a "do this" while the event is "something is done". 
+* `ev` The event string on which to call the action. If this ends in `~`,
+  then this signals that there shold be a scope object, which will be
+  created now if it does not exist. 
+* `action` This is a string and is what identifies the handler. It should be written as a "do this" while the event is "something is done". If it has a colon in it, then the part after the colon is considered a context that can be used to distinguish different actions. In particular, if there is no context object passed in, then this string is used to identify a scope that gets passed in. 
 * `f`. If an action string is not already defined with a function, one can
   associate a function with it by passing in one. The call signature is
   `data, scope, emitter, context`. The name of the function, if none, will
   be set to the action. 
-* `context`. This is either a string that uses the named scope of emitter as the context or it is an object that can be used directly. 
+* `context`. This is either a string that uses the named scope of emitter as the context or it is an object that can be used directly. If it ends in `~`, then it will be called in as the object and created now if necessary. 
 
 __return__
 
 The Handler which can be further manipulated, such as by once. It can be used to remove the
 handler though the action string is preferred. 
+
+The Handler has a variety of properties that can be used to understand the
+action to be taken: 
+
+* `event`. This is the event that it is listening for. 
+* `fullAction`. This is the full action string. 
+* `action`. This is the action that may be used to look up the function to
+  use. 
+* `emitter`. The emitter is stored here for use in the execute call.
+* `context`. The context object, if there is one. 
+* `contextStr`. The context string, if there is one. 
 
 __example__
 
@@ -479,7 +498,9 @@ __arguments__
 * `name` This is the action name.
 * `f` The function action to take. 
 * `context` Either a string to call the scope from the emitter when
-  invoking f or an object directly. 
+  invoking f or an object directly. If the string ends in `~`, then the
+  context will be called in as an object; it will make the object at this
+  point (using emitter.scope) if it does not already exist. 
 
 __return__
 
@@ -819,22 +840,20 @@ These are largely internally used, but they can be used externally.
 
 * [execute](#execute)
 * [removal](#removal)
-* [decrement](#decrement)
 
 
 ---
 <a name="execute"></a>
-#### execute(data, str scope, emitter, str event) --> 
+#### execute(data, str scope, emitter, arr evObj) --> 
 
 This executes the handler. 
 
 __arguments__
 
 * `data`. This is the data from an emit event.
-* `scope`. The colonated part of the event. If the scope endsin a `~`,
-  then it gets evaluated into a scope
-  object from emitter and that is passed along; this is created as a plain
-object to facilitate easy manipulations if it does not already exist. 
+* `target`. A value, generally an object, that is used as the state to
+  modify and get from. The scope string that may or may not be related to
+  the target can be found in `evObj[4]`. 
 * `emitter` The emitter object.
 * `event` The full event string that was called in the emit. Usually not
   needed, but could be useful. This is passed along into the function
@@ -843,11 +862,11 @@ object to facilitate easy manipulations if it does not already exist.
 __note__
 
 The handler will find a function to call or emit an error. This is either
-from when the `on` event was created or from an action item. The context
-object, also from one of those things, will be sent along as the fourth
-argument in the call of the function. If the context string ends in a `~`,
-then a scope object is retrieved and passed in, being created as a plain
-object to facilitate easy manipulations. 
+from when the `on` event was created or from an action item. 
+
+The function is called with `this === handler`, and signature 
+`data, target, emitter, context, evObj` Context and target may be
+undefined.  
 
 __return__
 
@@ -878,10 +897,6 @@ Nothing.
 __example__
 
     handler.removal("whened", emitter); 
-
----
-<a name="decrement"></a>
-some docs
 
 ---
 ### Tracker

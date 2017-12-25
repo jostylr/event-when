@@ -154,55 +154,55 @@
     
     };
 
-    var Handler = function (action, f, context, emitter) {
+    var Handler = function (fullAction, f, context, emitter) {
         const handler = this;
-    
-        handler.action = action;
+        let i, contextStr, action;
+        handler.fullAction = fullAction;
+        if ( (i = fullAction.indexOf(":")) !== -1) {
+            action = handler.action = fullAction.slice(0,i);
+            contextStr = handler.contextStr = fullAction.slice(i+1);
+            if (contextStr === '*') {
+                contextStr = action;
+            }
+            if (typeof context === 'undefined') {
+                context = emitter.scope(true, contextStr);
+            }
+        } else {
+            handler.action = fullAction;
+        }
         handler.emitter = emitter;
         if (typeof f === 'function') {
             handler.f = f;
             Object.defineProperty(f, 'name', {
                 value:(f.name||'') + ":" +
-                    action + ":" + 
-                   ( (typeof context === 'string') ? context : '') , configurable:true});
+                    fullAction, configurable:true});
     
         }
-        if (context) {
-            handler.context = context;
-        }
+    
+        handler.context = context;
     
         return handler;
     };
 
-    Handler.prototype.execute = function me (data, scope, emitter, event) {
+    Handler.prototype.execute = function me (data, target, emitter, evObj) {
         
         const handler = this;
-        const raw = emitter._actions.get(handler.action) || empty;
+        const raw = emitter._actions.get(handler.action) || {};
     
         const f = this.f || raw.f;
-        if (typeof f !== "function") {
-            emitter.error("bad function for handler", handler.action);
-            return;
+    
+        let context = this.context || raw.context;
+        
+        if (typeof target === 'undefined') {
+            if  (handler.scopeObj) {
+                target = emitter.scope(true, evObj[4]);
+            } else {
+                target = evObj[4];
+            }
         }
+        emitter.log("executing action", handler.action, data, target, evObj);
     
-        let context = this.context || raw.context || empty;
-    
-        handler.lastContext = context;
-        handler.lastScope = scope;
-    
-        if (typeof context === "string" && 
-            context[context.length-1] === '~') {
-            context = emitter.scope(true, context.slice(0,-1));
-        }
-    
-        if (typeof scope === "string" && 
-            scope[scope.length-1] === '~') {
-            scope = emitter.scope(true, scope.slice(0,-1));
-        }
-    
-        emitter.log("executing action", handler.action);
-    
-        f.call(handler, data, scope, emitter, context, event);
+        f.call(handler, data, target, emitter, context, evObj, raw);
     
         return handler;
     
@@ -218,31 +218,15 @@
     
         return;
     };
-    Handler.prototype.decrement = function (arr, ev) {
-        const emitter = this;
-        const n = arr.length;
-        if (n) {
-           let i;
-            for (i = 0; i<n; i +=1) {
-                if (arr[i].hasOwnProperty('count') ) {
-                    arr[i].count -=1; 
-                    if (arr[i].count === 0) {
-                        emitter.off(ev, arr[i]);
-                    }
-                }
-            }
-        }
-        
-        return arr; 
-    
-    };
 
-    var Tracker = function (options, emitter, action) {
+    var Tracker = function (options, emitter, action, events, ev) {
         let tracker = this;
     
         tracker.emitter = emitter;
         tracker.events = [];
-        tracker.originals = [];
+        tracker.toEmit = ev;
+        tracker.action = action;
+        tracker.originals = events.slice(0);
         tracker.handlers = new Map();
         tracker.pipes = new Map();
         tracker.values = new Map();
@@ -412,6 +396,31 @@
         this._handlers = new Map();
         this._scopes = new Map();
         this._actions = new Map();
+        this._actions.set("_cache", function (data, ev, scope, emitter, context, evObj) {
+            let cache = context.get(ev);
+            if (!cache) {
+                cache = [];
+                context.set(ev, cache);
+            }
+            cache.push(data, evObj);
+        
+            return emitter;
+        });
+        this._actions.set("_when", function (data, scope, emitter, context, event) {
+            let handler = this;
+            let tracker = context;
+            let handlers = tracker.handlers;
+        
+            
+        
+            if (handler.count === 0) {
+                emitter.handlers.delete(handler.event);
+                if (Array.from(handlers.keys()).length === 0) {
+                    
+                }
+            }
+        
+        });
         this._onceCache = new Map();
         this._queue = [];
         this._monitor = [];
@@ -430,7 +439,7 @@
         return this; 
     };
 
-    EvW.prototype._emit = EvW.prototype.emit = function (ev,  data) {
+    EvW.prototype._emit = EvW.prototype.emit = function (ev,  data, target) {
         const emitter = this; 
         let evObj;
     
@@ -439,30 +448,35 @@
             return;
         }
     
+        evObj = [ev, data, target]; //the emit arguments come first.
         let colIndex = ev.indexOf(":");
         let actions;
         const handlers = emitter._handlers;
         if (colIndex === -1) {
+            evObj.push(ev, null);
             actions = handlers.get(ev);
             if (actions) {
-                evObj = [ev, null, data, ev, emitter.decrement(actions.slice(0), ev)]; 
+                evObj.push(emitter.decrement(actions.slice(0)));
             } else {
-                emitter.log("emit without action", ev, data);
+                emitter.log("emit without action", ev, data, target);
                 return emitter;
             }
         } else {
-            evObj = [ev.slice(0,colIndex), ev.slice(colIndex+1), data, ev];
+            const gen = ev.slice(0,colIndex);
+            const scope = ev.slice(colIndex+1);
+            evObj.push(gen, scope);
+        
             const specifics = handlers.get(ev);
-            const generals = handlers.get(evObj[0]);
+            const generals = handlers.get(gen);
             if (specifics && generals) {
                 actions = emitter.decrement(specifics.slice(0), ev).
-                    concat(emitter.decrement(generals.slice(0), evObj[0]));
+                    concat(emitter.decrement(generals.slice(0), gen));
             } else if (specifics) {
                 actions = emitter.decrement(specifics.slice(0), ev);
             } else if (generals) {
-                actions = emitter.decrement(generals.slice(0), evObj[0]);
+                actions = emitter.decrement(generals.slice(0), gen);
             } else {
-                emitter.log("emit without action", ev, data);
+                emitter.log("emit without action", ev, data, target);
                 return emitter;
             }
             evObj.push(actions);
@@ -476,17 +490,6 @@
             emitter.looper();
         }
     
-        return emitter;
-    };
-    EvW.prototype.emitCache = function (ev, data) {
-        const emitter = this;
-        let cache = emitter._onceCache.get(ev);
-        if (cache) {
-            cache.push(data);
-        } else {
-            emitter._onceCache.set(ev, [data]);           
-        }
-        emitter.emit(ev, data);
         return emitter;
     };
     EvW.prototype._emitWrap = function (ev, data, timing) {
@@ -639,16 +642,48 @@
     
         const handlers = emitter._handlers;
     
-        const handler = new Handler(action, f, context, emitter); 
-        handler.event = ev;
-    
         let handlerArr = handlers.get(ev);
         if (handlerArr) {
-                handlerArr.push(handler);
+            let i, n = handlerArr.length; 
+            for (i=0; i < n; i +=1) {
+                if (handlerArr[i].fullAction === action) {
+                    emitter.log("repeat event-action pair for on", 
+                        ev, action);
+                    return handlerArr[i];
+                }
+            }
         } else {
-            handlerArr = [handler];
+            handlerArr = [];
             handlers.set(ev, handlerArr);
         }
+    
+        let scopeObj = false;
+        let toggle = action[action.length -1];
+        if ( ( toggle === '~') ||
+             ( toggle === '.') ) {
+            action = action.slice(0, -1);
+            let g = f;
+            f = function wrapper (data, target, emitter, context, evObj, raw) {
+                let handler = this;
+                if (typeof target === 'undefined') {
+                    if  (handler.scopeObj) {
+                        target = emitter.scope(true, evObj[4]);
+                    } else {
+                        target = evObj[4];
+                    }
+                }
+                emitter.log("executing action", handler.action, data, target, evObj);
+            
+                g = g || raw.f;
+                g.call(handler, data, target, emitter, context, evObj);
+            };
+            scopeObj = (toggle === '~') ? true : false; 
+        }
+        const handler = new Handler(action, f, context, emitter); 
+        handler.event = ev;
+        handler.scopeObj = scopeObj;
+    
+        handlerArr.push(handler);
     
         emitter.log("on", ev, action, f, context); 
     
@@ -773,6 +808,9 @@
             }
         }
     
+        if (ev[ev.length-1] === '~') {
+            ev = ev.slice(0,-1);
+        }
         let cache = emitter._onceCache.get(ev);
         if (cache) {
             let n = Math.min(cache.length, handler.count);
@@ -782,7 +820,7 @@
             let i;
             for (i = 0; i < n; i+=1) {
                 handler.count -=1;
-                handler.execute(cache[i], scope, emitter);
+                handler.execute(cache[i][0], scope, emitter, cache[i]);
             }
             if (handler.count === 0) {
                 emitter.off(ev, handler);
@@ -794,6 +832,17 @@
         
         
         return handler; 
+    };
+    EvW.prototype.storeEvent = function (ev, off) {
+        if (off !== false) {
+            const emitter = this;
+            emitter.on(ev, "_cache:*");
+        } else {
+            emitter.off(ev, "_cache");
+            emitter.scope("_cache").delete(ev);
+        }      
+    
+        return emitter;
     };
     EvW.prototype.decrement = function (arr, ev) {
         const emitter = this;
@@ -858,13 +907,14 @@
         let proto = emitter.action(action);
         let tracker;
         if (!proto) {
-            tracker = new Tracker (options, emitter, action, events);
-            proto.context = tracker;
+            tracker = new Tracker (options, emitter, action, events, ev);
+            emitter.scope("_tracking "+ev, tracker);
+            emitter.action(action, "_when", tracker); 
         } else { 
             tracker = proto.context;
         }
     
-        tracker.add(events);
+        tracker.add(events, ev);
         
         
         return tracker;
@@ -884,14 +934,19 @@
         }
     
     };
-    EvW.prototype.flatWhen = function () {
-        let tracker = this.when.apply(this, arguments);
-        tracker.preparer = tracker.flatten;
+    EvW.prototype.flatWhen = function (events, ev, options) {
+        if (options) {
+           options.flatten = true; 
+        } else {
+            options = {flatten:true};
+        }
+        return this.when(events, ev, options);
+        tracker.flatten = true;
         return tracker;
     };
     EvW.prototype.flatArrWhen = function () {
         let tracker = this.when.apply(this, arguments);
-        tracker.preparer = tracker.flatArr;
+        tracker.flatArr = true;
         return tracker;
     };
     EvW.prototype.cache = function (req, ret, fun, emit) {
@@ -977,13 +1032,17 @@
     
         while ( (queue.length) && (emitter.loop < loopMax ) ) {
             let evObj = queue.shift();
+            emitter.log('start executing emit', evObj);
             let actions = evObj.pop();
             
             let action; 
             while ( ( action = actions.shift() ) ) {
-                emitter.log("will execute handler", evObj[0], evObj[1]);
-                action.execute(evObj[2], evObj[1], emitter, evObj);
+                emitter.log("will execute handler", action, evObj);
+                //evObj = [ev, data, target, gen, scope ]
+                action.execute(evObj[1], evObj[2], emitter, evObj);
+                emitter.log("done executing handler", action, evObj);
             }
+            emitter.log('done with emit', evObj);
             emitter.loop += 1;
         }
     
@@ -1163,6 +1222,10 @@
             return Array.from(actions.keys());
         }
     
+        if (typeof name !== 'string') {
+            emitter.log("action name needs to be a string", name, f, context);
+        }
+    
         if (arguments.length === 1) {
             return actions.get(name);
         }
@@ -1173,7 +1236,14 @@
             emitter.log("removed action", name);
             return f;
         }
-        
+    
+        let contextStr, fullAction = name;
+        let i = name.indexOf(':');
+        if (i !== -1) {
+            contextStr = name.slice(i+1); 
+            name = name.slice(0,i); 
+        }
+    
         if (actions.has(name) ) {
             emitter.log("overwriting action", name, f, context,
                 actions.get(name));
@@ -1181,16 +1251,31 @@
             emitter.log("creating action", name, f, context); 
         }
     
-        let o =  {
-            f : f,
-            context : context
-        };
+        if ( (typeof f !== 'undefined') && (typeof f !== "function")) {
+            let temp = f;
+            f = context;
+            context = temp;
+        }
+    
+        let o = {};
+    
+        if (f) {
+            o.f = f;
+        }
+    
+        if (typeof contextStr === 'string') {
+            o.contextStr = contextStr;
+            if (typeof context === 'undefined') {
+                context = emitter.scope(true, 'contextStr');
+            }
+        }
+        o.context = context;
+        o.fullAction = fullAction;
         
         if (typeof f === 'function') {
             Object.defineProperty(f, 'name', {
-                value:(f.name||'') + ":" +
-                    name + ":" + 
-                   ( (typeof context === 'string') ? context : '') , configurable:true});
+                value:(f.name||'') + ":" + fullAction, 
+                configurable:true});
         }
     
         actions.set(name, o);

@@ -42,7 +42,7 @@ emitter.loopMax = 2*n;
 
 emitter.scope('c', 0);
 
-emitter.action('add', function count (num, scope, emitter) {
+emitter.action('add', function count (num, scope, emitter, c, evObj) {
     emitter.scope(scope, emitter.scope(scope)+num);
 });
 
@@ -67,14 +67,14 @@ emitter.action('add', function count (num, s) {
     s.c += 1; 
 });
 
-emitter.on("go", "add");
+emitter.on("go", "add~");
 
 time = process.hrtime();
 
 let a = {c:1};
 
 for (i = 0; i < n; i += 1) {
-    emitter.emit("go:numbers~", a);
+    emitter.emit("go:numbers", a);
 }
 
 log(time, emitter.scope('numbers').c, "event-when embedded scope");

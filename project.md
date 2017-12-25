@@ -216,7 +216,7 @@ the most number of operations occurs.
 
     emitter.scope('c', 0);
 
-    emitter.action('add', function count (num, scope, emitter) {
+    emitter.action('add', function count (num, scope, emitter, c, evObj) {
         emitter.scope(scope, emitter.scope(scope)+num);
     });
 
@@ -241,15 +241,15 @@ the most number of operations occurs.
 
     emitter.scope('numbers', {c:0});
 
-    emitter.action('add~', function count (num, s) {
+    emitter.action('add', function count (num, s) {
         s.c += 1; 
     });
 
-    emitter.on("go", "add");
+    emitter.on("go", "add~");
     
     time = process.hrtime();
 
-    letv a = {c:1};
+    let a = {c:1};
     
     for (i = 0; i < n; i += 1) {
         emitter.emit("go:numbers", a);

@@ -42,7 +42,6 @@ The various prototype methods on the event emitter.
 
      
     EvW.prototype._emit = EvW.prototype.emit = _"emit";
-    EvW.prototype.emitCache = _"emit cache";
     EvW.prototype._emitWrap = _"monitor:wrapper";
     EvW.prototype.monitor = _"monitor";
     EvW.prototype.scope = _"scope";
@@ -51,6 +50,7 @@ The various prototype methods on the event emitter.
     EvW.prototype.on = _"on";
     EvW.prototype.off = _"off";
     EvW.prototype.once = _"once";
+    EvW.prototype.storeEvent = _"store event";
     EvW.prototype.decrement = _"decrement";
     EvW.prototype.when = _"when";
     EvW.prototype.whenf = _"handling when";
@@ -112,7 +112,7 @@ handlers array for each of the scope levels.
 When ready, we load the events and call the loop (which exits immediately if
 we are already in the loop). 
 
-    function (ev,  data) {
+    function (ev,  data, target) {
         const emitter = this; 
         let evObj;
 
@@ -146,10 +146,13 @@ we are already in the loop).
 
     * `ev`  A string that denotes the event. The string up to the first colon
       is the actual event and after the first colon is the scope. To pass
-      along an object named by the scope, end the scope with a `~`.  
+      along an object named by the scope, the handler needs to have a `~` at
+      the end of the action.
     * `data` Any value. It will be passed into the handler as the first
       argument. 
-
+    * `target` Any value, usually an object that the handler takes the data
+      and uses to modify target.
+ 
     __return__
 
     The emitter for chaining. The events may or may not be already emitted
@@ -186,7 +189,8 @@ we are already in the loop).
 
     emitter.emit("text filled", someData);
     emitter.emit("general event:scope", data);
-    emitter.emit("general event:scope~", data);
+    emitter.on("genera event", "respond with scoped target~");
+    emitter.emit("general event:scope", data);
 
 [setup event object]()
 
@@ -196,30 +200,35 @@ time of the emitting.
 
 The handlers could be the full event+scope which get executed first. 
 
+    evObj = [ev, data, target]; //the emit arguments come first.
     let colIndex = ev.indexOf(":");
     let actions;
     const handlers = emitter._handlers;
     if (colIndex === -1) {
+        evObj.push(ev, null);
         actions = handlers.get(ev);
         if (actions) {
-            evObj = [ev, null, data, ev, emitter.decrement(actions.slice(0), ev)]; 
+            evObj.push(emitter.decrement(actions.slice(0)));
         } else {
-            emitter.log("emit without action", ev, data);
+            emitter.log("emit without action", ev, data, target);
             return emitter;
         }
     } else {
-        evObj = [ev.slice(0,colIndex), ev.slice(colIndex+1), data, ev];
+        const gen = ev.slice(0,colIndex);
+        const scope = ev.slice(colIndex+1);
+        evObj.push(gen, scope);
+
         const specifics = handlers.get(ev);
-        const generals = handlers.get(evObj[0]);
+        const generals = handlers.get(gen);
         if (specifics && generals) {
             actions = emitter.decrement(specifics.slice(0), ev).
-                concat(emitter.decrement(generals.slice(0), evObj[0]));
+                concat(emitter.decrement(generals.slice(0), gen));
         } else if (specifics) {
             actions = emitter.decrement(specifics.slice(0), ev);
         } else if (generals) {
-            actions = emitter.decrement(generals.slice(0), evObj[0]);
+            actions = emitter.decrement(generals.slice(0), gen);
         } else {
-            emitter.log("emit without action", ev, data);
+            emitter.log("emit without action", ev, data, target);
             return emitter;
         }
         evObj.push(actions);
@@ -385,13 +394,17 @@ Event object is of the form `[event, scope, data, handlers]`
 
     
     let evObj = queue.shift();
+    emitter.log('start executing emit', evObj);
     let actions = evObj.pop();
     
     let action; 
     while ( ( action = actions.shift() ) ) {
-        emitter.log("will execute handler", evObj[0], evObj[1]);
-        action.execute(evObj[2], evObj[1], emitter, evObj);
+        emitter.log("will execute handler", action, evObj);
+        //evObj = [ev, data, target, gen, scope ]
+        action.execute(evObj[1], evObj[2], emitter, evObj);
+        emitter.log("done executing handler", action, evObj);
     }
+    emitter.log('done with emit', evObj);
     
 
 ### NextTick
@@ -419,20 +432,28 @@ function is what would be executed to call.
 
         const handlers = emitter._handlers;
 
-        const handler = new Handler(action, f, context, emitter); 
-        handler.event = ev;
-
-        _":context"
-
-        _":scope"
-
         let handlerArr = handlers.get(ev);
         if (handlerArr) {
-                handlerArr.push(handler);
+            _":check for repeat event action assignment"
         } else {
-            handlerArr = [handler];
+            handlerArr = [];
             handlers.set(ev, handlerArr);
         }
+
+        let scopeObj = false;
+        let toggle = action[action.length -1];
+        if ( ( toggle === '~') ||
+             ( toggle === '.') ) {
+            action = action.slice(0, -1);
+            let g = f;
+            f = _":wrapper";
+            scopeObj = (toggle === '~') ? true : false; 
+        }
+        const handler = new Handler(action, f, context, emitter); 
+        handler.event = ev;
+        handler.scopeObj = scopeObj;
+
+        handlerArr.push(handler);
 
         emitter.log("on", ev, action, f, context); 
 
@@ -442,7 +463,7 @@ function is what would be executed to call.
 
 [doc]() 
 
-    ### on(str ev, str action, function f, str/obj context ) --> Handler
+    ### on(str ev, str action, function f, obj context ) --> Handler
 
     Associates action with event ev for firing when ev is emitted. The
     optionals are detected based on kind so the order and relevance is
@@ -453,7 +474,7 @@ function is what would be executed to call.
     * `ev` The event string on which to call the action. If this ends in `~`,
       then this signals that there shold be a scope object, which will be
       created now if it does not exist. 
-    * `action` This is a string and is what identifies the handler. It should be written as a "do this" while the event is "something is done". 
+    * `action` This is a string and is what identifies the handler. It should be written as a "do this" while the event is "something is done". If it has a colon in it, then the part after the colon is considered a context that can be used to distinguish different actions. In particular, if there is no context object passed in, then this string is used to identify a scope that gets passed in. 
     * `f`. If an action string is not already defined with a function, one can
       associate a function with it by passing in one. The call signature is
       `data, scope, emitter, context`. The name of the function, if none, will
@@ -464,6 +485,17 @@ function is what would be executed to call.
 
     The Handler which can be further manipulated, such as by once. It can be used to remove the
     handler though the action string is preferred. 
+
+    The Handler has a variety of properties that can be used to understand the
+    action to be taken: 
+
+    * `event`. This is the event that it is listening for. 
+    * `fullAction`. This is the full action string. 
+    * `action`. This is the action that may be used to look up the function to
+      use. 
+    * `emitter`. The emitter is stored here for use in the execute call.
+    * `context`. The context object, if there is one. 
+    * `contextStr`. The context string, if there is one. 
 
     __example__
 
@@ -499,6 +531,41 @@ switched.
         f = context;
         context = temp;
     }
+
+[check for repeat event action assignment]()
+
+
+    let i, n = handlerArr.length; 
+    for (i=0; i < n; i +=1) {
+        if (handlerArr[i].fullAction === action) {
+            emitter.log("repeat event-action pair for on", 
+                ev, action);
+            return handlerArr[i];
+        }
+    }
+
+
+[wrapper]() 
+
+If the action ends in `~` (scope as object) or `.`  (scope as string), then we
+wrap the function to invoke this so that simple setups flow faster. The
+variable `handler.scopeObj` is set true, false, respectively. 
+        
+    function wrapper (data, target, emitter, context, evObj, raw) {
+        let handler = this;
+        if (typeof target === 'undefined') {
+            if  (handler.scopeObj) {
+                target = emitter.scope(true, evObj[4]);
+            } else {
+                target = evObj[4];
+            }
+        }
+        emitter.log("executing action", handler.action, data, target, evObj);
+
+        g = g || raw.f;
+        g.call(handler, data, target, emitter, context, evObj);
+    }
+
 
 
 ### Once
@@ -796,7 +863,7 @@ This decrements the once handlers and removes them if
 
     some docs
 
-### Cache Event
+### Store Event
 
 This does a basic caching of events. It is a handler for it and stores
 whatever is needed to call it again. 
@@ -806,7 +873,7 @@ whatever is needed to call it again.
     function (ev, off) {
         if (off !== false) {
             const emitter = this;
-            emitter.on(ev, "_cache:*~");
+            emitter.on(ev, "_cache:*");
         } else {
             emitter.off(ev, "_cache");
             emitter.scope("_cache").delete(ev);
@@ -865,56 +932,6 @@ This handles a cache event.
 
 
 
-The data is stored in an array. This allows for once methods to take the first
-n events, if needed, or even 'on' methods to read the events if desired. 
-
-    function (ev, data) {
-        const emitter = this;
-        let cache = emitter._onceCache.get(ev);
-        if (cache) {
-            cache.push(data);
-        } else {
-            emitter._onceCache.set(ev, [data]);           
-        }
-        emitter.emit(ev, data);
-        return emitter;
-    }
-
- [doc]() 
-
-    ### emitCache(str ev, obj data) --> emitter
-
-    Emit the event but cache it for once methods. Only the full exact event is
-    cached, not subforms. If the same event is called
-    multiple times, the data gets added in the order of emitting. On methods
-    can opt-in to taking in the cache history. Once methods can opt-out, but
-    they suck up the data by default the number of times.  
-
-    __arguments__
-
-    Same as emit.
-
-    * `ev`  A string that denotes the event. 
-    * `data` Any value. It will be passed into the handler as the first
-      argument. 
-
-    __return__
-
-    The emitter for chaining. 
-
-    __example__
-
-        _":example"
-
-[example]()
-
-    emitter.emitCache("text filled", someData);
-    emitter.once("text filled", function (data) {
-        //do something
-    });
-
-
-
 ## Action
 
 This is for storing Handler type objects under a name string, generally some
@@ -938,6 +955,10 @@ possibly context information.
             return Array.from(actions.keys());
         }
 
+        if (typeof name !== 'string') {
+            emitter.log("action name needs to be a string", name, f, context);
+        }
+
         if (arguments.length === 1) {
             return actions.get(name);
         }
@@ -948,7 +969,14 @@ possibly context information.
             emitter.log("removed action", name);
             return f;
         }
-        
+
+        let contextStr, fullAction = name;
+        let i = name.indexOf(':');
+        if (i !== -1) {
+            contextStr = name.slice(i+1); 
+            name = name.slice(0,i); 
+        }
+
         if (actions.has(name) ) {
             emitter.log("overwriting action", name, f, context,
                 actions.get(name));
@@ -964,15 +992,14 @@ possibly context information.
             o.f = f;
         }
 
-        let contextStr;
-
-        if ( (typeof context === 'string') &&
-                (context[context.length -1] === '~') ) {
-            o.contextStr = contextStr = context.slice(0,-1);
-            o.context = emitter.scope(true, contextStr);
-        } else {
-            o.context = context;
+        if (typeof contextStr === 'string') {
+            o.contextStr = contextStr;
+            if (typeof context === 'undefined') {
+                context = emitter.scope(true, 'contextStr');
+            }
         }
+        o.context = context;
+        o.fullAction = fullAction;
         
         if (typeof f === 'function') {
       
@@ -982,9 +1009,8 @@ named context will not be overwritten, only an object one (maybe) and the
 object will not be part of the name. 
 
             Object.defineProperty(f, 'name', {
-                value:(f.name||'') + ":" +
-                    name + ":" + 
-                   ( (typeof context === 'string') ? context : '') , configurable:true});
+                value:(f.name||'') + ":" + fullAction, 
+                configurable:true});
         }
 
         actions.set(name, o);
@@ -1045,10 +1071,22 @@ Otherwise, the action string gets used to look up the handler at the time of
 the emit. 
 
 
-    function (action, f, context, emitter) {
+    function (fullAction, f, context, emitter) {
         const handler = this;
-
-        handler.action = action;
+        let i, contextStr, action;
+        handler.fullAction = fullAction;
+        if ( (i = fullAction.indexOf(":")) !== -1) {
+            action = handler.action = fullAction.slice(0,i);
+            contextStr = handler.contextStr = fullAction.slice(i+1);
+            if (contextStr === '*') {
+                contextStr = action;
+            }
+            if (typeof context === 'undefined') {
+                context = emitter.scope(true, contextStr);
+            }
+        } else {
+            handler.action = fullAction;
+        }
         handler.emitter = emitter;
         if (typeof f === 'function') {
             handler.f = f;
@@ -1057,13 +1095,11 @@ Making sure function is named
 
             Object.defineProperty(f, 'name', {
                 value:(f.name||'') + ":" +
-                    action + ":" + 
-                   ( (typeof context === 'string') ? context : '') , configurable:true});
+                    fullAction, configurable:true});
 
         }
-        if (context) {
-            handler.context = context;
-        }
+
+        handler.context = context;
 
         return handler;
     }
@@ -1075,12 +1111,10 @@ The prototype object.
 * execute Executes the handler
 * removal Removes any of the handler bits that are attached to .when
   trackers.
-* decrement. This  
 
 ---
     Handler.prototype.execute = _"execute"; 
     Handler.prototype.removal = _"removal";
-    Handler.prototype.decrement = _"decrement";
 
 [doc]()
 
@@ -1116,7 +1150,6 @@ The prototype object.
 
     * [execute](#execute)
     * [removal](#removal)
-    * [decrement](#decrement)
 
     
     ---
@@ -1126,10 +1159,6 @@ The prototype object.
     ---
     <a name="removal"></a>
     _"removal:doc"
-
-    ---
-    <a name="decrement"></a>
-    _"decrement:doc"
 
 #### Removal
 
@@ -1178,27 +1207,29 @@ We pass in data, scope, emitter, and context. We figure out what function to
 call either it being in the handler or using the action lookup. 
 
 No error catching for the function. 
+
+We pass in raw for the call for the wrapper from handler in the instance of
+scope objects (see on). 
  
-    function me (data, scope, emitter, event) {
+    function me (data, target, emitter, evObj) {
         
         const handler = this;
         const raw = emitter._actions.get(handler.action) || {};
 
         const f = this.f || raw.f;
-        if (typeof f !== "function") {
-            emitter.error("bad function for handler", handler.action);
-            return;
+
+        let context = this.context || raw.context;
+        
+        if (typeof target === 'undefined') {
+            if  (handler.scopeObj) {
+                target = emitter.scope(true, evObj[4]);
+            } else {
+                target = evObj[4];
+            }
         }
+        emitter.log("executing action", handler.action, data, target, evObj);
 
-        let context = this.context || raw.context || {};
-
-        if (handler['~']) {
-            scope = emitter.scope(true, scope);
-        }
-
-        emitter.log("executing action", handler.action);
-
-        f.call(handler, data, scope, emitter, context, event);
+        f.call(handler, data, target, emitter, context, evObj, raw);
 
         return handler;
 
@@ -1206,17 +1237,16 @@ No error catching for the function.
 
 [doc]()
 
-    #### execute(data, str scope, emitter, str event) --> 
+    #### execute(data, str scope, emitter, arr evObj) --> 
 
     This executes the handler. 
 
     __arguments__
 
     * `data`. This is the data from an emit event.
-    * `scope`. The colonated part of the event. If the scope endsin a `~`,
-      then it gets evaluated into a scope
-      object from emitter and that is passed along; this is created as a plain
-    object to facilitate easy manipulations if it does not already exist. 
+    * `target`. A value, generally an object, that is used as the state to
+      modify and get from. The scope string that may or may not be related to
+      the target can be found in `evObj[4]`. 
     * `emitter` The emitter object.
     * `event` The full event string that was called in the emit. Usually not
       needed, but could be useful. This is passed along into the function
@@ -1225,11 +1255,11 @@ No error catching for the function.
     __note__
 
     The handler will find a function to call or emit an error. This is either
-    from when the `on` event was created or from an action item. The context
-    object, also from one of those things, will be sent along as the fourth
-    argument in the call of the function. If the context string ends in a `~`,
-    then a scope object is retrieved and passed in, being created as a plain
-    object to facilitate easy manipulations. 
+    from when the `on` event was created or from an action item. 
+    
+    The function is called with `this === handler`, and signature 
+    `data, target, emitter, context, evObj` Context and target may be
+    undefined.  
 
     __return__
 
@@ -1253,8 +1283,9 @@ When all the events have fired, then the given event emits with a data
 object that is an array  of all the fired event's data, specifically the
 array elements are arrays of the form `[event name, data]`. 
 
-The return is the emitter for chaining. To retrieve the action, use
-`emitter.action('tick when:'+ev)` 
+The return is the tracker. It stops the chaining of the emitter, but the
+tracker can be very useful to have. 
+
 
 The function must provide the events to listen for and the event to emit. The
 rest is optional. 
@@ -1267,24 +1298,18 @@ rest is optional.
 
         _":deal with scope"
 
-        let action = 'tick when:'+ ev;
-        let proto = emitter.action(action);
-        let tracker;
-        if (!proto) {
+        let action = '_when:'+ ev;
+        let tracker = emitter.scope(ev);
+        if (!tracker) {
             tracker = new Tracker (options, emitter, action, events, ev);
-            emtter.scope("_tracking "+ev, tracker);
-            emitter.action(action, "_when", tracker); 
-        } else { 
-            tracker = proto.context;
+            emitter.scope(ev, tracker);
         }
 
+        tracker.append(events, ev); //adds to the originals
         tracker.add(events, ev);
-        
         
         return tracker;
     }
-
-
 
 
 
@@ -1348,152 +1373,6 @@ object.
 
 
 
-
-
-no immutable -- emiting an event from a when links them all. 
-
-[junk]()
-
-The argument reset allows for reseting to the initial state once
-fired. 
-
-Emitting scoped events will count also as a firing of the parents, e.g.,
-`.when([["button", 3], "disable")` will have `.emit("button:submit")` remove
-one of the button counts (unless event bubbling is stopped). But
-`.emit("button")` will not count for any `.when("button:submit")`. 
-
-When using .when, if the event to be emitted already has a when, then the
-events are tacked on. Timing and reset are ignored if the .when already
-exists. If one wants a .when to not be added to in this fashion, then have a
-fifth argument of true.
-
-The initialOrdering setting is a local override to a global setting of whether
-the .when data should be presented in the order of creation of the .when or in
-the event emitting. The global default is in the order of data;  
-
-
-    function (events, ev, options timing, reset, immutable, initialOrdering) {    
-
-        var emitter = this;
-        var tracker; 
-
-        if (!immutable) {
-            tracker = emitter.whens[ev]; 
-            if (tracker) {
-                emitter.log("when add", events, ev);
-                tracker.add(events);
-                return tracker;
-            }
-        }
-
-        if (typeof initialOrdering === "undefined") {
-           initialOrdering = emitter.initialOrdering;  
-        }
-
-        tracker = new Tracker ();
-
-        tracker.emitter = emitter;
-        tracker.ev = tracker._label = ev;
-        tracker.data = [];
-        tracker.silent = [];
-        _":assign timing reset"
-        tracker.original = events.slice();
-        tracker.idempotent = false;
-        tracker.initialOrdering = initialOrdering;
-
-The handler adds the data. We prepopulate the data array with [ev] arrays in
-the order of adding if we are doing initial ordering. If an event is placed on
-it repeatedly, then there are separate entries in data for each one, in the
-order of adding. In the event of no initialOrdering, then we simply pop on
-data with the event name whenever the data is defined; ignoring it otherwise.
-With initialOrdering, we add the data as null. 
-
-Create a default when action. Use context to create individual whens. The
-tracker can be the context. 
-
-
-        var handler = new Handler (function (data, evObj) {
-            var ev = evObj.cur[0]; // subevent
-            var fullev = evObj.ev; // full event that triggered
-            var tracker = this;
-            var results = tracker.data;
-            var i, n;
-            if (tracker.initialOrdering) {
-                n = results.length;
-                if (typeof data === "undefined") {
-                    data = null;
-                }
-                for (i =0; i < n; i+=1) {
-                    if ( (results[i].length === 1) && (results[i][0] === ev) ) {
-                        results[i][1] = data;
-                        if (fullev !== ev) {
-                            results[i][2] = fullev;
-                        }
-                        break;
-                    }
-                }
-            } else {
-                if (typeof data !== "undefined") {
-                    if (fullev !== ev) {
-                        tracker.data.push([ev, data, fullev]);
-                    } else {
-                        tracker.data.push([ev, data]);
-                    }
-                }
-            }
-            tracker.remove(ev);
-        }, tracker);
-
-
-        handler.tracker = tracker;
-
-        handler._label = "(when)" + ev;
-
-        tracker.handler = handler; 
-
-        tracker.add(events);
-
-        if (!immutable) {
-            emitter.whens[ev] = tracker;
-            tracker.mutable = true;
-        } else {
-            tracker.mutable = false;
-        }
-        
-        emitter.log("when", events, ev, timing, reset, tracker);
-
-We return the tracker since one should use that to remove it. If you want
-the handler itself, it is in tracker.handler. It just seems more natural
-this way since the manipulations use tracker. 
-
-        return tracker;
-    }
-
-
-
-[assign timing reset]()
-
-Four arguments is not so good because who can remember the order? Since
-timing should be a string while reset should be a boolean, we can handle
-this.
-
-Note that we are not actually checking for correctness, just trying to make
-sure that properly written, but unordered, is okay. 
-
-    if (typeof timing === "string") {
-        tracker.timing = timing;
-        tracker.reset = reset || false;
-    } else if (typeof timing === "boolean") {
-        tracker.reset = timing;
-        if (typeof reset === "string") {
-            tracker.timing = reset;
-        } else {
-            tracker.timing = emitter.timing;
-        }
-    } else {
-        tracker.timing = emitter.timing;
-        tracker.reset = reset || false;
-    }
 
 
 [doc]()
@@ -1592,7 +1471,7 @@ This is where we handle when when it is called.
 
 The context holds all the long term data that when needs. 
 
-    function (data, scope, emitter, context, event) {
+    function (data, scope, emitter, context, evObj) {
         let handler = this;
         let tracker = context;
         let handlers = tracker.handlers;
@@ -1635,25 +1514,21 @@ has a radical difference on the emitted values.
 
 This is a convenience method that will always return an array of values. 
 
-    function () {
-        let tracker = this.when.apply(this, arguments);
-        tracker.flatArr = true;
-        return tracker;
-    }
-
-
+    _"flat when | sub flatten, flatArr" 
 
 ### Tracker
 
 The tracker object is used to track all the data and what events are
 available. Controlling it controls the queue of the when emit. 
 
-    function (options, emitter, action) {
+    function (options, emitter, action, events, ev) {
         let tracker = this;
     
         tracker.emitter = emitter;
         tracker.events = [];
-        tracker.originals = [];
+        tracker.toEmit = ev;
+        tracker.action = action;
+        tracker.originals = events.slice(0);
         tracker.handlers = new Map();
         tracker.pipes = new Map();
         tracker.values = new Map();
@@ -3501,12 +3376,12 @@ The readme for this. A lot of the pieces come from the doc sections.
     These are methods on the emitter object. 
 
     * [emit](#emit)
-    * [emitCache](#emitCache)
     * [monitor](#monitor)
     * [when](#when)
     * [on](#on)
     * [off](#off)
     * [once](#once)
+    * [storeEvent](#storeEvent)
     * [stop](#stop)
     * [cache](#cache)
     * [action](#action)
@@ -3527,8 +3402,8 @@ The readme for this. A lot of the pieces come from the doc sections.
     _"emit:doc"
 
     ---
-    <a name="emitCache"></a>
-    _"emit cache:doc"
+    <a name="storeEvent"></a>
+    _"store event:doc"
     
     ---
     <a name="monitor"></a>
@@ -3626,4 +3501,150 @@ The readme for this. A lot of the pieces come from the doc sections.
     <a name="#filter"></a>
     _"filter:doc"
 
+## Bad When
+
+no immutable -- emiting an event from a when links them all. 
+
+[junk]()
+
+The argument reset allows for reseting to the initial state once
+fired. 
+
+Emitting scoped events will count also as a firing of the parents, e.g.,
+`.when([["button", 3], "disable")` will have `.emit("button:submit")` remove
+one of the button counts (unless event bubbling is stopped). But
+`.emit("button")` will not count for any `.when("button:submit")`. 
+
+When using .when, if the event to be emitted already has a when, then the
+events are tacked on. Timing and reset are ignored if the .when already
+exists. If one wants a .when to not be added to in this fashion, then have a
+fifth argument of true.
+
+The initialOrdering setting is a local override to a global setting of whether
+the .when data should be presented in the order of creation of the .when or in
+the event emitting. The global default is in the order of data;  
+
+
+    function (events, ev, options timing, reset, immutable, initialOrdering) {    
+
+        var emitter = this;
+        var tracker; 
+
+        if (!immutable) {
+            tracker = emitter.whens[ev]; 
+            if (tracker) {
+                emitter.log("when add", events, ev);
+                tracker.add(events);
+                return tracker;
+            }
+        }
+
+        if (typeof initialOrdering === "undefined") {
+           initialOrdering = emitter.initialOrdering;  
+        }
+
+        tracker = new Tracker ();
+
+        tracker.emitter = emitter;
+        tracker.ev = tracker._label = ev;
+        tracker.data = [];
+        tracker.silent = [];
+        _":assign timing reset"
+        tracker.original = events.slice();
+        tracker.idempotent = false;
+        tracker.initialOrdering = initialOrdering;
+
+The handler adds the data. We prepopulate the data array with [ev] arrays in
+the order of adding if we are doing initial ordering. If an event is placed on
+it repeatedly, then there are separate entries in data for each one, in the
+order of adding. In the event of no initialOrdering, then we simply pop on
+data with the event name whenever the data is defined; ignoring it otherwise.
+With initialOrdering, we add the data as null. 
+
+Create a default when action. Use context to create individual whens. The
+tracker can be the context. 
+
+
+        var handler = new Handler (function (data, evObj) {
+            var ev = evObj.cur[0]; // subevent
+            var fullev = evObj.ev; // full event that triggered
+            var tracker = this;
+            var results = tracker.data;
+            var i, n;
+            if (tracker.initialOrdering) {
+                n = results.length;
+                if (typeof data === "undefined") {
+                    data = null;
+                }
+                for (i =0; i < n; i+=1) {
+                    if ( (results[i].length === 1) && (results[i][0] === ev) ) {
+                        results[i][1] = data;
+                        if (fullev !== ev) {
+                            results[i][2] = fullev;
+                        }
+                        break;
+                    }
+                }
+            } else {
+                if (typeof data !== "undefined") {
+                    if (fullev !== ev) {
+                        tracker.data.push([ev, data, fullev]);
+                    } else {
+                        tracker.data.push([ev, data]);
+                    }
+                }
+            }
+            tracker.remove(ev);
+        }, tracker);
+
+
+        handler.tracker = tracker;
+
+        handler._label = "(when)" + ev;
+
+        tracker.handler = handler; 
+
+        tracker.add(events);
+
+        if (!immutable) {
+            emitter.whens[ev] = tracker;
+            tracker.mutable = true;
+        } else {
+            tracker.mutable = false;
+        }
+        
+        emitter.log("when", events, ev, timing, reset, tracker);
+
+We return the tracker since one should use that to remove it. If you want
+the handler itself, it is in tracker.handler. It just seems more natural
+this way since the manipulations use tracker. 
+
+        return tracker;
+    }
+
+
+
+[assign timing reset]()
+
+Four arguments is not so good because who can remember the order? Since
+timing should be a string while reset should be a boolean, we can handle
+this.
+
+Note that we are not actually checking for correctness, just trying to make
+sure that properly written, but unordered, is okay. 
+
+    if (typeof timing === "string") {
+        tracker.timing = timing;
+        tracker.reset = reset || false;
+    } else if (typeof timing === "boolean") {
+        tracker.reset = timing;
+        if (typeof reset === "string") {
+            tracker.timing = reset;
+        } else {
+            tracker.timing = emitter.timing;
+        }
+    } else {
+        tracker.timing = emitter.timing;
+        tracker.reset = reset || false;
+    }
 
