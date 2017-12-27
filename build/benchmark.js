@@ -2,6 +2,8 @@
 /*global require, process, console */
 
 var n = parseFloat(process.argv[2], 10) || 5e5;
+const EvW = require('./index.js');
+var EE = require("events").EventEmitter; 
 
 var i, time, c;
 
@@ -15,22 +17,37 @@ var log = function (time, count, tag) {
 
 console.log(process.memoryUsage());
 
+c = 0;
 
-var EvW = require('./index.js');
+    emitter = new EE();
+
+    emitter.on("go", function (num) {
+        c += num;
+    });
+
+    time = process.hrtime();
+    
+    for (i = 0; i < n; i += 1) {
+        emitter.emit("go", 1);
+    }
+
+    log(time, c, "native");
+console.log(process.memoryUsage());
+
+c = 0;
 var emitter = new EvW();
 
 emitter.loopMax = 2*n;
 
-c = 0;
 
-emitter.on("go", "add 1", function count () {
-    c += 1;
+emitter.on("go", "add 1", function count (num) {
+    c += num;
 });
     
 time = process.hrtime();
 
 for (i = 0; i < n; i += 1) {
-    emitter.emit("go");
+    emitter.emit("go", 1);
 }
 
 log(time, c, "event-when");
@@ -40,21 +57,21 @@ emitter = new EvW();
 
 emitter.loopMax = 2*n;
 
-emitter.scope('c', 0);
+emitter.scope('c', {a:0});
 
-emitter.action('add', function count (num, scope, emitter, c, evObj) {
-    emitter.scope(scope, emitter.scope(scope)+num);
+emitter.action('add', function count (num, scope, context) {
+    context.a += num;
 });
 
-emitter.on("go", "add");
+emitter.on("go", "add:c");
 
 time = process.hrtime();
 
 for (i = 0; i < n; i += 1) {
-    emitter.emit("go:c", 1);
+    emitter.emit("go", 1);
 }
 
-log(time, emitter.scope('c'), "event-when scope");
+log(time, emitter.scope('c').a, "event-when scope");
 console.log(process.memoryUsage());
 
 emitter = new EvW();
@@ -64,35 +81,19 @@ emitter.loopMax = 2*n;
 emitter.scope('numbers', {c:0});
 
 emitter.action('add', function count (num, s) {
-    s.c += 1; 
+    o = this.emitter.scope(s);
+    o.c += num; 
 });
 
-emitter.on("go", "add~");
+emitter.on("go", "add");
 
 time = process.hrtime();
 
 let a = {c:1};
 
 for (i = 0; i < n; i += 1) {
-    emitter.emit("go:numbers", a);
+    emitter.emit("go:numbers", 1);
 }
 
 log(time, emitter.scope('numbers').c, "event-when embedded scope");
-console.log(process.memoryUsage());
-
-    var EE = require("events").EventEmitter; 
-
-    emitter = new EE();
-
-    emitter.on("go", function () {
-        c += 1;
-    });
-
-    time = process.hrtime();
-    
-    for (i = 0; i < n; i += 1) {
-        emitter.emit("go");
-    }
-
-    log(time, c, "native");
 console.log(process.memoryUsage());

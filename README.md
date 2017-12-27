@@ -123,18 +123,15 @@ Emit the event.
 __arguments__
 
 * `ev`  A string that denotes the event. The string up to the first colon
-  is the actual event and after the first colon is the scope. To pass
-  along an object named by the scope, the handler needs to have a `~` at
-  the end of the action.
+  is the actual event and after the first colon is the scope. 
 * `data` Any value. It will be passed into the handler as the first
   argument. 
-* `target` Any value, usually an object that the handler takes the data
-  and uses to modify target.
 
 __return__
 
-The emitter for chaining. The events may or may not be already emitted
-depending on the timing. 
+The emitter for chaining. The events may or may not be already
+handled by their handlers (generally will be, but if it hits the
+loop max, then it clocks over. 
 
 __scope__
 
@@ -146,24 +143,26 @@ called. The
 order of handling is from the most specific to the general (bubbling
 up).
 
-In what follows, it is important to know that the handler signature 
-is `(data, scope, emitter, context, event)`. Note that scope and context
-will generally be strings, but if those strings end in `~`, then they get
-replaced with their corresponding object, created if necessary. 
+In what follows, it is important to know that the handler signature is
+`(data, scope, context, event)`. Note that scope is string while the
+context may or may not, depending on how the handler was setup. The
+function is called with the `this` pointing to the handler which contains
+a reference to emitter as well as other items. 
 
-As an example, if the event `a:b:c` is emitted, then `a:b:c` fires,
-followed by `a`. The scope for both is `b:c`. `emitter.scope('b:c')` will
-call up the associated scope.
+As an example, if the event `a:b:c` is emitted, then `a:b:c` handlers
+fire, followed by handlers for `a`. The scope for both is `b:c`.
+`emitter.scope('b:c')` will call up the associated scope though generally
+the context of the handler is more appropriate. 
 
 Once an emit happens, all currently associated handlers will be called and
-those with limited time handling will be decremented. There is no
+those with limited time handling will be decremented. There are no
 supported methods for stopping the handling. 
 
 __example__
 
     emitter.emit("text filled", someData);
     emitter.emit("general event:scope", data);
-    emitter.on("genera event", "respond with scoped target~");
+    emitter.on("general event", "respond with scoped target~");
     emitter.emit("general event:scope", data);
 
 ---
@@ -488,20 +487,23 @@ __arguments__
 
 ---
 <a name="action"></a>
-### action(str name, f function, ) --> depends
+### action(str name, f function, obj context ) --> depends
 
-This allows one to associate a string with handler primitive for easier naming. It
-should be active voice to distinguish from event strings.
+This allows one to associate a string with handler primitive for easier
+naming. It should be active voice to distinguish from event strings.
+Action with function is the primary use, but one can also have contexts
+associated with it. Most of the time it is better to associate a context
+with the on operation.
 
 __arguments__
 
-* `name` This is the action name.
+* `name` This is the action name. If it has a colon, then a context can be
+  called upon from the scopes by that name. A `:*` will reflect the action
+  name as the context name. 
 * `f` The function action to take. 
-* `context` Either a string to call the scope from the emitter when
-  invoking f or an object directly. If the string ends in `~`, then the
-  context will be called in as an object; it will make the object at this
-  point (using emitter.scope) if it does not already exist. 
-
+* `context` If present, it is what is passed along to the execution of the
+  handler in the third slot. 
+  
 __return__
 
 * 0 arguments. Returns the whole list of defined actions.
@@ -582,9 +584,10 @@ __return__
 
 * 0 arguments. Leads to the scope keys being returned. 
 * 1 arguments. Leads to specified scope's object being returned.
-* 2 arguments (str, whatever). Stores obj as scope. Emitter returned for chaining.
-* 2 arguments (true, key). This returns a scope, creating a new Map() if
-  needed. 
+* 2 arguments (str, whatever). Stores obj as scope. Emitter returned for
+  chaining.
+* 2 arguments (true, key). This returns a scope, creating a object (with
+  no default properties) if needed. 
 
 __example__
 
@@ -844,20 +847,17 @@ These are largely internally used, but they can be used externally.
 
 ---
 <a name="execute"></a>
-#### execute(data, str scope, emitter, arr evObj) --> 
+#### execute(data, str scope) --> nothing
 
-This executes the handler. 
+This executes the handler. `this === handler`
 
 __arguments__
 
 * `data`. This is the data from an emit event.
-* `target`. A value, generally an object, that is used as the state to
-  modify and get from. The scope string that may or may not be related to
-  the target can be found in `evObj[4]`. 
-* `emitter` The emitter object.
-* `event` The full event string that was called in the emit. Usually not
-  needed, but could be useful. This is passed along into the function
-  handler as the fifth argumet. 
+* `scope`. A string which is the scope for the event. This is distinct
+  from the context which is generally used for an action to modify
+  something or other. The scope is more about matching up the event with a
+  partiuclar action and context. 
 
 __note__
 
@@ -865,18 +865,12 @@ The handler will find a function to call or emit an error. This is either
 from when the `on` event was created or from an action item. 
 
 The function is called with `this === handler`, and signature 
-`data, target, emitter, context, evObj` Context and target may be
-undefined.  
+`data, scope, context` Context and scope may be
+undefined.  The emitter can be obtained from the handler. 
 
 __return__
 
-Handler for chaining. 
-
-__example__
-
-    handler = new Handler(function () {console.log(this.name, data);},
-        {name: "test"});
-    handler.execute("cool", {emitter:emitter});
+Nothing. 
 
 ---
 <a name="removal"></a>

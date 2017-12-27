@@ -17,7 +17,6 @@ it is kind of private.
         this._scopes = new Map();
         this._actions = new Map();
         this._actions.set("_cache", _"cache function");
-        this._actions.set("_when", _"handling when");
         this._onceCache = new Map();
         this._queue = [];
         this._monitor = [];
@@ -25,7 +24,6 @@ it is kind of private.
         this.loopMax = 1000;
         this.loop = 0;
         this.emitCount = 0;
-        this.whens = {};
         this._cache = {};
         this.initialOrdering = false;  // for .when tracker behavior
 
@@ -53,9 +51,11 @@ The various prototype methods on the event emitter.
     EvW.prototype.storeEvent = _"store event";
     EvW.prototype.decrement = _"decrement";
     EvW.prototype.when = _"when";
-    EvW.prototype.whenf = _"handling when";
+    EvW.prototype.whenHandler = _"handling when";
     EvW.prototype.flatWhen = _"flat when";
     EvW.prototype.flatArrWhen = _"flat array when";
+    EvW.prototype.endStringParser = _"end string parser";
+    EvW.prototype.lastCharMeanings = _"last character meanings";
     EvW.prototype.cache = _"cache";
 
     EvW.prototype.looper = _"looper";
@@ -112,14 +112,16 @@ handlers array for each of the scope levels.
 When ready, we load the events and call the loop (which exits immediately if
 we are already in the loop). 
 
-    function (ev,  data, target) {
+    function (ev,  data) {
         const emitter = this; 
         let evObj;
 
+        /*
         if (typeof ev !== "string") {
             emitter.error("event string is not a string", [ev, data]); 
             return;
         }
+        */
 
         _":setup event object"
 
@@ -145,18 +147,15 @@ we are already in the loop).
     __arguments__
 
     * `ev`  A string that denotes the event. The string up to the first colon
-      is the actual event and after the first colon is the scope. To pass
-      along an object named by the scope, the handler needs to have a `~` at
-      the end of the action.
+      is the actual event and after the first colon is the scope. 
     * `data` Any value. It will be passed into the handler as the first
       argument. 
-    * `target` Any value, usually an object that the handler takes the data
-      and uses to modify target.
  
     __return__
 
-    The emitter for chaining. The events may or may not be already emitted
-    depending on the timing. 
+    The emitter for chaining. The events may or may not be already
+    handled by their handlers (generally will be, but if it hits the
+    loop max, then it clocks over. 
 
     __scope__
 
@@ -168,17 +167,19 @@ we are already in the loop).
     order of handling is from the most specific to the general (bubbling
     up).
 
-    In what follows, it is important to know that the handler signature 
-    is `(data, scope, emitter, context, event)`. Note that scope and context
-    will generally be strings, but if those strings end in `~`, then they get
-    replaced with their corresponding object, created if necessary. 
+    In what follows, it is important to know that the handler signature is
+    `(data, scope, context, event)`. Note that scope is string while the
+    context may or may not, depending on how the handler was setup. The
+    function is called with the `this` pointing to the handler which contains
+    a reference to emitter as well as other items. 
 
-    As an example, if the event `a:b:c` is emitted, then `a:b:c` fires,
-    followed by `a`. The scope for both is `b:c`. `emitter.scope('b:c')` will
-    call up the associated scope.
+    As an example, if the event `a:b:c` is emitted, then `a:b:c` handlers
+    fire, followed by handlers for `a`. The scope for both is `b:c`.
+    `emitter.scope('b:c')` will call up the associated scope though generally
+    the context of the handler is more appropriate. 
 
     Once an emit happens, all currently associated handlers will be called and
-    those with limited time handling will be decremented. There is no
+    those with limited time handling will be decremented. There are no
     supported methods for stopping the handling. 
 
     __example__
@@ -189,7 +190,7 @@ we are already in the loop).
 
     emitter.emit("text filled", someData);
     emitter.emit("general event:scope", data);
-    emitter.on("genera event", "respond with scoped target~");
+    emitter.on("general event", "respond with scoped target~");
     emitter.emit("general event:scope", data);
 
 [setup event object]()
@@ -200,7 +201,7 @@ time of the emitting.
 
 The handlers could be the full event+scope which get executed first. 
 
-    evObj = [ev, data, target]; //the emit arguments come first.
+    evObj = [ev, data]; //the emit arguments come first.
     let colIndex = ev.indexOf(":");
     let actions;
     const handlers = emitter._handlers;
@@ -208,32 +209,36 @@ The handlers could be the full event+scope which get executed first.
         evObj.push(ev, null);
         actions = handlers.get(ev);
         if (actions) {
-            evObj.push(emitter.decrement(actions.slice(0)));
+            evObj = [ev, data, '',
+                emitter.decrement(actions.slice(0)) 
+            ];
         } else {
-            emitter.log("emit without action", ev, data, target);
+            emitter.log("emit without action", ev, data);
             return emitter;
         }
     } else {
         const gen = ev.slice(0,colIndex);
         const scope = ev.slice(colIndex+1);
-        evObj.push(gen, scope);
-
         const specifics = handlers.get(ev);
         const generals = handlers.get(gen);
         if (specifics && generals) {
-            actions = emitter.decrement(specifics.slice(0), ev).
-                concat(emitter.decrement(generals.slice(0), gen));
+            evObj = [ev, data, scope,
+                emitter.decrement(specifics.slice(0), ev).
+                concat(emitter.decrement(generals.slice(0), gen))
+            ];
         } else if (specifics) {
-            actions = emitter.decrement(specifics.slice(0), ev);
+            evObj = [ ev, data, scope, 
+                emitter.decrement(specifics.slice(0), ev)
+            ];
         } else if (generals) {
-            actions = emitter.decrement(generals.slice(0), gen);
+            evObj = [ev, data, scope, 
+                emitter.decrement(generals.slice(0), gen)
+            ];
         } else {
-            emitter.log("emit without action", ev, data, target);
+            emitter.log("emit without action", ev, data);
             return emitter;
         }
-        evObj.push(actions);
     }
-
 
 
 ### Scope
@@ -313,9 +318,10 @@ convenience of code.
 
     * 0 arguments. Leads to the scope keys being returned. 
     * 1 arguments. Leads to specified scope's object being returned.
-    * 2 arguments (str, whatever). Stores obj as scope. Emitter returned for chaining.
-    * 2 arguments (true, key). This returns a scope, creating a new Map() if
-      needed. 
+    * 2 arguments (str, whatever). Stores obj as scope. Emitter returned for
+      chaining.
+    * 2 arguments (true, key). This returns a scope, creating a object (with
+      no default properties) if needed. 
 
     __example__
 
@@ -335,9 +341,10 @@ convenience of code.
 
 This implements the looping over the queue. It is designed to avoid recursive
 stack calls. To do this, we keep track of whether we are looping or not in the
-`emitter._looping` variable. This should only get called if that flag is false. 
+`emitter._looping` variable. This should only get called if that flag is
+false. 
 
-For example, A is emittted and starts the loop. A emits B which then sees that
+For example, A is emitted and starts the loop. A emits B which then sees that
 the loop is active and does not call the loop. B does get queued and after the
 first handler of A finishes, the queue is consulted again.  This continues
 progress through the queue. We use either setTimeout (browser) or setImmediate
@@ -346,11 +353,6 @@ amusingly called nextTick.
 
 As looper is called without context, we have bound its function to the
 emitter instance. 
-
-For the `.soon`, `.later` commands, we use a waiting queue. As soon as
-setImmediate is called, it unloads the first one onto the queue, regardless of
-whether there is something else there. This ensures that we make progress
-through the queue.
 
     function () {
         let emitter = this,
@@ -400,8 +402,8 @@ Event object is of the form `[event, scope, data, handlers]`
     let action; 
     while ( ( action = actions.shift() ) ) {
         emitter.log("will execute handler", action, evObj);
-        //evObj = [ev, data, target, gen, scope ]
-        action.execute(evObj[1], evObj[2], emitter, evObj);
+        //evObj = [ev, data, scope]
+        action.execute(evObj[1], evObj[2]);
         emitter.log("done executing handler", action, evObj);
     }
     emitter.log('done with emit', evObj);
@@ -440,18 +442,9 @@ function is what would be executed to call.
             handlers.set(ev, handlerArr);
         }
 
-        let scopeObj = false;
-        let toggle = action[action.length -1];
-        if ( ( toggle === '~') ||
-             ( toggle === '.') ) {
-            action = action.slice(0, -1);
-            let g = f;
-            f = _":wrapper";
-            scopeObj = (toggle === '~') ? true : false; 
-        }
         const handler = new Handler(action, f, context, emitter); 
         handler.event = ev;
-        handler.scopeObj = scopeObj;
+        handler.emitter = emitter;
 
         handlerArr.push(handler);
 
@@ -594,7 +587,6 @@ If present, n, needs to be first.
         }
 
         _":check cache"
-        
         
         return handler; 
     }
@@ -753,6 +745,12 @@ splicing instead of filter. Splicing during the first forEach will result in
 skipping elements, etc., so we simply record the locations, in reverse order
 to not have a shift, and splice from there. 
 
+Added the ability to call `off` method on handler which is a way to have an
+instant action (setting up a new listener, for example). This is to deal with
+the fact that the `once` is removed before actually calling the handler due to
+the events being queued instead of called upon. Want to make sure listeners
+are always active when needed. 
+
     if (handlers.has(ev) ) {
         let place = [];
         let arr = handlers.get(ev);
@@ -772,6 +770,9 @@ to not have a shift, and splice from there.
             el.removal(ev, emitter);
         });
     }
+    removed.forEach(function (el) {
+        el.off();
+    });
 
 
 [remove handlers checking for when handlers]()
@@ -871,8 +872,8 @@ whatever is needed to call it again.
 
 
     function (ev, off) {
+        const emitter = this;
         if (off !== false) {
-            const emitter = this;
             emitter.on(ev, "_cache:*");
         } else {
             emitter.off(ev, "_cache");
@@ -970,12 +971,11 @@ possibly context information.
             return f;
         }
 
-        let contextStr, fullAction = name;
-        let i = name.indexOf(':');
-        if (i !== -1) {
-            contextStr = name.slice(i+1); 
-            name = name.slice(0,i); 
+        if (typeof f !== 'function') {
+            emitter.error("named action must have function", name, f, context);
+            return emitter;
         }
+        
 
         if (actions.has(name) ) {
             emitter.log("overwriting action", name, f, context,
@@ -984,22 +984,25 @@ possibly context information.
             emitter.log("creating action", name, f, context); 
         }
 
-        _"on:switch variables"
-
-        let o = {};
-
-        if (f) {
-            o.f = f;
+        let contextStr;
+        let i = name.indexOf(':');
+        if (i !== -1) {
+            contextStr = name.slice(i+1); 
+            if (contextStr[0] === '*') {
+                name = name.slice(0, i);
+                contextStr = name;
+            }
         }
 
-        if (typeof contextStr === 'string') {
+        let o = { f:f};
+
+        if (contextStr || (contextStr==='')) {
             o.contextStr = contextStr;
             if (typeof context === 'undefined') {
-                context = emitter.scope(true, 'contextStr');
+                context = emitter.scope(true, contextStr);
             }
         }
         o.context = context;
-        o.fullAction = fullAction;
         
         if (typeof f === 'function') {
       
@@ -1009,7 +1012,7 @@ named context will not be overwritten, only an object one (maybe) and the
 object will not be part of the name. 
 
             Object.defineProperty(f, 'name', {
-                value:(f.name||'') + ":" + fullAction, 
+                value:(f.name||'') + ":" + name, 
                 configurable:true});
         }
 
@@ -1021,20 +1024,23 @@ object will not be part of the name.
 
 [doc]() 
 
-    ### action(str name, f function, ) --> depends
+    ### action(str name, f function, obj context ) --> depends
 
-    This allows one to associate a string with handler primitive for easier naming. It
-    should be active voice to distinguish from event strings.
+    This allows one to associate a string with handler primitive for easier
+    naming. It should be active voice to distinguish from event strings.
+    Action with function is the primary use, but one can also have contexts
+    associated with it. Most of the time it is better to associate a context
+    with the on operation.
 
     __arguments__
 
-    * `name` This is the action name.
+    * `name` This is the action name. If it has a colon, then a context can be
+      called upon from the scopes by that name. A `:*` will reflect the action
+      name as the context name. 
     * `f` The function action to take. 
-    * `context` Either a string to call the scope from the emitter when
-      invoking f or an object directly. If the string ends in `~`, then the
-      context will be called in as an object; it will make the object at this
-      point (using emitter.scope) if it does not already exist. 
-
+    * `context` If present, it is what is passed along to the execution of the
+      handler in the third slot. 
+      
     __return__
 
     * 0 arguments. Returns the whole list of defined actions.
@@ -1070,6 +1076,13 @@ options argument which allows us to setup insulated handler instances.
 Otherwise, the action string gets used to look up the handler at the time of
 the emit. 
 
+The handler may be called in various ways: 
+
+* With the function f. We call this and do not look up any actions. This may
+  or may not have a context in the action or separately passed in. 
+* No function f. Then this is an action. Still might have a given context. 
+
+---
 
     function (fullAction, f, context, emitter) {
         const handler = this;
@@ -1087,6 +1100,8 @@ the emit.
         } else {
             handler.action = fullAction;
         }
+        handler.context = context;
+        
         handler.emitter = emitter;
         if (typeof f === 'function') {
             handler.f = f;
@@ -1098,8 +1113,6 @@ Making sure function is named
                     fullAction, configurable:true});
 
         }
-
-        handler.context = context;
 
         return handler;
     }
@@ -1115,6 +1128,7 @@ The prototype object.
 ---
     Handler.prototype.execute = _"execute"; 
     Handler.prototype.removal = _"removal";
+    Handler.prototype.off = _"off";
 
 [doc]()
 
@@ -1159,6 +1173,11 @@ The prototype object.
     ---
     <a name="removal"></a>
     _"removal:doc"
+    ---
+
+    <a name="off"></a>
+    _"off:doc"
+
 
 #### Removal
 
@@ -1211,46 +1230,42 @@ No error catching for the function.
 We pass in raw for the call for the wrapper from handler in the instance of
 scope objects (see on). 
  
-    function me (data, target, emitter, evObj) {
+    function me (data, scope) {
         
         const handler = this;
+        const emitter = handler.emitter;
         const raw = emitter._actions.get(handler.action) || {};
 
         const f = this.f || raw.f;
 
+        if (!f) {
+            emitter.error('bad function in handler', data, scope, handler);
+            return;
+        }
+
         let context = this.context || raw.context;
         
-        if (typeof target === 'undefined') {
-            if  (handler.scopeObj) {
-                target = emitter.scope(true, evObj[4]);
-            } else {
-                target = evObj[4];
-            }
-        }
-        emitter.log("executing action", handler.action, data, target, evObj);
+        emitter.log("executing action", data, scope, handler);
 
-        f.call(handler, data, target, emitter, context, evObj, raw);
+        f.call(handler, data, scope, context);
 
-        return handler;
+        return;
 
     }
 
 [doc]()
 
-    #### execute(data, str scope, emitter, arr evObj) --> 
+    #### execute(data, str scope) --> nothing
 
-    This executes the handler. 
+    This executes the handler. `this === handler`
 
     __arguments__
 
     * `data`. This is the data from an emit event.
-    * `target`. A value, generally an object, that is used as the state to
-      modify and get from. The scope string that may or may not be related to
-      the target can be found in `evObj[4]`. 
-    * `emitter` The emitter object.
-    * `event` The full event string that was called in the emit. Usually not
-      needed, but could be useful. This is passed along into the function
-      handler as the fifth argumet. 
+    * `scope`. A string which is the scope for the event. This is distinct
+      from the context which is generally used for an action to modify
+      something or other. The scope is more about matching up the event with a
+      partiuclar action and context. 
 
     __note__
 
@@ -1258,19 +1273,37 @@ scope objects (see on).
     from when the `on` event was created or from an action item. 
     
     The function is called with `this === handler`, and signature 
-    `data, target, emitter, context, evObj` Context and target may be
-    undefined.  
+    `data, scope, context` Context and scope may be
+    undefined.  The emitter can be obtained from the handler. 
 
     __return__
 
-    Handler for chaining. 
+    Nothing. 
 
-    __example__
+### Off
 
-        handler = new Handler(function () {console.log(this.name, data);},
-            {name: "test"});
-        handler.execute("cool", {emitter:emitter});
+This prototype function is a no-op unless a function is passed in, in which
+case it installs that function on the instance in the .off position. 
 
+    function (f) {
+        if (f) {
+            this.off = f;
+        }
+        return;
+    }
+
+[doc]()
+
+    #### off(f) --> void
+
+    This does nothing if no function is passed in. If a function is passed in,
+    then it installs that function in place of itself. That function will be
+    called with the handler as context and is invoked as soon as a Handler is
+    removed as a listener.
+
+    A typical use case is to have f install a new listener. We do this since
+    otherwise there an be a gap between event emitting, offing, and emit
+    handling. 
 
 
 ## When
@@ -1291,14 +1324,20 @@ The function must provide the events to listen for and the event to emit. The
 rest is optional. 
 
 
-    function (events, ev, options) {
+    function (events, ev, scope) {
         const emitter = this;
+        const output = emitter.whenOutput;
+        const pipe = emitter.whenPipe;
+        emitter.log("adding events to listen for before emitting", 
+            events, ev, scope);
 
         _":check inputs"
+    
+        _"ending of ev"
 
-        _":deal with scope"
+        _":read endings"
 
-        let action = '_when:'+ ev;
+        let action = '_process event for when:'+ ev;
         let tracker = emitter.scope(ev);
         if (!tracker) {
             tracker = new Tracker (options, emitter, action, events, ev);
@@ -1313,38 +1352,6 @@ rest is optional.
 
 
 
-[deal with scope]()
-
-We want to enable the option of scoping all the events to the same scope. The
-convention will be that if an event ends in a ":", then we add the scope,
-which is either from the options.scope or from the scope of the emitting
-event. 
-
-If there is no scope, then we remove any ending colons. To avoid this, one can
-pass in `options.scope = ''` which will end up adding an empty string at the
-end of the colon and preserving it all. 
-
-
-    let scope = options.scope;
-    if (typeof scope === 'undefined') {
-        let evInd = ev.indexOf(':');
-        if (evInd !== -1) {
-            scope =  ev.slice(evInd+1);
-        }
-    }
-    if (scope) {
-        events = events.map( a => {
-            return (a[a.length-1] === ':') ?
-                a + scope : 
-                a;
-        });
-    } else {
-        events = events.map( a=> {
-            return (a[a.length-1] === ':') ?
-                a.slice(0, -1) :
-                a;
-        });
-    }
 
 
         
@@ -1365,13 +1372,91 @@ object.
         emitter.error('emit event must be string for when', events, ev);
         return emitter;
     }
+    
 
-    if (typeof options !== 'object') {
-        options = {};
+[ending of ev]()
+
+This deals with the ending of the event to emit. The convention is that we
+read these options from after the last period in the event. The final
+character is how to report it while between the period and the rest is the
+number of times to repeat this when. Typically, this is 0 and can be safely
+omitted.  
+
+        const options = {
+            repeat: 0,
+            output : output['&']
+        };
+        
+        let lastInd;
+
+        if ( (lastInd = ev.lastIndexOf('.')) !== -1 ) {
+            let last = ev[ev.length-1];
+            if (last) {
+                options.output = output[last] || output['&'];
+            }
+            let num = ev.slice(lastInd+1, -1);
+            ev = ev.slice(0,lastInd);
+            if (num) {
+                if (num === 'oo') {
+                    options.repeat = Infinity;
+                } else {
+                    options.repeat = parseInt(num);
+                }
+            }
+        }
+
+        if (typeof scope === 'undefined') {
+            let evInd = ev.indexOf(':');
+            if (evInd !== -1) {
+                scope =  ev.slice(evInd+1);
+            }
+        }
+
+
+[read endings]()
+
+We allow for some communication of the intent of the events with the last
+digit. This will replace events with an array solely of strings of events,
+events with the last `.` portion removed. If a period is part of the event
+name, then one must add a `.` at the end, even if the options are not desired. 
+
+    const originals = events;
+    events = new Map();
+    
+    originals.forEach( event => {
+        if (Array.isArray(event) ) {
+            const [event, n, pipe, value, output] = event;
+        }
+
+
+
+
     }
+    
+[deal with scope]()
 
+We want to enable the option of scoping all the events to the same scope. The
+convention will be that if an event ends in a ":", then we add the scope,
+which is either from the options.scope or from the scope of the emitting
+event. 
 
+If there is no scope, then we remove any ending colons. To avoid this, one can
+pass in `options.scope = ''` which will end up adding an empty string at the
+end of the colon and preserving it all. 
 
+    if (scope) {
+        events = events.map( a => {
+            return (a[a.length-1] === ':') ?
+                a + scope : 
+                a;
+        });
+    } else {
+        events = events.map( a=> {
+            return (a[a.length-1] === ':') ?
+                a.slice(0, -1) :
+                a;
+        });
+    }
 
 
 
@@ -1471,28 +1556,108 @@ This is where we handle when when it is called.
 
 The context holds all the long term data that when needs. 
 
-    function (data, scope, emitter, context, evObj) {
-        let handler = this;
-        let tracker = context;
-        let handlers = tracker.handlers;
+    function (data, scope, context) {
+        const handler = this;
+        const tracker = context;
+        const {handlers, ev:event, values, pipes} = tracker;
 
+        get pipe = tracker.pipes.get(ev);
+        values.set(ev, pipe.call(handler,
+            h.values.get(ev), 
+            data, scope, tracker);
         
-
         if (handler.count === 0) {
-            emitter.handlers.delete(handler.event);
-            if (Array.from(handlers.keys()).length === 0) {
-                _":emit done"
-            }
+            handlers.delete(handler.event);
+            tracker.go();
         }
 
     }
 
+### Last Character Meanings for listening
 
-[emit done]()
+This defines an object which takes in a last character from the end string
+parser and returns a suitable function. 
 
-This is where we assemble the data 
+    { 
+        '=' : function replace (incoming, ev, values) {
+            values.set(ev, incoming);
+            return;
+        },
+        '_' : function silence (invoming, ev, values) {return;},
+        ',' : _":push", 
+        '+' : _":operator", 
+        '*' : _":operator | sub +, *, add, multiply",
+    }
+
+[push]() 
 
 
+    function push (incoming, ev, values) {
+        let values = this;
+        let value = values.get(ev);
+        if (Array.isArray(value)) {
+            value.push(incoming);
+        } else {
+            values.set(ev, [incoming]);
+        }
+        return;
+    }
+                
+
+[operator]() 
+
+This allows for some default addition to happen. This replaces the values. 
+
+    function add (incoming, ev, values) {
+        let values = this;
+        let value = values.get(ev);
+        if (typeof value === 'undefined') {
+            value = incoming;
+        } else {
+            value = value + incoming;
+        }
+        values.set(ev, value);
+        return;
+    }
+
+
+### Last Character Meanings for emitting
+
+This deals with the toEmit for when with multiple events.
+
+This is called with context tracker and does the data prep and emit. It should
+be given the event to emit
+
+    {
+        ',' : function flatArr (ev) {
+            const {emitter, values} = this;
+            emitter.emit(ev, Array.from(values.values()));  
+            return;
+        },
+        '&' : function map (ev) {
+            const {emitter, values} = this;
+            emitter.emit(ev, values); 
+            return;
+        },
+        '=' : function flatten (ev) {
+            const {emitter, values} = this;
+            let arr = Array.from(values.values());
+            let data;
+            if (arr.length === 1) {
+                data = arr[0];
+            } else {
+                data = arr;
+            }
+            emitter.emit(ev, data); 
+            return;
+        },
+        '\' : function mapArray (ev) {
+            const {emitter, values} = this;
+            emitter.emit(ev, Array.from(values));  
+            return;
+        }
+
+    }
 
 ### Flat When
 
@@ -1505,7 +1670,7 @@ has a radical difference on the emitted values.
         } else {
             options = {flatten:true};
         }
-        return this.when(events, ev, options);
+        let tracker = this.when(events, ev, options);
         tracker.flatten = true;
         return tracker;
     }
@@ -1521,11 +1686,14 @@ This is a convenience method that will always return an array of values.
 The tracker object is used to track all the data and what events are
 available. Controlling it controls the queue of the when emit. 
 
+To get the event keys being listened to that will report data, get the keys
+from the map of values. For the remaining handlers, get the keys from
+handlers. 
+
     function (options, emitter, action, events, ev) {
         let tracker = this;
     
         tracker.emitter = emitter;
-        tracker.events = [];
         tracker.toEmit = ev;
         tracker.action = action;
         tracker.originals = events.slice(0);
@@ -1546,6 +1714,7 @@ available. Controlling it controls the queue of the when emit.
 The various prototype methods for the tracker object. 
 
     Tracker.prototype.add = _"add";
+    Tracker.prototype.append = _"append";
     Tracker.prototype.remove = Tracker.prototype.rem = _"remove";
     Tracker.prototype._removeStr = _"remove string";
     Tracker.prototype.go = _"go";
@@ -1651,17 +1820,7 @@ The various prototype methods for the tracker object.
 
 #### Add
 
-We can add events on to the tracker. We allow it to be an array of events
-passed in or a bunch of strings passed in as parameters.
-
-The events get added to events for removal; that way we can see what is left.
-But they also get added to data so that input order is preserved. We could do
-a flag. 
-
-
-
-
-We have an action and we want to basically use it in handlers.
+This takes in an array of events.
 
 An event could be a string or it could be an array with
 `event, n, pipe, initial value`  where pipe transforms the data and the
@@ -1670,12 +1829,14 @@ initial value might be the value used. This can be a kind of reduce setup.
 The pipe and the value will be stored in the tracker. The pipe expects the
 data object and the value. 
 
+We are constructing an events list as well. This is the order in which the
+data will be sent. 
+
     function (events) {
         let tracker = this;
-        let emitter = tracker.emitter;
-        let action = tracker.action;
+        const {emitter, action, handlers, pipes, values} = tracker;
         
-        tracker.originals = tracker.originals.concat(events.map( event => {
+        tracker.events = tracker.events.concat(events.map( event => {
             let n, pipe, initial, arr;
             if (Array.isArray(event) ) {
                 arr = event;
@@ -1683,65 +1844,21 @@ data object and the value.
             }
             if (typeof event !== 'string') {
                 emitter.error('event to listen for should be string', event);
-                return null;
+                return false;
+            }
+            if (handlers.has(event) ) {
+                emitter.error('event to listen for has already been added',
+                    event, n, pipe, initial);
+                return false;    
             }
             n = (typeof n === 'number') ? n : 1;
-            let handler = emitter.once(event, action, n);
+            let handler = emitter.once(event, action, n, emitter.whenHandler,
+                tracker);
             tracker.handlers.set(event, handler);
             tracker.pipes.set(event, (typeof pipe !== 'undefined') ?  pipe : identity);
             tracker.values.set(event, initial);
             return event;
-        }));
-    }
-
-[junk]()
-
-    function (newEvents) {
-        var tracker = this,
-            events = tracker.events,
-            handler = tracker.handler,
-            data = tracker.data, 
-            i;
-
-        if (arguments.length !== 1) {
-            newEvents = Array.prototype.slice.call(arguments);
-        } else if (! Array.isArray(newEvents) ) {
-            newEvents = [newEvents];
-        } else if (typeof newEvents[1] === "number") {
-            newEvents = [newEvents];
-        }
-
-        newEvents.forEach(function (el) {
-            var num, str, order;
-            if (typeof el === "string") {
-                str = elet scope = options.sco;
-                num = 1;
-            }
-            if (Array.isArray(el) ) {
-                if ((typeof el[1] === "number") && (el[1] >= 1) && 
-                    (typeof el[0] === "string") ) {
-                    
-                    num = el[1];
-                    str = el[0];
-                } 
-            }
-            if (str && (typeof num === "number") ) {
-                if (events.hasOwnProperty(str) ) {
-                    events[str] += num;
-                } else {
-                    tracker.emitter.on(str, handler, order);
-                    events[str] = num;
-                }
-                if (tracker.initialOrdering) {
-                    for ( i = 0; i<num; i+=1 ) {
-                        data.push([str]);
-                    }
-                }
-                tracker.latest = str;
-            }
-        });
-        tracker.go();
-        return tracker;
+        }).filter(a=> a));
     }
 
 [doc]()
@@ -1750,18 +1867,30 @@ data object and the value.
 
     __arguments__
 
-    This is the same form as the `events` option of `.when`. It can be a
-    string or an array of [strings / array of [string, number] ]. A string is
+    This is the same form as the `events` option of `.when`. It should be an
+    array, namely `[event, event, ...]` where `event` is either a
+    string or an array of the form `[event, n, pipe, initial]`. A string is
     interpreted as an event to be tracked; a number indicates how many times
-    (additional times) to wait for.
-
-    You can use this to add a number of wait times to an existing event.
+    to wait for. A pipe is a function that can act on the incoming data and an
+    initial value allows the pipe to act as a reduce. 
 
     __example__
     
-        t.add("neat");
+        t.add(["neat]");
         t.add(["neat", "some"]);
         t.add([["some", 4]]);
+
+#### Append
+
+This appends events to the original in tracker. This adds to the
+resetting. 
+
+    function (events) {
+        const tracker = this;
+        this.events = this.events.concat(events);
+        return tracker;
+    }
+
 
 #### Remove
 
@@ -1837,7 +1966,7 @@ is ready.
     function (ev) {
         var tracker = this;
 
-        delete tracker.events[ev];
+        tracker.handlers.delete(ev);
 
         tracker.go();
         return tracker;
@@ -1845,10 +1974,30 @@ is ready.
 
 #### Go
 
-This is the primary activator. 
+This is where we check if we should emit the event and the data, which could
+take a variety of forms, depending on options. The default is an array of
+`[event, data]`. Flatten will just give an array of data unless there is just
+one item, in which case it is not an array. FlatArr is consistently an array
+of data. The order in all cases is that of the original events. 
 
 If reset is true, then we add those events before firing off the next round. 
 
+
+    function () {
+        const tracker = this;
+        const {handlers, values, emitter, toEmit, preparer} = tracker;
+
+        if (handlers.size !== 0) {
+            return; //not ready yet
+        }
+        
+        emitter.emit(toEmit, perparer(values));
+
+        return;
+    }
+
+
+[junk]()
 
     function () {
         var tracker = this, 
@@ -1990,6 +2139,81 @@ no arguments, then it ignores the most recent event.
     This silences the passed in events or the last one added. In other words,
     it will not appear in the list of events. If an event is applied multiple
     times and silenced, it will be silent for the  
+
+## End String Parser
+
+This is a function to call for checking the end of an event string (during on
+or when calls) for various pieces of information. It returns the stripped
+string along with an options object. 
+
+The basic string syntax is 
+
+
+    function (str) {
+
+        let ind = str.lastIndexOf(".");
+        if ( ind === -1) {
+            return [str, null];
+        }
+        let options = {}, m;
+        ind += 1;
+        _":get leading numbers"
+
+        _":get pipes"
+
+        _":get last char"
+        
+        
+        return [str.slice(0, ind), options];
+    
+
+    }
+
+[get leading numbers]()
+
+This gets leading numbers. For a .on, this converts it to a .once with a
+count. For .when, this says how many times to wait (in the form of a .once),
+but a second number could be present which is to have the event still be
+listened for, processed, but no longer blocking the .when. 
+
+So one could do `5oo` to indicate waiting for 5 (and listening) and then after
+that, continue listening, but the .when can fire at any time depending on the
+other events. A case might be to require a minimum number of clicks for
+something, but continue to count after that. 
+
+    let numReg = /\s*(\d+|oo)\s*/g;
+    numReg.lastIndex = ind;
+    if ( (m = numReg.exec(str) ) ) {
+        options.num = (m[1] === 'oo') ? 
+            Infinity : parseInt(m[1], 10);
+        if (m = numReg.exec(str) ) {
+            options.num2 = (m[1] === 'oo') ? 
+                Infinity : parseInt(m[1], 10);
+        }
+    }
+    ind = numReg.lastindex;
+
+
+[get pipes]()
+
+This matches `=> word` and the word is the pipe name. Pipes are always
+returned as an array to execute through. 
+
+    let pipeReg = /\s*\=\>\s*([a-zA-Z]+)\s*/g;
+    pipeReg.lastIndex = ind;
+    options.pipes = [];
+    while ( (m = pipeReg.exec(str) ) ) {
+        options.pipes.push(m[1]);
+    }
+    ind = pipeReg.lastIndex;
+
+[get last char]()
+
+This should be a character that describes what to do events in a .when. This
+option is ignored by the .on. 
+
+    options.last = str[str.length-1];
+
 
 ## Goodies
 
@@ -3646,5 +3870,57 @@ sure that properly written, but unordered, is okay.
     } else {
         tracker.timing = emitter.timing;
         tracker.reset = reset || false;
+    }
+
+Bad tracker add 
+
+[junk]()
+
+    function (newEvents) {
+        var tracker = this,
+            events = tracker.events,
+            handler = tracker.handler,
+            data = tracker.data, 
+            i;
+
+        if (arguments.length !== 1) {
+            newEvents = Array.prototype.slice.call(arguments);
+        } else if (! Array.isArray(newEvents) ) {
+            newEvents = [newEvents];
+        } else if (typeof newEvents[1] === "number") {
+            newEvents = [newEvents];
+        }
+
+        newEvents.forEach(function (el) {
+            var num, str, order;
+            if (typeof el === "string") {
+                str = elet scope = options.sco;
+                num = 1;
+            }
+            if (Array.isArray(el) ) {
+                if ((typeof el[1] === "number") && (el[1] >= 1) && 
+                    (typeof el[0] === "string") ) {
+                    
+                    num = el[1];
+                    str = el[0];
+                } 
+            }
+            if (str && (typeof num === "number") ) {
+                if (events.hasOwnProperty(str) ) {
+                    events[str] += num;
+                } else {
+                    tracker.emitter.on(str, handler, order);
+                    events[str] = num;
+                }
+                if (tracker.initialOrdering) {
+                    for ( i = 0; i<num; i+=1 ) {
+                        data.push([str]);
+                    }
+                }
+                tracker.latest = str;
+            }
+        });
+        tracker.go();
+        return tracker;
     }
 

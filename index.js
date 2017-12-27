@@ -2,7 +2,6 @@
 /*global setTimeout, setImmediate, module, console */
 
 ;(function () {
-    var empty = {};
 
     var noop = function () {};
 
@@ -170,6 +169,8 @@
         } else {
             handler.action = fullAction;
         }
+        handler.context = context;
+        
         handler.emitter = emitter;
         if (typeof f === 'function') {
             handler.f = f;
@@ -179,32 +180,29 @@
     
         }
     
-        handler.context = context;
-    
         return handler;
     };
 
-    Handler.prototype.execute = function me (data, target, emitter, evObj) {
+    Handler.prototype.execute = function me (data, scope) {
         
         const handler = this;
+        const emitter = handler.emitter;
         const raw = emitter._actions.get(handler.action) || {};
     
         const f = this.f || raw.f;
     
+        if (!f) {
+            emitter.error('bad function in handler', data, scope, handler);
+            return;
+        }
+    
         let context = this.context || raw.context;
         
-        if (typeof target === 'undefined') {
-            if  (handler.scopeObj) {
-                target = emitter.scope(true, evObj[4]);
-            } else {
-                target = evObj[4];
-            }
-        }
-        emitter.log("executing action", handler.action, data, target, evObj);
+        emitter.log("executing action", data, scope, handler);
     
-        f.call(handler, data, target, emitter, context, evObj, raw);
+        f.call(handler, data, scope, context);
     
-        return handler;
+        return;
     
     }; 
     Handler.prototype.removal = function me (ev, emitter) {
@@ -240,10 +238,9 @@
 
     Tracker.prototype.add = function (events) {
         let tracker = this;
-        let emitter = tracker.emitter;
-        let action = tracker.action;
+        const {emitter, action, handlers, pipes, values} = tracker;
         
-        tracker.originals = tracker.originals.concat(events.map( event => {
+        events.forEach( event => {
             let n, pipe, initial, arr;
             if (Array.isArray(event) ) {
                 arr = event;
@@ -251,15 +248,25 @@
             }
             if (typeof event !== 'string') {
                 emitter.error('event to listen for should be string', event);
-                return null;
+                return;
+            }
+            if (handlers.has(event) ) {
+                emitter.error('event to listen for has already been added',
+                    event, n, pipe, initial);
+                return;    
             }
             n = (typeof n === 'number') ? n : 1;
-            let handler = emitter.once(event, action, n);
+            let handler = emitter.once(event, action, n, emitter.whenHandler,
+                tracker);
             tracker.handlers.set(event, handler);
             tracker.pipes.set(event, (typeof pipe !== 'undefined') ?  pipe : identity);
             tracker.values.set(event, initial);
-            return event;
-        }));
+        });
+    };
+    Tracker.prototype.append = function (events) {
+        const tracker = this;
+        this.events = this.events.concat(events);
+        return tracker;
     };
     Tracker.prototype.remove = Tracker.prototype.rem = function (byeEvents) {
         var tracker = this,
@@ -406,21 +413,6 @@
         
             return emitter;
         });
-        this._actions.set("_when", function (data, scope, emitter, context, event) {
-            let handler = this;
-            let tracker = context;
-            let handlers = tracker.handlers;
-        
-            
-        
-            if (handler.count === 0) {
-                emitter.handlers.delete(handler.event);
-                if (Array.from(handlers.keys()).length === 0) {
-                    
-                }
-            }
-        
-        });
         this._onceCache = new Map();
         this._queue = [];
         this._monitor = [];
@@ -428,7 +420,6 @@
         this.loopMax = 1000;
         this.loop = 0;
         this.emitCount = 0;
-        this.whens = {};
         this._cache = {};
         this.initialOrdering = false;  // for .when tracker behavior
     
@@ -439,16 +430,18 @@
         return this; 
     };
 
-    EvW.prototype._emit = EvW.prototype.emit = function (ev,  data, target) {
+    EvW.prototype._emit = EvW.prototype.emit = function (ev,  data) {
         const emitter = this; 
         let evObj;
     
+        /*
         if (typeof ev !== "string") {
             emitter.error("event string is not a string", [ev, data]); 
             return;
         }
+        */
     
-        evObj = [ev, data, target]; //the emit arguments come first.
+        evObj = [ev, data]; //the emit arguments come first.
         let colIndex = ev.indexOf(":");
         let actions;
         const handlers = emitter._handlers;
@@ -456,30 +449,35 @@
             evObj.push(ev, null);
             actions = handlers.get(ev);
             if (actions) {
-                evObj.push(emitter.decrement(actions.slice(0)));
+                evObj = [ev, data, '',
+                    emitter.decrement(actions.slice(0)) 
+                ];
             } else {
-                emitter.log("emit without action", ev, data, target);
+                emitter.log("emit without action", ev, data);
                 return emitter;
             }
         } else {
             const gen = ev.slice(0,colIndex);
             const scope = ev.slice(colIndex+1);
-            evObj.push(gen, scope);
-        
             const specifics = handlers.get(ev);
             const generals = handlers.get(gen);
             if (specifics && generals) {
-                actions = emitter.decrement(specifics.slice(0), ev).
-                    concat(emitter.decrement(generals.slice(0), gen));
+                evObj = [ev, data, scope,
+                    emitter.decrement(specifics.slice(0), ev).
+                    concat(emitter.decrement(generals.slice(0), gen))
+                ];
             } else if (specifics) {
-                actions = emitter.decrement(specifics.slice(0), ev);
+                evObj = [ ev, data, scope, 
+                    emitter.decrement(specifics.slice(0), ev)
+                ];
             } else if (generals) {
-                actions = emitter.decrement(generals.slice(0), gen);
+                evObj = [ev, data, scope, 
+                    emitter.decrement(generals.slice(0), gen)
+                ];
             } else {
-                emitter.log("emit without action", ev, data, target);
+                emitter.log("emit without action", ev, data);
                 return emitter;
             }
-            evObj.push(actions);
         }
     
         emitter._queue.push(evObj);
@@ -657,31 +655,9 @@
             handlers.set(ev, handlerArr);
         }
     
-        let scopeObj = false;
-        let toggle = action[action.length -1];
-        if ( ( toggle === '~') ||
-             ( toggle === '.') ) {
-            action = action.slice(0, -1);
-            let g = f;
-            f = function wrapper (data, target, emitter, context, evObj, raw) {
-                let handler = this;
-                if (typeof target === 'undefined') {
-                    if  (handler.scopeObj) {
-                        target = emitter.scope(true, evObj[4]);
-                    } else {
-                        target = evObj[4];
-                    }
-                }
-                emitter.log("executing action", handler.action, data, target, evObj);
-            
-                g = g || raw.f;
-                g.call(handler, data, target, emitter, context, evObj);
-            };
-            scopeObj = (toggle === '~') ? true : false; 
-        }
         const handler = new Handler(action, f, context, emitter); 
         handler.event = ev;
-        handler.scopeObj = scopeObj;
+        handler.emitter = emitter;
     
         handlerArr.push(handler);
     
@@ -834,8 +810,8 @@
         return handler; 
     };
     EvW.prototype.storeEvent = function (ev, off) {
+        const emitter = this;
         if (off !== false) {
-            const emitter = this;
             emitter.on(ev, "_cache:*");
         } else {
             emitter.off(ev, "_cache");
@@ -903,31 +879,29 @@
             });
         }
     
-        let action = 'tick when:'+ ev;
-        let proto = emitter.action(action);
-        let tracker;
-        if (!proto) {
+        let action = '_process event for when:'+ ev;
+        let tracker = emitter.scope(ev);
+        if (!tracker) {
             tracker = new Tracker (options, emitter, action, events, ev);
-            emitter.scope("_tracking "+ev, tracker);
-            emitter.action(action, "_when", tracker); 
-        } else { 
-            tracker = proto.context;
+            emitter.scope(ev, tracker);
         }
     
+        tracker.append(events, ev); //adds to the originals
         tracker.add(events, ev);
-        
         
         return tracker;
     };
-    EvW.prototype.whenf = function (data, scope, emitter, context, event) {
+    EvW.prototype.whenHandler = function (data, scope, context) {
         let handler = this;
+        let emitter= handler.emitter;
         let tracker = context;
         let handlers = tracker.handlers;
     
         
+        
     
         if (handler.count === 0) {
-            emitter.handlers.delete(handler.event);
+            handlers.delete(handler.event);
             if (Array.from(handlers.keys()).length === 0) {
                 
             }
@@ -940,15 +914,20 @@
         } else {
             options = {flatten:true};
         }
-        return this.when(events, ev, options);
+        let tracker = this.when(events, ev, options);
         tracker.flatten = true;
         return tracker;
     };
-    EvW.prototype.flatArrWhen = function () {
-        let tracker = this.when.apply(this, arguments);
+    EvW.prototype.flatArrWhen = function (events, ev, options) {
+        if (options) {
+           options.flatArr = true; 
+        } else {
+            options = {flatArr:true};
+        }
+        let tracker = this.when(events, ev, options);
         tracker.flatArr = true;
         return tracker;
-    };
+    } ;
     EvW.prototype.cache = function (req, ret, fun, emit) {
         
         var gcd = this;
@@ -1038,8 +1017,8 @@
             let action; 
             while ( ( action = actions.shift() ) ) {
                 emitter.log("will execute handler", action, evObj);
-                //evObj = [ev, data, target, gen, scope ]
-                action.execute(evObj[1], evObj[2], emitter, evObj);
+                //evObj = [ev, data, scope]
+                action.execute(evObj[1], evObj[2]);
                 emitter.log("done executing handler", action, evObj);
             }
             emitter.log('done with emit', evObj);
@@ -1237,12 +1216,11 @@
             return f;
         }
     
-        let contextStr, fullAction = name;
-        let i = name.indexOf(':');
-        if (i !== -1) {
-            contextStr = name.slice(i+1); 
-            name = name.slice(0,i); 
+        if (typeof f !== 'function') {
+            emitter.error("named action must have function", name, f, context);
+            return emitter;
         }
+        
     
         if (actions.has(name) ) {
             emitter.log("overwriting action", name, f, context,
@@ -1251,30 +1229,29 @@
             emitter.log("creating action", name, f, context); 
         }
     
-        if ( (typeof f !== 'undefined') && (typeof f !== "function")) {
-            let temp = f;
-            f = context;
-            context = temp;
+        let contextStr;
+        let i = name.indexOf(':');
+        if (i !== -1) {
+            contextStr = name.slice(i+1); 
+            if (contextStr[0] === '*') {
+                name = name.slice(0, i);
+                contextStr = name;
+            }
         }
     
-        let o = {};
+        let o = { f:f};
     
-        if (f) {
-            o.f = f;
-        }
-    
-        if (typeof contextStr === 'string') {
+        if (contextStr || (contextStr==='')) {
             o.contextStr = contextStr;
             if (typeof context === 'undefined') {
-                context = emitter.scope(true, 'contextStr');
+                context = emitter.scope(true, contextStr);
             }
         }
         o.context = context;
-        o.fullAction = fullAction;
         
         if (typeof f === 'function') {
             Object.defineProperty(f, 'name', {
-                value:(f.name||'') + ":" + fullAction, 
+                value:(f.name||'') + ":" + name, 
                 configurable:true});
         }
     

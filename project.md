@@ -114,7 +114,6 @@ This is the main structure of the module file.
     /*global setTimeout, setImmediate, module, console */
 
     ;(function () {
-        var empty = {};
 
         var noop = function () {};
 
@@ -158,6 +157,8 @@ the most number of operations occurs.
     /*global require, process, console */
     
     var n = parseFloat(process.argv[2], 10) || 5e5;
+    const EvW = require('./index.js');
+    var EE = require("events").EventEmitter; 
 
     var i, time, c;
 
@@ -171,7 +172,12 @@ the most number of operations occurs.
 
     console.log(process.memoryUsage());
 
+    c = 0;
 
+    _":second"
+    console.log(process.memoryUsage());
+    
+    c = 0;
     _":first"
     console.log(process.memoryUsage());
    
@@ -181,27 +187,23 @@ the most number of operations occurs.
     _":evw embedded scope"
     console.log(process.memoryUsage());
 
-    _":second"
-    console.log(process.memoryUsage());
 
 [first]()
 
 
-    var EvW = require('./index.js');
     var emitter = new EvW();
 
     emitter.loopMax = 2*n;
 
-    c = 0;
 
-    emitter.on("go", "add 1", function count () {
-        c += 1;
+    emitter.on("go", "add 1", function count (num) {
+        c += num;
     });
         
     time = process.hrtime();
     
     for (i = 0; i < n; i += 1) {
-        emitter.emit("go");
+        emitter.emit("go", 1);
     }
 
     log(time, c, "event-when");
@@ -214,21 +216,21 @@ the most number of operations occurs.
 
     emitter.loopMax = 2*n;
 
-    emitter.scope('c', 0);
+    emitter.scope('c', {a:0});
 
-    emitter.action('add', function count (num, scope, emitter, c, evObj) {
-        emitter.scope(scope, emitter.scope(scope)+num);
+    emitter.action('add', function count (num, scope, context) {
+        context.a += num;
     });
 
-    emitter.on("go", "add");
+    emitter.on("go", "add:c");
     
     time = process.hrtime();
     
     for (i = 0; i < n; i += 1) {
-        emitter.emit("go:c", 1);
+        emitter.emit("go", 1);
     }
 
-    log(time, emitter.scope('c'), "event-when scope");
+    log(time, emitter.scope('c').a, "event-when scope");
 
 
 
@@ -242,17 +244,18 @@ the most number of operations occurs.
     emitter.scope('numbers', {c:0});
 
     emitter.action('add', function count (num, s) {
-        s.c += 1; 
+        o = this.emitter.scope(s);
+        o.c += num; 
     });
 
-    emitter.on("go", "add~");
+    emitter.on("go", "add");
     
     time = process.hrtime();
 
     let a = {c:1};
     
     for (i = 0; i < n; i += 1) {
-        emitter.emit("go:numbers", a);
+        emitter.emit("go:numbers", 1);
     }
 
     log(time, emitter.scope('numbers').c, "event-when embedded scope");
@@ -265,18 +268,17 @@ the most number of operations occurs.
 Native event emitter
 
  
-        var EE = require("events").EventEmitter; 
  
         emitter = new EE();
 
-        emitter.on("go", function () {
-            c += 1;
+        emitter.on("go", function (num) {
+            c += num;
         });
 
         time = process.hrtime();
         
         for (i = 0; i < n; i += 1) {
-            emitter.emit("go");
+            emitter.emit("go", 1);
         }
 
         log(time, c, "native");
