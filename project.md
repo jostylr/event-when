@@ -284,6 +284,25 @@ Native event emitter
         log(time, c, "native");
 
 
+## Use cases
+
+Here we detail a variety of use cases. 
+
+     1. Get info from different sources, then emit them all together. 
+
+            gcd.when("file returned:dude!=>json", "db returned:dude",  
+            gcd.fs.readFile("dude.json", "file returned:dude");
+     
+     2.  Translate data and uniformize from different sources:
+
+            gcd.when(["mouse drag!oo=>xy", "keyboard press!oo=>kbxy"], "position
+            given!oo=")
+
+        This will listen, without blocking, for one of those events, pipe the
+        raw event through a specific pipe, and then emit a unified event from
+        that. It will emit for each. 
+
+
 
 ## Change Log
 

@@ -170,8 +170,8 @@
             handler.action = fullAction;
         }
         handler.context = context;
-        
         handler.emitter = emitter;
+        
         if (typeof f === 'function') {
             handler.f = f;
             Object.defineProperty(f, 'name', {
@@ -216,12 +216,17 @@
     
         return;
     };
+    Handler.prototype.off = function (f) {
+        if (f) {
+            this.off = f;
+        }
+        return;
+    };
 
     var Tracker = function (options, emitter, action, events, ev) {
         let tracker = this;
     
         tracker.emitter = emitter;
-        tracker.events = [];
         tracker.toEmit = ev;
         tracker.action = action;
         tracker.originals = events.slice(0);
@@ -240,7 +245,7 @@
         let tracker = this;
         const {emitter, action, handlers, pipes, values} = tracker;
         
-        events.forEach( event => {
+        tracker.events = tracker.events.concat(events.map( event => {
             let n, pipe, initial, arr;
             if (Array.isArray(event) ) {
                 arr = event;
@@ -248,12 +253,12 @@
             }
             if (typeof event !== 'string') {
                 emitter.error('event to listen for should be string', event);
-                return;
+                return false;
             }
             if (handlers.has(event) ) {
                 emitter.error('event to listen for has already been added',
                     event, n, pipe, initial);
-                return;    
+                return false;    
             }
             n = (typeof n === 'number') ? n : 1;
             let handler = emitter.once(event, action, n, emitter.whenHandler,
@@ -261,7 +266,8 @@
             tracker.handlers.set(event, handler);
             tracker.pipes.set(event, (typeof pipe !== 'undefined') ?  pipe : identity);
             tracker.values.set(event, initial);
-        });
+            return event;
+        }).filter(a=> a));
     };
     Tracker.prototype.append = function (events) {
         const tracker = this;
@@ -307,49 +313,22 @@
     Tracker.prototype._removeStr = function (ev) {
         var tracker = this;
     
-        delete tracker.events[ev];
+        tracker.handlers.delete(ev);
     
         tracker.go();
         return tracker;
     };
     Tracker.prototype.go = function () {
-        var tracker = this, 
-            ev = tracker.ev, 
-            data = tracker.data,
-            events = tracker.events,
-            emitter = tracker.emitter,
-            silent = tracker.silent;
+        const tracker = this;
+        const {handlers, values, emitter, toEmit, preparer} = tracker;
     
-    
-        if (Object.keys(events).length === 0) {
-            data = data.filter(function (el) {
-                return silent.indexOf(el[0]) === -1;  
-            });
-            if (tracker.flatten) {
-                if (data.length === 1) {
-                    data = data[0][1];
-                } else {
-                    data = data.map(function (el) {return el[1];});
-                }
-            }
-            // this is to do the falt thing, but always return array
-            if (tracker.flatArr) {
-                data = data.map(function (el) {return el[1];});
-            }
-            
-            if (tracker.reset === true) {
-                tracker.reinitialize();
-            } else if (tracker.idempotent === false) {
-                if (tracker === emitter.whens[ev]) {
-                    delete emitter.whens[ev];
-                }
-                tracker.go = noop;
-            }
-            
-            emitter.emit(ev, data, tracker.timing); 
-            
+        if (handlers.size !== 0) {
+            return; //not ready yet
         }
-        return tracker;
+        
+        emitter.emit(toEmit, perparer(values));
+    
+        return;
     };
     Tracker.prototype.cancel = function () {
         var tracker = this, 
@@ -718,6 +697,9 @@
                         el.removal(ev, emitter);
                     });
                 }
+                removed.forEach(function (el) {
+                    el.off();
+                });
                 emitter.log("handler for event removed", ev, action);
             });
             return emitter;    
@@ -742,6 +724,9 @@
                         el.removal(ev, emitter);
                     });
                 }
+                removed.forEach(function (el) {
+                    el.off();
+                });
                 emitter.log("handler for event removed", ev, action.action);
             });
             return emitter;        
@@ -806,7 +791,6 @@
             }
         }
         
-        
         return handler; 
     };
     EvW.prototype.storeEvent = function (ev, off) {
@@ -838,8 +822,10 @@
         return arr; 
     
     };
-    EvW.prototype.when = function (events, ev, options) {
+    EvW.prototype.when = function (events, ev, scope) {
         const emitter = this;
+        const output = emitter.whenOutput;
+        const pipe = emitter.whenPipe;
     
         if (typeof events === 'string') {
             events = [events];
@@ -847,42 +833,29 @@
             emitter.error('events for when must be an array or a string',
                 events, ev);
             return emitter;
+        } else {
+            if (!events.all( a => typeof a === 'string') ) {
+                emitter.error('events in array must be strings', events, ev);
+                return emitter;
+            }
         }
         
         if (typeof ev !== 'string') {
             emitter.error('emit event must be string for when', events, ev);
             return emitter;
         }
-        
-        if (typeof options !== 'object') {
-            options = {};
-        }
     
-        let scope = options.scope;
-        if (typeof scope === 'undefined') {
-            let evInd = ev.indexOf(':');
-            if (evInd !== -1) {
-                scope =  ev.slice(evInd+1);
-            }
-        }
-        if (scope) {
-            events = events.map( a => {
-                return (a[a.length-1] === ':') ?
-                    a + scope : 
-                    a;
-            });
-        } else {
-            events = events.map( a=> {
-                return (a[a.length-1] === ':') ?
-                    a.slice(0, -1) :
-                    a;
-            });
-        }
+    
+        emitter.log("adding events to listen for before emitting", 
+            events, ev, scope);
+    
+        let evOpt;
+        [ev, evOpt] = emitter.endStringParse(ev);
     
         let action = '_process event for when:'+ ev;
         let tracker = emitter.scope(ev);
         if (!tracker) {
-            tracker = new Tracker (options, emitter, action, events, ev);
+            tracker = new Tracker (evOpt, emitter, action, events, ev);
             emitter.scope(ev, tracker);
         }
     
@@ -892,42 +865,126 @@
         return tracker;
     };
     EvW.prototype.whenHandler = function (data, scope, context) {
-        let handler = this;
-        let emitter= handler.emitter;
-        let tracker = context;
-        let handlers = tracker.handlers;
+        const handler = this;
+        const tracker = context;
+        const {handlers, ev:event, values, pipes} = tracker;
     
+        const pipe = tracker.pipes.get(ev);
+        values.set(ev, pipe.call(handler,
+            h.values.get(ev), 
+            data, scope, tracker));
         
-        
-    
         if (handler.count === 0) {
             handlers.delete(handler.event);
-            if (Array.from(handlers.keys()).length === 0) {
-                
-            }
+            tracker.go();
         }
     
     };
-    EvW.prototype.flatWhen = function (events, ev, options) {
-        if (options) {
-           options.flatten = true; 
-        } else {
-            options = {flatten:true};
+    EvW.prototype.endStringParser = function (str) {
+    
+        let ind = str.lastIndexOf("!");
+        if ( ind === -1) {
+            return [str, null];
         }
-        let tracker = this.when(events, ev, options);
-        tracker.flatten = true;
-        return tracker;
+        let options = {}, m;
+        ind += 1;
+        let numReg = /\s*(\d+|oo)\s*/g;
+        numReg.lastIndex = ind;
+        if ( (m = numReg.exec(str) ) ) {
+            options.num = (m[1] === 'oo') ? 
+                Infinity : parseInt(m[1], 10);
+            if (m = numReg.exec(str) ) {
+                options.num2 = (m[1] === 'oo') ? 
+                    Infinity : parseInt(m[1], 10);
+            }
+        }
+        ind = numReg.lastindex;
+    
+        let pipeReg = /\s*\=\>\s*([a-zA-Z]+)\s*/g;
+        pipeReg.lastIndex = ind;
+        options.pipes = [];
+        while ( (m = pipeReg.exec(str) ) ) {
+            options.pipes.push(m[1]);
+        }
+        ind = pipeReg.lastIndex;
+    
+        options.last = str[str.length-1];
+        
+        
+        return [str.slice(0, ind), options];
+    
+    
     };
-    EvW.prototype.flatArrWhen = function (events, ev, options) {
-        if (options) {
-           options.flatArr = true; 
-        } else {
-            options = {flatArr:true};
+    EvW.prototype.lastCharListen = { 
+        '=' : function replace (incoming, ev, values) {
+            values.set(ev, incoming);
+            return;
+        },
+        '-' : function silence (invoming, ev, values) {return;},
+        ',' : function push (incoming, ev, values) {
+            let value = values.get(ev);
+            if (Array.isArray(value)) {
+                value.push(incoming);
+            } else {
+                values.set(ev, [incoming]);
+            }
+            return;
+        }, 
+        '+' : function add (incoming, ev, values) {
+            let value = values.get(ev);
+            if (typeof value === 'undefined') {
+                value = incoming;
+            } else {
+                value = value + incoming;
+            }
+            values.set(ev, value);
+            return;
+        }, 
+        '*' : function multiply (incoming, ev, values) {
+            let value = values.get(ev);
+            if (typeof value === 'undefined') {
+                value = incoming;
+            } else {
+                value = value * incoming;
+            }
+            values.set(ev, value);
+            return;
+        },
+    };
+    EvW.prototype.lastCharEmit = {
+        ',' : function flatArr (ev) {
+            const {emitter, values} = this;
+            emitter.emit(ev, Array.from(values.values()));  
+            return;
+        },
+        '&' : function map (ev) {
+            const {emitter, values} = this;
+            emitter.emit(ev, values); 
+            return;
+        },
+        '=' : function flatten (ev) {
+            const {emitter, values} = this;
+            let arr = Array.from(values.values());
+            let data;
+            if (arr.length === 1) {
+                data = arr[0];
+            } else {
+                data = arr;
+            }
+            emitter.emit(ev, data); 
+            return;
+        },
+        '@' : function mapArray (ev) {
+            const {emitter, values} = this;
+            emitter.emit(ev, Array.from(values));  
+            return;
+        },
+        '^' : function emitOrder (ev) {
+            const {emitter, emissions} = this;
+            emitter.emit(ev, emissions); 
         }
-        let tracker = this.when(events, ev, options);
-        tracker.flatArr = true;
-        return tracker;
-    } ;
+    
+    };
     EvW.prototype.cache = function (req, ret, fun, emit) {
         
         var gcd = this;

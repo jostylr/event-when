@@ -230,59 +230,106 @@ infinite loop.
 
 ---
 <a name="when"></a>
-### when(arr/str events, str ev, str timing, bool reset, bool immutable, bool initialOrdering ) --> tracker 
+### when(arr/str events, str ev ) --> tracker 
 
 This is how to do some action after several different events have all
-fired. Firing order is irrelevant.
+fired. Firing order is irrelevant. The order is determined by how it was
+added. 
 
 __arguments__
 
 * `events` A string or an array of strings. These represent the events
-  that need to be fired before emitting the event `ev`. The array
-  could also contain a numbered event which is of the form `[event, # of
-  times]`. This will countdown the number of times the event fires
-  before considering it done. 
+  that need to be fired before emitting the event `ev`. 
 * `ev` This is the event that gets emitted after all the events have
   taken place. It should be an event string.
-* `timing` Emits `ev` based on the timing provided, as in `.emit`.
-* `reset` Setting this to true will cause this setup to be setup again
-  once fired. The original events array is saved and restored. Default
-  is false. This can also be changed after initialization by setting
-  tracker.reset. 
-* `immutable` Set the fifth argument to true in order to prevent this
-  .when being merged in with other .whens who have the same emitting
-  event. The default behavior is to combine .whens when they all emit the
-  same event; the timing and reset are defaulted to the first .when though
-  that can be modified with a return value. Note that immutables are still
-  mutable by direct action on the tracker. 
-* `initialOrdering` If true, the .when data will be returned in the order
-  of originally adding the events, rather than the default of the emit
-  order. To change this gloablly, change `emitter.initialOrdering = true`.
-  Also, when true, events that are emitted with no data do fill up a slot,
-  with data being null. 
 
 __return__
 
 Tracker object. This is what one can use to manipulate the sequence of
 events. See [Tracker type](#tracker)
 
+The tracker is listed under the scope of the event to emit. 
+
+__string arguments__
+
+The events and the event to emit both have a mini-dsl that one can use to
+modify the output. For both, the dsl is initiated with a `!`. The last
+exclamation point is the one to be used. If you want a `!` in the string other
+than that, you can end the string with a period and nothing after it to
+avoid accidental invocations. 
+
+The syntax is basically as follows: `!timing Pipes Mode` Spacing is
+optional.
+
+For incoming messages, the timing refers to how  many times to listen for
+the event before allowing the when to be emitted. It can have a second
+number which says how many more times it will listen and record the data,
+but it will not stop the emitting. The timing should be either an integer
+or the string `oo` representing infinity. A leading infinity does not make
+sense as the .when would never be emitted. So if there is a single `oo`,
+then it is assumed to be a non-blocking event. One can have `0` as the
+leading time which means no blocking as well. The default is euivalent to
+`1 0` and  `oo` is equivalent to `0oo`.  Spaces are optional between a
+number and `oo`. 
+
+The pipes should be of the form `=>pipename` and basically feeds the data
+into a data cleaning/formatting function, registered in the `.pipes`
+command. These should ideally be simple, functional units. The signature
+of the pipe is `(incoming, existing value) --> value`. The value is used
+based on the default last character, which is to simply replace it. 
+
+The mode is a single character. For incoming events, these should be: 
+
+* `=`. This replaces whatever existing value for the event there is with
+  the incoming. 
+* `-`. Do not record the event at all. Just a silent listener.
+* `,`. The value will be an array and each emission adds another element
+  to the array.
+* `+`. This adds the value with the existing value and uses that to
+  replace. A shortcut from a pipe that could do the same. 
+* `*`. This multiples the incoming and existing. 
+
+For the toEmit event, there is only a single number which is relevant. The
+number indicates how many times to reset the `.when`.  `oo` will mean the
+`.when` always resets. 
+
+The pipe portion of the syntax is an opportunity to work on the data
+before emitting. 
+
+The last character has the following implications: 
+
+* `,` This issues the event as an array of the event values. They are
+  arranged in the order that the events were added to the `.when`, not as
+  emitted. This is the default. 
+* `&` This returns a Map of `[event, data]`. It will have the order of
+  being added to `.when`. This will have the event listed in the fashion
+  it was listed. That is, if there is no scope for the `.when` but was
+  emitted with one, it is ignored by default though the pipe could do
+  something with it as part of the data.
+* `=`, This is the same as the `,` except that if there is only one value,
+  then it returns that value instead of an array.
+* `@`  This is similar to the one returning a Map, but it returns an array
+  instead. 
+* `^` This will return an array of `[event, data]`, similar to `\`, but it
+  does so in the order of emitting. This will report the same event being
+  fired multiple times (if being listened for that) interspersed. The
+  value given to the event's pipe is always null. This does include the
+  full event (with scope). 
+
+
+__scope__
+
+
+If an incoming event is listed with `:` at the end (before the last `!` if
+present), then it will have a scope added to it. If the third argument of
+`.when` is present, then that becomes the scope. If not present, then the
+scope is that of the event to be emitted's scope, if that is present.  If
+neither is present, then there is no scope. 
+
 __note__
 
 If an event fires more times than is counted and later the when is
 reset, those extra times do not get counted. 
-
-Also to get the tracker (assuming not immutable), then pass in empty array
-and the event of interest.
-
-There is a convenience method called `flatWhen`. This flattens the
-emitted data. If the data had a single element in the array (just one
-event fired with data A), then it emits A not an array containing A. If
-there are multiple events with `[ev1, A], [ev2, B], ...` then it emits
-`[A, B, ...]`.
-
-There is another convenience method called `flatArrWhen`. This flattens the
-emitted data but always returns an array, e.g., `[A]` or `[A, B, ...]`,
-respectively in the above situation. 
 
 __example__
 
@@ -306,7 +353,7 @@ __example__
     emitter.emit("something more");
 
 emitter will automatically emit "data gathered" after third emit with
-data `[ ["db returned", dbobj], ["file read", fileobj, "file read:some"]]`
+data `[ fileobj, dbobj, null ]`
 
 Notice that if the event is a parent event of what was emitted, then the
 full event name is placed in the third slot. 
@@ -891,6 +938,50 @@ Nothing.
 __example__
 
     handler.removal("whened", emitter); 
+---
+
+<a name="off"></a>
+### off(str/array/fun/reg events, str action, bool nowhen) --> emitter
+
+This removes handlers.
+
+__arguments__
+
+This function behavior changes based on the number of arguments
+
+* No arguments. This removes all handlers from all events. A complete
+  reset.
+* `events`. This is the event string to remove the handlers from. If
+  nothing else is provided, all handlers for that event are removed. This
+  could also be an array of event strings in which case it is applied to
+  each one. Or it could be an Array.filter function or a RegExp that
+  should match the strings whose events should have their handlers
+  trimmed. Or it could be null, in which case all events are searched for
+  the removal of the given handler. 
+* `action`. This should be an action string that identifies what to
+  remove. 
+
+    If action is a boolean, then it is assumed to be `nowhen` for the whole
+    event removal. If it is null, then it is assumed all handlers of the
+    events should be removed. 
+
+* `nowhen` If true, then it does not remove the handler associated with
+  the tracker handler. 
+
+__return__
+
+Emitter for chaining. 
+
+__example__
+
+    // removes action `empty trash` from "full:bob"
+    emitter.off("full trash:bob", "empty trash");
+    // removes all handlers to all events with :bob as last 
+    emitter.off(/\:bob$/);
+    // removes all listed events that have action "whatever"
+    emitter.off(["first", "second"], "whatever");
+    // function filter
+    emitter.off(function (ev) { return (ev === "what");}, "action now");
 
 ---
 ### Tracker
@@ -933,16 +1024,16 @@ Add events to tracking list.
 
 __arguments__
 
-This is the same form as the `events` option of `.when`. It can be a
-string or an array of [strings / array of [string, number] ]. A string is
+This is the same form as the `events` option of `.when`. It should be an
+array, namely `[event, event, ...]` where `event` is either a
+string or an array of the form `[event, n, pipe, initial]`. A string is
 interpreted as an event to be tracked; a number indicates how many times
-(additional times) to wait for.
-
-You can use this to add a number of wait times to an existing event.
+to wait for. A pipe is a function that can act on the incoming data and an
+initial value allows the pipe to act as a reduce. 
 
 __example__
 
-    t.add("neat");
+    t.add(["neat]");
     t.add(["neat", "some"]);
     t.add([["some", 4]]);
 
