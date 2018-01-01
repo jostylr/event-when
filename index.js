@@ -231,10 +231,8 @@
         tracker.action = action;
         tracker.originals = events.slice(0);
         tracker.handlers = new Map();
-        tracker.pipes = new Map();
-        tracker.values = new Map();
+        tracker.events = new Map();
         tracker.emits = [];
-        tracker.silents = new Set(options.silents);
         
         tracker.reset = options.reset || false;
         
@@ -325,7 +323,9 @@
         if (handlers.size !== 0) {
             return; //not ready yet
         }
-        
+       
+        const outData = tracker.preparer.get(toEmit)
+    
         emitter.emit(toEmit, perparer(values));
     
         return;
@@ -367,15 +367,8 @@
         tracker.go();
         return tracker;
     };
-    Tracker.prototype.silence = function () {
-        var tracker = this;
-        if (arguments.length === 0) {
-            tracker.silent.push(tracker.latest);
-        } else {
-            Array.prototype.push.apply(tracker.silent, arguments); 
-        }
-        return tracker;
-    };
+    // replace with an array if one wants a full raw record
+    Tracker.prototype.emits = {'push' : function () {} }; 
 
     var EvW = function () {
     
@@ -834,7 +827,7 @@
                 events, ev);
             return emitter;
         } else {
-            if (!events.all( a => typeof a === 'string') ) {
+            if (!events.every( a => typeof a === 'string') ) {
                 emitter.error('events in array must be strings', events, ev);
                 return emitter;
             }
@@ -850,7 +843,7 @@
             events, ev, scope);
     
         let evOpt;
-        [ev, evOpt] = emitter.endStringParse(ev);
+        [ev, evOpt] = emitter.endStringParser(ev);
     
         let action = '_process event for when:'+ ev;
         let tracker = emitter.scope(ev);
@@ -866,14 +859,25 @@
     };
     EvW.prototype.whenHandler = function (data, scope, context) {
         const handler = this;
-        const tracker = context;
-        const {handlers, ev:event, values, pipes} = tracker;
+        const tracker = handler.tracker;
+        const {handlers, events, emitter} = tracker;
+        const pipes = emitter.pipes;
+        const event = handler.event;
+        const obj = events.get(event);
+        const piping = obj.piping;
     
-        const pipe = tracker.pipes.get(ev);
-        values.set(ev, pipe.call(handler,
-            h.values.get(ev), 
-            data, scope, tracker));
-        
+        tracker.emits.push(event, data, scope, context);
+    
+        let val = data;
+        if (piping) {
+             val = piping.reduce(function (val, pipe) {
+                return (pipeMap.get(pipe) || identity).
+                    call(handler, val, scope, context);
+            }, val);
+        }
+    
+        obj.final(val, handler, scope, context);
+    
         if (handler.count === 0) {
             handlers.delete(handler.event);
             tracker.go();
@@ -916,38 +920,36 @@
     
     };
     EvW.prototype.lastCharListen = { 
-        '=' : function replace (incoming, ev, values) {
-            values.set(ev, incoming);
+        '=' : function replace (incoming) {
+            this.value = incoming;
             return;
         },
-        '-' : function silence (invoming, ev, values) {return;},
-        ',' : function push (incoming, ev, values) {
-            let value = values.get(ev);
+        '-' : function silence () {return;},
+        ',' : function push (incoming) {
+            let value = this.value;
             if (Array.isArray(value)) {
                 value.push(incoming);
             } else {
-                values.set(ev, [incoming]);
+                this.value = [incoming];
             }
             return;
         }, 
-        '+' : function add (incoming, ev, values) {
-            let value = values.get(ev);
+        '+' : function add (incoming) {
+            let value = this.value;
             if (typeof value === 'undefined') {
-                value = incoming;
+                this.value = incoming;
             } else {
-                value = value + incoming;
+                this.value += incoming;
             }
-            values.set(ev, value);
             return;
         }, 
-        '*' : function multiply (incoming, ev, values) {
-            let value = values.get(ev);
+        '*' : function multiply (incoming) {
+            let value = this.value;
             if (typeof value === 'undefined') {
-                value = incoming;
+                this.value = incoming;
             } else {
-                value = value * incoming;
+                this.value *= incoming;
             }
-            values.set(ev, value);
             return;
         },
     };

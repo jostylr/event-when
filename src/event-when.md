@@ -1316,15 +1316,16 @@ created that attaches to all the listed events and takes care of figuring
 when they have all been called. 
 
 When all the events have fired, then the given event emits with a data
-object that is an array  of all the fired event's data, specifically the
-array elements are arrays of the form `[event name, data]`. 
+object that may be a variety of things, but the default is an array  of 
+all the fired event's data. 
 
 The return is the tracker. It stops the chaining of the emitter, but the
 tracker can be very useful to have. 
 
-
-The function must provide the events to listen for and the event to emit. The
-rest is optional. 
+The tracker is responsible for tracking when to fire. It contains a list of
+the events, the data emitted, and other stuff related to processing and
+emitting that data when the time comes. After creating (or retrieving) the
+tracker, we then add the events to it.  
 
 
     function (events, ev, scope) {
@@ -1339,7 +1340,7 @@ rest is optional.
             events, ev, scope);
 
         let evOpt;
-        [ev, evOpt] = emitter.endStringParse(ev);
+        [ev, evOpt] = emitter.endStringParser(ev);
 
         let action = '_process event for when:'+ ev;
         let tracker = emitter.scope(ev);
@@ -1368,7 +1369,7 @@ object.
             events, ev);
         return emitter;
     } else {
-        if (!events.all( a => typeof a === 'string') ) {
+        if (!events.every( a => typeof a === 'string') ) {
             emitter.error('events in array must be strings', events, ev);
             return emitter;
         }
@@ -1462,7 +1463,7 @@ end of the colon and preserving it all.
     The mode is a single character. For incoming events, these should be: 
 
     * `=`. This replaces whatever existing value for the event there is with
-      the incoming. 
+      the incoming.  Default.
     * `-`. Do not record the event at all. Just a silent listener.
     * `,`. The value will be an array and each emission adds another element
       to the array.
@@ -1481,7 +1482,7 @@ end of the colon and preserving it all.
 
     * `,` This issues the event as an array of the event values. They are
       arranged in the order that the events were added to the `.when`, not as
-      emitted. This is the default. 
+      emitted. Default. 
     * `&` This returns a Map of `[event, data]`. It will have the order of
       being added to `.when`. This will have the event listed in the fashion
       it was listed. That is, if there is no scope for the `.when` but was
@@ -1491,7 +1492,7 @@ end of the colon and preserving it all.
       then it returns that value instead of an array.
     * `@`  This is similar to the one returning a Map, but it returns an array
       instead. 
-    * `^` This will return an array of `[event, data]`, similar to `\`, but it
+    * `^` This will return an array of `[event, data]`, similar to `@`, but it
       does so in the order of emitting. This will report the same event being
       fired multiple times (if being listened for that) interspersed. The
       value given to the event's pipe is always null. This does include the
@@ -1553,14 +1554,19 @@ The context holds all the long term data that when needs.
 
     function (data, scope, context) {
         const handler = this;
-        const tracker = context;
-        const {handlers, ev:event, values, pipes} = tracker;
+        const tracker = handler.tracker;
+        const {handlers, events, emitter} = tracker;
+        const pipes = emitter.pipes;
+        const event = handler.event;
+        const obj = events.get(event);
+        const piping = obj.piping;
 
-        const pipe = tracker.pipes.get(ev);
-        values.set(ev, pipe.call(handler,
-            h.values.get(ev), 
-            data, scope, tracker));
-        
+        tracker.emits.push(event, data, scope, context);
+
+        _":run pipes"
+
+        _":do final prep"
+
         if (handler.count === 0) {
             handlers.delete(handler.event);
             tracker.go();
@@ -1568,17 +1574,43 @@ The context holds all the long term data that when needs.
 
     }
 
+
+[run pipes]()
+
+Each pipe acts on the previous value, starting with data. It can also access
+scope and context. The `this` is the handler. One can get values from the
+context (Tracker) and get the event from the handler, if needed. The ideal is
+that they are not needed.
+
+    let val = data;
+    if (piping) {
+         val = piping.reduce(function (val, pipe) {
+            return (pipeMap.get(pipe) || identity).
+                call(handler, val, scope, context);
+        }, val);
+    }
+
+
+[do final prep]() 
+
+This takes the data converted val and then does something appropriate with it,
+depending on the last character. Handler, scope, context are not used in
+these, but it could be useful in a more generalized setup. 
+
+    obj.final(val, handler, scope, context);
+
+
 ### Last Character Meanings for listening
 
 This defines an object which takes in a last character from the end string
 parser and returns a suitable function. 
 
     { 
-        '=' : function replace (incoming, ev, values) {
-            values.set(ev, incoming);
+        '=' : function replace (incoming) {
+            this.value = incoming;
             return;
         },
-        '-' : function silence (invoming, ev, values) {return;},
+        '-' : function silence () {return;},
         ',' : _":push", 
         '+' : _":operator", 
         '*' : _":operator | sub +, *, add, multiply",
@@ -1587,12 +1619,12 @@ parser and returns a suitable function.
 [push]() 
 
 
-    function push (incoming, ev, values) {
-        let value = values.get(ev);
+    function push (incoming) {
+        let value = this.value;
         if (Array.isArray(value)) {
             value.push(incoming);
         } else {
-            values.set(ev, [incoming]);
+            this.value = [incoming];
         }
         return;
     }
@@ -1602,14 +1634,13 @@ parser and returns a suitable function.
 
 This allows for some default addition to happen. This replaces the values. 
 
-    function add (incoming, ev, values) {
-        let value = values.get(ev);
+    function add (incoming) {
+        let value = this.value;
         if (typeof value === 'undefined') {
-            value = incoming;
+            this.value = incoming;
         } else {
-            value = value + incoming;
+            this.value += incoming;
         }
-        values.set(ev, value);
         return;
     }
 
@@ -1666,23 +1697,35 @@ To get the event keys being listened to that will report data, get the keys
 from the map of values. For the remaining handlers, get the keys from
 handlers. 
 
-    function (options, emitter, action, events, ev) {
+    function (options, emitter, action, ev) {
         let tracker = this;
     
         tracker.emitter = emitter;
         tracker.toEmit = ev;
         tracker.action = action;
-        tracker.originals = events.slice(0);
+        tracker.originals = [];
         tracker.handlers = new Map();
-        tracker.pipes = new Map();
-        tracker.values = new Map();
+        tracker.events = new Map();
         tracker.emits = [];
-        tracker.silents = new Set(options.silents);
         
-        tracker.reset = options.reset || false;
-        
+        _":options"
+
         return this;
     }
+
+[options]()
+
+This is where we deal with the toEmit options. We have a reset option (num),
+pipes, and the final emitting to be done. 
+
+    const {num, piping, last} = options; 
+
+    tracker.reinitialize = num || 0;
+    tracker.piping = piping;
+
+    tracker.
+
+
 
 
 [prototype]()
@@ -1696,7 +1739,8 @@ The various prototype methods for the tracker object.
     Tracker.prototype.go = _"go";
     Tracker.prototype.cancel = _"cancel";
     Tracker.prototype.reinitialize = _"reinitialize";
-    Tracker.prototype.silence = _"silence";
+    // replace with an array if one wants a full raw record
+    Tracker.prototype.emits = {'push' : function () {} }; 
 
 [doc]()
 
@@ -1755,11 +1799,6 @@ The various prototype methods for the tracker object.
     #### reinitialize()
 
     _"reinitialize:doc"
-
-    <a name="tracker-silence" />
-    #### silence()
-
-    _"silence:doc"
 
 [example]()
 
@@ -1961,13 +2000,21 @@ If reset is true, then we add those events before firing off the next round.
 
     function () {
         const tracker = this;
-        const {handlers, values, emitter, toEmit, preparer} = tracker;
+        const {handlers, values, emitter, toEmit} = tracker;
+
+        // check for events that are waiting? compare events to handlers
 
         if (handlers.size !== 0) {
             return; //not ready yet
         }
-        
-        emitter.emit(toEmit, perparer(values));
+
+        const outData = tracker.preparer();
+
+        if (tracker.countdown) {
+            tracker.reinitialize(tracker.countdown-1);
+        }
+
+        emitter.emit(toEmit, outData);
 
         return;
     }
@@ -2095,43 +2142,24 @@ We restore tracker.go if it has been silenced.
     replaced with the original events array. All data is wiped. No arguments.  
     
 
-#### Silence
-
-This sets up events to be not emitted. Each argument is an event to ignore. If
-no arguments, then it ignores the most recent event.
-
-    function () {
-        var tracker = this;
-        if (arguments.length === 0) {
-            tracker.silent.push(tracker.latest);
-        } else {
-            Array.prototype.push.apply(tracker.silent, arguments); 
-        }
-        return tracker;
-    }
-
-[doc]() 
-
-    This silences the passed in events or the last one added. In other words,
-    it will not appear in the list of events. If an event is applied multiple
-    times and silenced, it will be silent for the  
-
 ## End String Parser
 
 This is a function to call for checking the end of an event string (during on
 or when calls) for various pieces of information. It returns the stripped
 string along with an options object. 
 
-The basic string syntax is 
-
+The keys to the options object are num, num2 (if a second number), piping
+(always present), and last (always present). The num is not always present. 
 
     function (str) {
 
         let ind = str.lastIndexOf("!");
         if ( ind === -1) {
-            return [str, null];
+            return [str, {}];
         }
-        let options = {}, m;
+        const options = {}; 
+        const shortString = str.slice(0, ind);
+        let m;
         ind += 1;
         _":get leading numbers"
 
@@ -2140,7 +2168,7 @@ The basic string syntax is
         _":get last char"
         
         
-        return [str.slice(0, ind), options];
+        return [shortString, options];
     
 
     }
@@ -2177,7 +2205,7 @@ returned as an array to execute through.
 
     let pipeReg = /\s*\=\>\s*([a-zA-Z]+)\s*/g;
     pipeReg.lastIndex = ind;
-    options.pipes = [];
+    options.piping = [];
     while ( (m = pipeReg.exec(str) ) ) {
         options.pipes.push(m[1]);
     }
